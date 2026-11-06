@@ -44,6 +44,8 @@ test('emails are read only from the firm’s own site and domain, never guessed'
   const r = await siteContacts('https://www.acme.com/', ['Jane Roe'], { fetcher: async u => pages[u] || null });
   assert.equal(r.emails[0].email, 'jane@acme.com'); assert.equal(r.emails[0].name, 'Jane Roe'); assert.equal(r.emails[0].url, 'https://acme.com/contact-us');
   assert.equal(r.phones[0].phone, '+1 (410) 555-0100');
+  assert.equal(r.contactPage, 'https://acme.com/contact-us');
+  assert.deepEqual((await siteContacts('acme.com', [], { fetcher: async u => u === 'https://acme.com' ? 'orders@acme.com info@acme.com' : null })).emails.map(x => x.email), ['info@acme.com', 'orders@acme.com']);
 });
 
 test('focus = ecommerce consulting and retail placement firms, not recruiters who serve retail', () => {

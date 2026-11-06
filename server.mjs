@@ -12,7 +12,7 @@ import { buildWorkbook } from './lib/excel.mjs';
 import { initStore, saveSearch, loadSearch, listSearches, archiveSearch } from './lib/search/store.mjs';
 import * as OUT from './lib/outreach/outreach.mjs';
 import * as GMAIL from './lib/outreach/gmail.mjs';
-import { runSearch } from './lib/search/pipeline.mjs';
+import { runSearch, checkMore } from './lib/search/pipeline.mjs';
 import { initMemory, ingest, decide as memDecide, known, network, stats as memStats, keyOf, setStage, dealOf, pipeline, prune, DEAL_STAGES } from './lib/search/memory.mjs';
 import { initContacts, importContacts, contactStats, clearContacts, warm } from './lib/search/contacts.mjs';
 import { loadEnv, sources } from './lib/search/sources.mjs';
@@ -771,6 +771,16 @@ const server = http.createServer(async (req, res) => {
           SIG[b.id] = true;
           addSignals(s2, { cwd: path.join(ROOTWS, 'searches'), model: MODELS.extraction, log: t => { s2.log.push({ t: s2.runtime || 0, text: t }); } }).then(() => saveSearch(s2)).catch(() => {}).finally(() => { delete SIG[b.id]; });
           return send(res, 200, { ok: true });
+        }
+        case 'search/more': {
+          // the next unchecked results of a finished search get the full in-depth check, data signals and site emails
+          if (SRUN[b.id]) return send(res, 409, { error: 'This search is still running.' });
+          if (Object.keys(SRUN).length >= 2) return send(res, 409, { error: 'Two searches are already running. Try again when one finishes.' });
+          const s2 = loadSearch(b.id); if (!s2) return send(res, 404, { error: 'Search not found.' });
+          const left = (s2.entities || []).filter(e => !e.scored).length; if (!left) return send(res, 400, { error: 'Every result in this search is already checked.' });
+          SRUN[s2.id] = s2;
+          checkMore(s2, { n: +b.n || 12, cwd: path.join(ROOTWS, 'searches'), model: MODELS.extraction }).then(() => ingest(s2)).catch(e => { s2.status = 'done'; s2.stage = 'done'; (s2.log ||= []).push({ t: 0, text: 'Check more stopped: ' + e.message }); saveSearch(s2); }).finally(() => { delete SRUN[s2.id]; });
+          return send(res, 200, { ok: true, checking: Math.min(left, +b.n || 12), left });
         }
         case 'search/intent-scan': {
           if (INTENT) return send(res, 409, { error: 'Already reading every firm’s site and headlines.' });

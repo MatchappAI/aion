@@ -154,7 +154,7 @@ async function drawItem() {
           ${sendable ? `<button id="osend" ${pf?.ok ? '' : 'disabled'} data-testid="out-send">Send…</button><button class="ghost" id="ogdraft" ${pf?.problems?.some(p => /connect|address|recipient/i.test(p)) ? 'disabled' : ''}>Save to Gmail Drafts</button>` : ''}
           ${O.kind === 'answer' ? `<button id="oansend" data-testid="out-answer-send">Send reply…</button>` : ''}
           ${O.kind === 'letter' ? `<a class="btnlink" href="/api/outreach/pdf?id=${encodeURIComponent(it.id)}&kind=letter" data-testid="out-letter-pdf">Download letter PDF</a>` : ''}
-          ${manual ? `<button class="ghost" id="ocopy">Copy</button><button id="omark" data-testid="out-mark">${O.kind === 'letter' ? 'Mark letter mailed' : O.kind === 'call' ? 'Mark called' : 'Mark form sent'}</button>` : ''}
+          ${O.kind === 'form' && it.contacts.other.find(c => c.kind === 'contact_page') ? `<a class="btnlink" href="${safeUrl(it.contacts.other.find(c => c.kind === 'contact_page').value)}" target="_blank" rel="noreferrer" data-testid="out-formlink">Open their contact form</a>` : ''}${manual ? `<button class="ghost" id="ocopy">Copy</button><button id="omark" data-testid="out-mark">${O.kind === 'letter' ? 'Mark letter mailed' : O.kind === 'call' ? 'Mark called' : 'Mark form sent'}</button>` : ''}
         </div>
         ${sendable && pf && !pf.ok ? `<ul class="oprob" data-testid="out-problems">${pf.problems.map(p => `<li>${esc(p)}</li>`).join('')}</ul>` : ''}` : '<p class="empty">No draft for this.</p>'}
       </section>

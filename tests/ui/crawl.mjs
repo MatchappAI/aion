@@ -13,7 +13,7 @@ const sleep = ms => new Promise(r => setTimeout(r, ms));
 let ws; for (let i = 0; i < 40 && !ws; i++) { try { const pg = (await (await fetch('http://127.0.0.1:' + (process.env.CDP_PORT || 9353) + '/json')).json()).find(x => x.type === 'page' && x.url === 'about:blank'); if (pg) ws = new WebSocket(pg.webSocketDebuggerUrl); } catch {} await sleep(250); }
 if (ws.readyState !== 1) await new Promise(r => ws.onopen = r);
 let id = 0; const pend = {}; let errs = [], posts = [], dialogs = [];
-const BLOCK = /\/api\/(ai\/|search\/start|search\/signals|search\/watchrun|engine\/test|radar\/scan|app\/restart|reset|search\/archive|upload|extra|checkin|search\/contacts|deals\/new|buybox|docs\/proposal|docs\/writeup|engine\/key)/;
+const BLOCK = /\/api\/(ai\/|search\/start|search\/signals|search\/watchrun|engine\/test|radar\/scan|app\/restart|reset|search\/archive|upload|extra|checkin|search\/contacts|search\/more|deals\/new|buybox|docs\/proposal|docs\/writeup|engine\/key)/;
 const send = (method, params = {}) => new Promise(r => { const i = ++id; pend[i] = r; ws.send(JSON.stringify({ id: i, method, params })); });
 ws.onmessage = async m => {
   const d = JSON.parse(m.data);
