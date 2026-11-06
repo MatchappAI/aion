@@ -1,0 +1,69 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><title>AION summary</title>
+<style>
+@page{size:Letter;margin:0.5in}
+body{font-family:-apple-system,"Helvetica Neue",Arial,sans-serif;color:#292823;font-size:10.5px;margin:0}
+.top{display:flex;justify-content:space-between;align-items:center;border-bottom:1.5px solid #292823;padding-bottom:6px;margin-bottom:10px}
+.top img{height:20px}.top span{color:#6B675E;font-size:9.5px}
+.hero{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:6px}
+.hero div{border:1px solid #E4DFD4;border-radius:6px;padding:8px 10px}.hero div.hi{border-color:#2F5D50;background:#E8EFEA}
+.hero small{display:block;color:#6B675E;text-transform:uppercase;letter-spacing:.05em;font-size:8.5px}
+.hero b{display:block;font-size:20px;font-family:"SF Mono",Menlo,monospace;font-weight:500}
+.hero span{color:#6B675E;font-size:9px}
+h2{font-size:9.5px;text-transform:uppercase;letter-spacing:.07em;color:#6B675E;margin:12px 0 4px}
+table{width:100%;border-collapse:collapse}td,th{padding:3px 4px;border-bottom:1px solid #E4DFD4;text-align:left;vertical-align:top}
+th{font-size:8.5px;color:#6B675E;text-transform:uppercase}.n{text-align:right;font-family:"SF Mono",Menlo,monospace;white-space:nowrap}
+.cols{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+.note{color:#6B675E;font-size:8.5px;margin-top:10px}
+</style></head><body><div id="r">Loading…</div>
+<script>
+const k=v=>v==null?'—':(v<0?'−':'')+'$'+(Math.abs(v)>=1e6?(Math.abs(v)/1e6).toFixed(2)+'M':Math.round(Math.abs(v)/1e3)+'K');
+const pc=v=>v==null?'—':Math.round(v*100)+'%';
+const e=s=>String(s??'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+fetch('/api/state').then(r=>r.json()).then(V=>{const S=V.state,d=V.derived;if(!d.levers){document.getElementById('r').textContent='No completed analysis.';return}
+const n=d.normalization,L=d.levers,q=d.quality,t=d.pnl.TTM,D=d.deal;
+const flags=[...(S.flags||[])].sort((a,b)=>({high:0,medium:1,low:2}[a.severity]??3)-({high:0,medium:1,low:2}[b.severity]??3)).slice(0,5);
+const lv=l=>({pricing:L.nonAI.pricing,writeoffs:L.nonAI.writeoffs,vendors:L.nonAI.vendors})[l.model_lever];
+const wf=l=>L.workflows.find(w=>w.key===l.workflow_key);
+const aiAdds=L.ai-L.six.costs.software-L.six.costs.ongoing;
+const P=V.profile||{},cu=P.customers||'customers',cu1=cu==='clients'?'client':'customer',cap=x=>x.charAt(0).toUpperCase()+x.slice(1);
+const veh=D?((V.vehicles||{})[D.vehicle]||{}):{};
+// improvements: one list, biggest first, matching the screen
+const rows=[];
+if(L.nonAI.pricing>0)rows.push([`Raise prices ${+(S.assumptions.pricing_uplift*100).toFixed(1)}% on new work`,'Compare prices with the standard price list; set a rule for discounts',L.nonAI.pricing]);
+if(L.nonAI.writeoffs>0)rows.push(['Bill on time and chase late invoices','Send every bill the day the work is done; reminders at 15 and 30 days',L.nonAI.writeoffs]);
+if(L.nonAI.vendors>0)rows.push(['Cut supplier and tool costs','Get competing quotes for the biggest three; cancel overlaps',L.nonAI.vendors]);
+if(!L.aiSkipped&&L.ai>0)rows.push(['Use AI for routine paperwork','AI drafts; people check and send',L.ai-L.six.costs.software-L.six.costs.ongoing]);
+for(const x of d.extraLevers||[])rows.push(x.id==='discounts'?[`Bring ${x.basis.count} ${cu} up to normal prices`,'Review each discounted account; move to normal prices at renewal',x.value]:['Cut overtime with better scheduling','Plan the week ahead; approve overtime in advance',x.value]);
+for(const x of d.industryLevers||[])if(x.value>0)rows.push([x.title,(x.steps||[])[0]||x.basis||'',x.value]);
+rows.sort((a,b)=>b[2]-a[2]);
+const adj=[n.ownerActual?`+${k(n.ownerActual)} owner pay`:'',n.addbacks?`+${k(n.addbacks)} one-off costs`:'',n.replacement?`−${k(n.replacement)} to hire a manager`:''].filter(Boolean).join(', ');
+const pct=v=>Math.round(v*100)+'%';
+document.getElementById('r').innerHTML=`<div class="top"><div><img src="/assets/aion-logo-clear.png"><div style="font-size:8px;color:#9C978C;letter-spacing:.05em">Proprietary · Made by Mohil Gupta</div><div style="font-size:9.5px;color:#6B675E;margin-top:2px">PE value creation: EBITDA improvement. What this company really earns, how to grow it, and whether the price makes sense, from its own records.</div></div><span>${e(cap(P.name||'business'))} · ${e(S.file.name)} · ${new Date(S.planAt).toLocaleDateString()} · Confidential</span></div>
+<div class="hero"><div><small>${S.file.kind==='pdf'?'Reported profit':'What the seller says'}</small><b>${k(n.reported)}</b><span>${S.file.kind==='pdf'?'from the published statements':'profit a year, from their books'}</span></div>
+<div><small>Real profit</small><b>${k(n.normalized)}</b><span>${e(adj||'what a new owner can count on')}</span></div>
+<div class="hi"><small>Could grow to</small><b>${k(d.proForma)}</b><span>+${k(L.runRate)} a year if the changes below work</span></div></div>
+${(()=>{const c=[],net=(S.accounts||[]).reduce((x,a)=>x+a.total,0),ex=S.extra||{},near=(a,b)=>b&&Math.abs(a/b-1)<0.03,w=['comp_producers','comp_admin','comp_owner'].reduce((x,q)=>x+(t.byCat?.[q]||0),0);
+if(S.file?.kind==='gl')c.push(Math.abs(net)<1?'✓ Books balance to the cent':'⚠ Books don’t balance');
+if((S.addbacks||[]).length)c.push('✓ Every one-off cost tied to real payments');
+if(ex.sales?.analysis)c.push(near(ex.sales.analysis.total,t.revenue)?'✓ Sales file matches the books':'⚠ Sales file doesn’t match the books');
+if(ex.payroll?.analysis)c.push(near(ex.payroll.analysis.total,w)?'✓ Payroll matches the books':'⚠ Payroll doesn’t match the books');
+if(ex.payroll?.analysis?.market?.length)c.push('✓ Pay compared to US government data');
+if(d.rates)c.push(`✓ Loan rate ${(D.rate*100).toFixed(2)}% from today’s prime rate (Federal Reserve)`);
+const pr=d.peer,mine=t.revenue?n.normalized/t.revenue:0;if(pr)c.push(`${mine>pr.ebitda*1.5?'⚠':'✓'} Profit ${pc(mine)} of sales vs ${pc(pr.ebitda)} for large US companies in ${e(pr.industry)} (NYU Stern)`);
+c.push('✓ AI sorts and flags; software does all the math');
+return `<div style="font-size:9px;color:#2F5D50;margin:0 0 6px">${c.join(' &nbsp;·&nbsp; ')}</div>`})()}
+<div>Sales ${k(t.revenue)} a year${q?` · ${q.customersTTM} ${cu} · the biggest is ${pc(q.top1)} of sales`:''}${d.dso!=null?` · ${cu} pay in about ${Math.round(d.dso)} days`:''}</div>
+<h2>How to grow profit, biggest first</h2><table><tr><th>Change</th><th>First steps</th><th class="n">Profit a year</th></tr>${rows.map(r=>`<tr><td><b>${e(r[0])}</b></td><td>${e(r[1])}</td><td class="n">+${k(r[2])}</td></tr>`).join('')}</table>
+<div class="cols"><div><h2>What could go wrong</h2><table>${flags.map(f=>`<tr><td><b>${f.severity==='high'?'Important':'Check'}</b></td><td><b>${e(f.title)}.</b> ${e(String(f.detail).split(/(?<=\.)\s/)[0])}</td></tr>`).join('')}</table></div>
+<div>${!D?`<h2>Is it a good deal for investors?</h2><p>Not priceable yet: real profit is ${k(n.normalized)}, so the business loses money. Fix profit first; see the plan.</p>`:''}${D?`<h2>Is it a good deal for investors?</h2><table>
+<tr><td>Buy it for</td><td class="n">${k(D.price)} (${D.multiple} years of profit)</td></tr>
+<tr><td>Bank loan · paid to the seller later · investors</td><td class="n">${k(D.senior)} · ${k(D.seller)} · ${k(D.equity)}</td></tr>
+<tr><td>Type of owner</td><td class="n">${e(veh.label||'')}, ${e(veh.sub||'')}</td></tr>
+<tr><td colspan="2" style="color:#6B675E">After 5 years, each $1 investors put in becomes (after fees):</td></tr>
+<tr><td>If the changes work</td><td class="n">$${D.base.net.moic.toFixed(2)} · about ${pct(D.base.net.irr||0)} a year</td></tr>
+<tr><td>If nothing changes</td><td class="n">$${D.none.net.moic.toFixed(2)} · about ${pct(D.none.net.irr||0)} a year</td></tr>
+<tr><td>If profit falls 15%</td><td class="n">$${D.downside.net.moic.toFixed(2)} · about ${pct(D.downside.net.irr||0)} a year</td></tr></table>
+`:''}<h2>AI tools</h2><p style="margin:0">${L.aiSkipped?(L.ai>0?`Left out of the plan: they would save about ${k(L.ai)} a year but cost ${k(L.six.costs.software+L.six.costs.ongoing)} to run.`:'Not part of this plan: the time they would save isn’t in the books.'):`Cost ${k(L.six.costs.implementation+L.six.costs.software+L.six.costs.ongoing)} in year one; add ${k(aiAdds)} profit a year after their cost.`}</p></div></div>
+<div class="note">Worked out by software from the company’s own records. “Could grow to” and investor returns rest on stated guesses (prices ${pc(S.assumptions.pricing_uplift)} higher on new work; buy at ${D?D.multiple:S.assumptions.entry_multiple} years of profit; same price when valued in year 5). Not an offer or a valuation.</div>`;});
+</script></body></html>

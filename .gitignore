@@ -1,0 +1,12 @@
+node_modules/
+# your data: searches, owners, outreach, Gmail tokens, deals. Never committed.
+workspace/
+workspace-archive-*/
+archive/
+tests/ui/out/
+tests/ui/server.log
+.env
+*.log
+.DS_Store
+# internal notes
+NOTES.md
