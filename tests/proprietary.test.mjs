@@ -54,7 +54,7 @@ test('focus = ecommerce consulting and retail placement firms, not recruiters wh
 
 test('the owner’s address wins over a general inbox; order, support and careers inboxes are never used', async () => {
   const { bestEmail, contactsFor } = await import('../lib/outreach/outreach.mjs');
-  assert.equal(bestEmail([{ email: 'orders@x.com' }, { email: 'info@x.com' }, { email: 'steven@x.com', name: 'Steven Pope' }]).email, 'steven@x.com');
+  assert.equal(bestEmail([{ email: 'orders@x.com' }, { email: 'info@x.com' }, { email: 'jane@x.com', name: 'Jane Roe' }]).email, 'jane@x.com');
   assert.equal(bestEmail([{ email: 'orders@x.com' }, { email: 'hello@x.com' }]).email, 'hello@x.com');
   assert.equal(bestEmail([{ email: 'orders@x.com' }, { email: 'careers@x.com' }]), null);
   assert.equal(contactsFor({ contactInfo: [{ kind: 'email', value: 'orders@x.com' }, { kind: 'email', value: 'info@x.com' }] }).emails[0].email, 'info@x.com');
