@@ -2,7 +2,7 @@
 // confirmed) → deal stage → follow-up in the same thread → reply detected → opt-out never emailed again.
 import { test } from 'node:test'; import assert from 'node:assert/strict';
 import fs from 'node:fs'; import os from 'node:os'; import path from 'node:path';
-process.env.AION_GMAIL_MOCK = '1'; process.env.AION_SENDERS = 'sender-one@example.com,sender-two@example.com';
+process.env.AION_GMAIL_MOCK = '1'; process.env.AION_OFFLINE = '1'; process.env.AION_SENDERS = 'sender-one@example.com,sender-two@example.com';
 const OUT = await import('../lib/outreach/outreach.mjs');
 const GM = await import('../lib/outreach/gmail.mjs');
 const MEM = await import('../lib/search/memory.mjs');
