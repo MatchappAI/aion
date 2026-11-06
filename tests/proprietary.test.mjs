@@ -45,3 +45,17 @@ test('emails are read only from the firm’s own site and domain, never guessed'
   assert.equal(r.emails[0].email, 'jane@acme.com'); assert.equal(r.emails[0].name, 'Jane Roe'); assert.equal(r.emails[0].url, 'https://acme.com/contact-us');
   assert.equal(r.phones[0].phone, '+1 (410) 555-0100');
 });
+
+test('focus = ecommerce consulting and retail placement firms, not recruiters who serve retail', () => {
+  const sig = [{ key: 'partner_program', text: 'x', url: 'https://f.com', direction: 'for' }];
+  assert.equal(rankOne({ company: 'A', industry: 'Retail broker and integrated commerce agency for CPG brands', timing: { signals: sig } }).focus, true);
+  assert.equal(rankOne({ company: 'B', industry: 'Executive recruiting for retail and consumer brands', timing: { signals: sig } }).focus, false);
+});
+
+test('the owner’s address wins over a general inbox; order, support and careers inboxes are never used', async () => {
+  const { bestEmail, contactsFor } = await import('../lib/outreach/outreach.mjs');
+  assert.equal(bestEmail([{ email: 'orders@x.com' }, { email: 'info@x.com' }, { email: 'steven@x.com', name: 'Steven Pope' }]).email, 'steven@x.com');
+  assert.equal(bestEmail([{ email: 'orders@x.com' }, { email: 'hello@x.com' }]).email, 'hello@x.com');
+  assert.equal(bestEmail([{ email: 'orders@x.com' }, { email: 'careers@x.com' }]), null);
+  assert.equal(contactsFor({ contactInfo: [{ kind: 'email', value: 'orders@x.com' }, { kind: 'email', value: 'info@x.com' }] }).emails[0].email, 'info@x.com');
+});
