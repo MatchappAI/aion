@@ -266,3 +266,26 @@ test('not a template: sentences shared with another firm’s email are caught; t
   assert.deepEqual(hit, ['We would buy most of the firm while you keep running it.']);
   assert.deepEqual(sharedLines('Hi Bo, your Costco roadshows stand out.', [other]), []);
 });
+
+test('owner email: the firm’s format gives a likely address that is never used until you choose it', async () => {
+  assert.equal(OUT.formatOf('Michael Horstmann', 'mhorstmann@acme.test'), '{f}{last}');
+  assert.equal(OUT.applyFormat('{f}{last}', 'Jane Roe', 'acme.test'), 'jroe@acme.test');
+  const e2 = { id: 'e2', company: 'Northfield Brokers', website: 'https://northfield.test', owner: 'Jane Roe', scored: true, score: 70, industry: 'Food broker',
+    contactInfo: [{ person: 'Company', kind: 'email', value: 'info@northfield.test', verified: true, url: 'https://northfield.test' }], contacts: [{ name: 'Jane Roe', title: 'Founder' }] };
+  s.entities.push(e2);
+  const it = await OUT.createDraft({ s, e: e2, model: 'x', cwd: dir, engineFn: fakeAI }); await wait(() => it.phase !== 'writing');
+  // their site shows a teammate's own address, so AION learns the format ({first}.{last}) and applies it to the owner
+  const html = '<a href="/team">Team</a> Sam Lee, account lead: <a href="mailto:sam.lee@northfield.test">sam.lee@northfield.test</a> Write to info@northfield.test';
+  const r = await OUT.findEmail(it.id, { fetcher: async () => html, hunterKey: '' });
+  const likely = r.contacts.emails.find(x => x.likely);
+  assert.equal(likely?.email, 'jane.roe@northfield.test'); assert.match(likely.source, /format/);
+  assert.notEqual(r.to, 'jane.roe@northfield.test'); // only you pick a likely address
+});
+
+test('a bounced likely address is never suggested again; the next format is offered', async () => {
+  const item = OUT.get(JSON.parse(fs.readFileSync(path.join(dir, 'outreach.json'), 'utf8')).items.find(x => x.name === 'Northfield Brokers').id);
+  item.badEmails = ['jane.roe@northfield.test']; item.contacts.emails = item.contacts.emails.filter(x => !x.likely);
+  const r = await OUT.findEmail(item.id, { fetcher: async () => '<p>Write to info@northfield.test</p>', hunterKey: '' });
+  const likely = r.contacts.emails.find(x => x.likely);
+  assert.ok(likely, 'a new likely address'); assert.notEqual(likely.email, 'jane.roe@northfield.test');
+});
