@@ -1,4 +1,5 @@
 import { toast } from './ui.js';
+import { DEAL_STAGES } from '/thesis.mjs';
 const PITCH = { full: 'Full buyout', majority: 'Majority stake', sale: 'Full buyout', both: 'Full buyout', partner: 'Partnership' }; // 'sale' and 'both' are older saved values
 const PITCH_LONG = { full: 'Full buyout: a succession plan on their timeline', majority: 'Majority stake: they keep a share and keep running it', sale: 'Full buyout: a succession plan on their timeline', both: 'Full buyout: a succession plan on their timeline', partner: 'Growth partnership: offered because they asked for a partner' };
 const OFFERS = ['full', 'majority', 'partner'];
@@ -152,7 +153,7 @@ async function drawItem() {
           <div id="ofiles"><button class="ghost sm" id="oloadfiles">Check the thread for files</button></div></li>
         ${docBox('loi', '4. Letter of intent (non-binding)', it.dealId ? 'Written from the price and structure in Value Creation' : 'Opens once their books are in Value Creation', 'Write the LOI from the analysis')}
       </ol>
-      <div class="ostage"><span class="note">Deal stage:</span>${[['met', 'Meeting held'], ['nda', 'NDA signed'], ['books', 'Books received'], ['loi', 'Offer sent'], ['diligence', 'LOI signed · diligence'], ['closed', 'Closed'], ['passed', 'Passed']].map(([k, l]) => `<button class="ghost sm ${it.stage === k ? 'on' : ''}" data-stage="${k}">${l}</button>`).join('')}</div></section>` : ''}
+      <div class="ostage"><span class="note">Deal stage:</span>${DEAL_STAGES.filter(([k]) => k !== 'contacted').map(([k, l]) => `<button class="ghost sm ${it.stage === k ? 'on' : ''}" data-stage="${k}">${l}</button>`).join('')}</div></section>` : ''}
     <div class="ogrid">
       <section class="card">
         <nav class="dtabs">${avail.map(([k, l]) => `<button data-kind="${k}" class="${k === O.kind ? 'on' : ''}">${l}${it.messages.some(m => m.kind === k) ? ' ✓' : ''}</button>`).join('')}</nav>

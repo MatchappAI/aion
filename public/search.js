@@ -1,5 +1,5 @@
 import { toast, busy } from './ui.js';
-import { SUBSECTORS, asksForPartner } from '/thesis.mjs';
+import { SUBSECTORS, asksForPartner, DEAL_STAGES } from '/thesis.mjs';
 // Proprietary Search: find people, clients and firms to buy on one shared search engine.
 const $ = s => document.querySelector(s);
 const esc = v => String(v ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -316,7 +316,7 @@ function facts2(e, s) {
 function failLine(e) { return (e.failed || []).length ? `<p class="failx">Fails a must-have: ${e.failed.map(l => esc(l.split(/[(:]/)[0].trim())).join('; ')}. Score capped at 40%.</p>` : ''; }
 
 // deal pipeline: stages are set by you, never inferred
-const DEAL = [['contacted', 'Contacted'], ['met', 'Meeting held'], ['nda', 'Confidentiality signed (NDA)'], ['books', 'Books received'], ['loi', 'Offer sent (LOI)'], ['diligence', 'LOI signed · diligence'], ['closed', 'Closed'], ['passed', 'Passed']];
+const DEAL = DEAL_STAGES;
 const stageName = k => (DEAL.find(d => d[0] === k) || [k, 'Not contacted'])[1];
 function stageSel(e) { const v = e.deal?.stage || ''; return `<label class="stagesel"><span>Deal stage</span><select data-stage="${e.id}"><option value="">Not contacted</option>${DEAL.map(([k, l]) => `<option value="${k}" ${v === k ? 'selected' : ''}>${l}</option>`).join('')}</select>${v ? ` <span class="note">since ${day(e.deal.history[e.deal.history.length - 1].at)}</span>` : ''}</label>`; }
 function pipelinePanel(PL) {
