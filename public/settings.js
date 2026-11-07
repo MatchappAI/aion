@@ -15,7 +15,7 @@ export function mountSettings(main) { S.main = main; draw(); }
 export const leaveSettings = () => {};
 
 async function draw() {
-  try { S.eng = await api('engine'); } catch (e) { S.main.innerHTML = `<p class="callout err">${esc(e.message)}</p>`; return; }
+  try { [S.eng, S.fd] = await Promise.all([api('engine'), api('finders')]); } catch (e) { S.main.innerHTML = `<p class="callout err">${esc(e.message)}</p>`; return; }
   const E = S.eng, act = E.active, choice = E.settings.engine;
   S.main.innerHTML = `<div class="ps settings">
     <h2 class="h2">AI <span class="h2s">the first ready option is used; if it hits its usage limit, the next one takes over</span></h2>
@@ -27,6 +27,11 @@ async function draw() {
       ${x.kind === 'api' ? `<div class="row"><input type="password" autocomplete="off" spellcheck="false" id="key-${x.id}" placeholder="${x.id === 'anthropic' ? 'sk-ant-…' : 'sk-…'}"><button class="sm" data-key="${x.id}">Save key</button>${x.ready ? `<button class="ghost sm" data-rmkey="${x.id}">Remove</button>` : ''}</div>` : ''}
       <p class="note" id="msg-${x.id}">${esc(S.msg[x.id] || '')}</p></div>`).join('')}</div>
     <p class="note">${choice === 'auto' ? 'Automatic: the first ready option above is used.' : `Pinned to ${esc(E.list.find(x => x.id === choice)?.label || choice)}. <span class="link" id="eng-auto">Go back to automatic</span>`} Keys stay on this computer (workspace/keys.json, readable only by your user) and are sent only to the company that issued them.</p>
+    <h2 class="h2">Finding owners’ emails <span class="h2s">free</span></h2>
+    <div class="eng ${S.fd?.hunter ? 'ready' : ''}"><div class="row"><b>Hunter.io</b>${S.fd?.hunter ? '<span class="pill2 done">Connected</span>' : ''}</div>
+      <p class="note">AION first reads each firm’s own website. When it shows only a shared inbox (info@), Hunter.io finds the owner’s own address. The free plan gives 25 lookups and 50 checks a month, no card: sign up at hunter.io, then copy your key from API in your account.</p>
+      <div class="row"><input type="password" autocomplete="off" spellcheck="false" id="key-hunter" placeholder="Hunter.io API key"><button class="sm" id="save-hunter">Save key</button>${S.fd?.hunter ? '<button class="ghost sm" id="rm-hunter">Remove</button>' : ''}</div>
+      <p class="note" id="msg-hunter">${esc(S.msg.hunter || '')}</p></div>
   </div>`;
   wire();
 }
@@ -44,5 +49,7 @@ function wire() {
     if (!(id === 'anthropic' ? /^sk-ant-/ : /^sk-/).test(v)) return msg(id, `That doesn’t look like ${id === 'anthropic' ? 'an Anthropic key (it starts with sk-ant-)' : 'an OpenAI key (it starts with sk-)'}.`);
     await busy(b, 'Saving…', async () => { try { await api('engine/key', { which: id, key: v }); S.msg[id] = 'Key saved. Press Test to check it.'; draw(); } catch (e) { msg(id, e.message); } });
   });
+  if ($('#save-hunter')) $('#save-hunter').onclick = () => busy($('#save-hunter'), 'Checking…', async () => { const v = $('#key-hunter').value.trim(); if (!v) return msg('hunter', 'Paste your Hunter.io key first.'); try { const r = await api('finders/key', { key: v }); S.msg.hunter = `Key saved and checked${r.left != null ? `: ${r.left} lookups left this month` : ''}.`; draw(); } catch (e) { msg('hunter', e.message); } });
+  if ($('#rm-hunter')) $('#rm-hunter').onclick = async () => { try { await api('finders/key', { key: '' }); S.msg.hunter = 'Key removed.'; draw(); } catch (e) { msg('hunter', e.message); } };
   S.main.querySelectorAll('[data-rmkey]').forEach(b => b.onclick = async () => { if (!confirm('Remove this key from this computer?')) return; try { await api('engine/key', { which: b.dataset.rmkey, key: '' }); S.msg[b.dataset.rmkey] = 'Key removed.'; draw(); } catch (e) { toast(e.message, 'err'); } });
 }
