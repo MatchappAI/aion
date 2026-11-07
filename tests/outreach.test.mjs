@@ -204,7 +204,7 @@ test('both senders: pick sender-two for a firm, its thread stays there, and busy
 });
 
 test('a conversation keeps going: answer → they pick an offered time → AION catches the second reply and the pick', async () => {
-  const e3 = { ...e, id: 'e31', company: 'Third Brand Partners', website: 'https://thirdbrand.com', contactInfo: [{ person: 'Ann Lee', kind: 'email', value: 'ann@thirdbrand.com', verified: true }] };
+  const e3 = { ...e, id: 'e31', company: 'Third Brand Partners', website: 'https://thirdbrand.com', owner: 'Ann Lee', contacts: [{ name: 'Ann Lee', title: 'Owner' }], contactInfo: [{ person: 'Ann Lee', kind: 'email', value: 'ann@thirdbrand.com', verified: true }] };
   s.entities.push(e3); MEM.ingest(s);
   const it = await OUT.createDraft({ s, e: e3, model: 'x', cwd: dir, engineFn: fakeAI });
   await wait(() => OUT.get(it.id).phase !== 'writing');

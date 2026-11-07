@@ -44,10 +44,12 @@ test('headlines: partnerships and launches are partner clues for firms to buy on
   assert.equal(headlineEvents('client', 'Acme Logistics', items).length, 0);
 });
 
-test('a partnership pitch changes the draft goal; ownership stays the default', () => {
+test('a partnership pitch changes the draft goal; older sale/both pitches are a full buyout; ownership stays the default', () => {
   const me = { name: 'Mohil Gupta' };
   assert.match(draftPrompt('target', 'Owner at Acme', [], me, null, 'partner'), /growth partnership/);
-  assert.match(draftPrompt('target', 'Owner at Acme', [], me, null, 'sale'), /long-term owner who may want to buy/);
+  assert.match(draftPrompt('target', 'Owner at Acme', [], me, null, 'sale'), /full buyout planned as a succession/);
+  assert.match(draftPrompt('target', 'Owner at Acme', [], me, null, 'both'), /full buyout planned as a succession/);
+  assert.match(draftPrompt('target', 'Owner at Acme', [], me, null, null), /keeps firms for the long term and may want to buy/);
 });
 
 test('headline must be about this firm doing something, not a namesake', async () => {
