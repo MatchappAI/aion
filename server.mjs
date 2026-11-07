@@ -291,8 +291,8 @@ function ownerList() {
   const R = rankAll(ss, { warm: e => warm('target', e), contacted: (s2, e) => !!outOf(s2, e), niche: false });
   const find = x => { const s2 = ss.find(y => y.id === x.search); return [s2, s2?.entities.find(y => y.id === x.entity)]; };
   const slim = x => { const [s2, e] = find(x), o = s2 && e ? outOf(s2, e) : null;
-    return { search: x.search, entity: x.entity, rank: x.rank, name: x.name, website: x.website, place: x.place, industry: x.industry, fit: x.fit, fitRecounted: !!x.fitRecounted, niche: x.niche, focus: x.focus, segment: x.segment, segmentLabel: x.segmentLabel, rankScore: x.score, parts: x.parts, box: x.box, kinds: x.kinds, approach: x.approach, approachText: APPROACH[x.approach], owner: x.owner, emails: x.emails, phone: x.phone, warmIntro: x.warmIntro, contacted: !!o, why: x.why, intent: x.intent,
-      outreach: o ? { id: o.id, phase: o.phase, status: o.status, sentAt: o.sentAt } : null, decision: e?.decision || '',
+    return { search: x.search, entity: x.entity, rank: x.rank, name: x.name, website: x.website, place: x.place, industry: x.industry, fit: x.fit, fitRecounted: !!x.fitRecounted, niche: x.niche, focus: x.focus, segment: x.segment, segmentLabel: x.segmentLabel, rankScore: x.score, parts: x.parts, offer: x.offer, offerWhy: x.offerWhy, email: x.email || '', box: x.box, kinds: x.kinds, approach: x.approach, approachText: APPROACH[x.approach], owner: x.owner, emails: x.emails, phone: x.phone, warmIntro: x.warmIntro, contacted: !!o, why: x.why, intent: x.intent,
+      outreach: o ? { id: o.id, phase: o.phase, status: o.status, sentAt: o.sentAt, sender: o.sender, to: o.to } : null, decision: e?.decision || '',
       deal: s2 && e ? dealOf(s2, e)?.stage || '' : '',
       signals: x.signals.filter(y => y.path).map(y => ({ key: y.key, label: y.label, path: y.path, text: unent(y.text), url: y.url, date: y.date, direction: y.direction, confidence: y.confidence, source: y.source })).sort((a, b) => (CLUE_ORDER[a.key] ?? 5) - (CLUE_ORDER[b.key] ?? 5)) }; };
   const list = R.ranked.map(slim); let n = 0; for (const x of list) if (x.niche) x.nicheRank = ++n;
@@ -302,7 +302,7 @@ function outreachReady() {
   const { list, ss } = ownerList(), out = [];
   // firms to buy: the owner ranking's buy-box firms (in a segment, not set aside), in rank order, not yet in outreach
   for (const x of list) { if (x.outreach || !x.niche || x.box?.status === 'out') continue;
-    out.push({ search: x.search, entity: x.entity, mode: 'target', name: x.name, where: x.place, score: x.fit, picked: ['saved', 'priority'].includes(x.decision), priority: x.decision === 'priority', emails: x.emails, pitch: x.approach === 'watch' ? null : x.approach, box: x.box, high: !!x.intent?.high, rankScore: x.rankScore, rank: x.nicheRank, segment: x.segment, segmentLabel: x.segmentLabel, site: !!x.website }); }
+    out.push({ search: x.search, entity: x.entity, mode: 'target', name: x.name, where: x.place, score: x.fit, picked: ['saved', 'priority'].includes(x.decision), priority: x.decision === 'priority', emails: x.emails, pitch: x.offer === 'watch' ? null : x.offer, dealWhy: x.offerWhy, box: x.box, high: !!x.intent?.high, rankScore: x.rankScore, rank: x.nicheRank, segment: x.segment, segmentLabel: x.segmentLabel, site: !!x.website }); }
   // anything else you saved yourself (a firm outside the segments, a brand, a person) comes after, so nothing you picked is lost
   const B = OUT.board(), have = new Set(B.map(x => `${x.search}|${x.entity}`)), seen = new Set(out.map(r => normName(r.name)));
   for (const s2 of ss) for (const e of (s2.entities || []).filter(e => e.scored && ['saved', 'priority'].includes(e.decision))) {
@@ -310,7 +310,7 @@ function outreachReady() {
     if (s2.mode === 'target' && (e.listed || listedFor((e.timing?.signals || []).map(x => ({ ...x, signal: x.key })), e))) continue;
     if (s2.mode === 'target' && list.some(x => x.search === s2.id && x.entity === e.id && x.outreach)) continue;
     seen.add(normName(name)); const R = s2.mode === 'target' ? rankOne(e) : null;
-    out.push({ search: s2.id, entity: e.id, mode: s2.mode, name, where: String(e.location || '').split(/\s[(;]/)[0], score: e.score ?? 0, picked: true, priority: e.decision === 'priority', emails: (e.contactInfo || []).filter(c => c.kind === 'email').length, pitch: R && R.approach !== 'watch' ? R.approach : null, box: R?.box || null, high: !!R?.intent?.high, rankScore: R?.score ?? null, rank: null, segment: R?.segment || null, segmentLabel: R?.segmentLabel || null, site: !!e.website });
+    out.push({ search: s2.id, entity: e.id, mode: s2.mode, name, where: String(e.location || '').split(/\s[(;]/)[0], score: e.score ?? 0, picked: true, priority: e.decision === 'priority', emails: (e.contactInfo || []).filter(c => c.kind === 'email').length, pitch: R && R.offer !== 'watch' ? R.offer : null, box: R?.box || null, high: !!R?.intent?.high, rankScore: R?.score ?? null, rank: null, segment: R?.segment || null, segmentLabel: R?.segmentLabel || null, site: !!e.website });
   }
   return out.slice(0, 80);
 }
@@ -841,8 +841,9 @@ const server = http.createServer(async (req, res) => {
         case 'outreach/create': {
           const s2 = SRUN[b.search] || loadSearch(b.search); if (!s2) return send(res, 404, { error: 'Search not found.' });
           const e = (s2.entities || []).find(x => x.id === b.entity); if (!e) return send(res, 404, { error: 'Result not found.' });
-          try { const it = await OUT.createDraft({ s: s2, e, pitch: ['sale', 'partner', 'both'].includes(b.pitch) ? b.pitch : null, model: MODELS.analysis, cwd: path.join(ROOTWS, 'outreach') }); return send(res, 200, { id: it.id }); } catch (err) { return send(res, 400, { error: err.message }); }
+          try { const it = await OUT.createDraft({ s: s2, e, pitch: OUT.PITCHES.includes(b.pitch) ? b.pitch : null, model: MODELS.analysis, cwd: path.join(ROOTWS, 'outreach') }); return send(res, 200, { id: it.id }); } catch (err) { return send(res, 400, { error: err.message }); }
         }
+        case 'outreach/rewrite': { try { const it = OUT.get(b.id); const s2 = SRUN[it.search] || loadSearch(it.search); OUT.rewrite(b.id, { s: s2, pitch: b.pitch, model: MODELS.analysis, cwd: path.join(ROOTWS, 'outreach') }); return send(res, 200, { id: b.id }); } catch (e) { return send(res, 400, { error: e.message }); } }
         case 'outreach/edit': { try { return send(res, 200, OUT.editItem(b.id, b)); } catch (e) { return send(res, 400, { error: e.message }); } }
         case 'outreach/send': { try { return send(res, 200, await OUT.sendStep(b.id, b.kind, { confirmed: b.confirmed === true, saveOnly: !!b.saveOnly })); } catch (e) { return send(res, 400, { error: e.message }); } }
         case 'outreach/done': { try { return send(res, 200, OUT.markDone(b.id, b.kind, b.note)); } catch (e) { return send(res, 400, { error: e.message }); } }
@@ -1008,6 +1009,7 @@ initBenchmarks(path.join(ROOTWS, 'benchmarks.json'));
 initStore(path.join(ROOTWS, 'searches'));
 initDocs(path.join(ROOTWS, 'docs')); initRadar(path.join(ROOTWS, 'searches')); initMemory(path.join(ROOTWS, 'searches')); initWatch(path.join(ROOTWS, 'searches')); initContacts(path.join(ROOTWS, 'searches')); loadEnv(ROOT);
 OUT.initOutreach(path.join(ROOTWS, 'outreach'));
+{ const n = OUT.resumeWriting({ model: MODELS.analysis, cwd: path.join(ROOTWS, 'outreach'), load: id => { try { return loadSearch(id); } catch { return null; } } }); if (n) console.log(`Outreach: writing ${n} interrupted draft(s) again`); }
 // replies, bounces and opt-outs: checked every 10 minutes while AION runs
 setInterval(outreachTick, 10 * 60_000).unref(); setTimeout(outreachTick, 20_000).unref();
 // first start: build the network from searches already on disk

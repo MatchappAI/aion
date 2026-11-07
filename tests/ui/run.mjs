@@ -71,16 +71,18 @@ ok('Replay shows every step', seen.size >= 5, [...seen].join(' / ')); ok('Replay
 
 // Proprietary Search
 await click('[data-app="ps"]'); await sleep(1800); await shot('ps-home');
-ok('Home leads with owners to contact (one ranked list)', await ev(`document.querySelector('.pshead h1').innerText`) === 'Owners to contact' && await ev(`document.querySelectorAll('table.intent tr[data-open]').length`) >= 5, await ev(`document.querySelector('table.intent tr[data-open]')?.innerText.slice(0, 120)`));
+ok('One tab: Search & Outreach (no separate Outreach or Documents tab)', await ev(`!document.querySelector('[data-app="out"]') && !document.querySelector('[data-app="docs"]') && /Search & Outreach/.test(document.querySelector('[data-app="ps"]').innerText)`));
+ok('Outreach on the same page, with the inbox each one uses', await ev(`!!document.querySelector('#psout [data-testid="outreach"]') && document.querySelectorAll('#psout .inboxes .inbox').length >= 1`));
+ok('Owner list: filter by offer (full buyout, majority stake, partnership, their choice)', await ev(`['full','majority','partner','both'].every(k => !!document.querySelector('[data-inf="'+k+'"]'))`));
+ok('Home leads with owners to contact (one ranked list)', await ev(`document.querySelector('#psown .pshead h1').innerText`) === 'Owners to contact' && await ev(`document.querySelectorAll('table.intent tr[data-open]').length`) >= 5, await ev(`document.querySelector('table.intent tr[data-open]')?.innerText.slice(0, 120)`));
 ok('Owner list: segment filters for the buy box', await ev(`['box','retail_placement','marketplace','strategy','all'].every(k => !!document.querySelector('[data-insc="'+k+'"]'))`));
 ok('Owner list: every buy-box row has a segment and an outreach action', await ev(`[...document.querySelectorAll('table.intent tr[data-open]')].every(r => /Retail placement|Marketplace agency|Strategy & analytics/.test(r.innerText) && (r.querySelector('[data-outwrite]') || r.querySelector('[data-outopen]')))`));
 await click('[data-insc="retail_placement"]'); await sleep(1500); ok('Segment filter: only retail placement', await ev(`[...document.querySelectorAll('table.intent tr[data-open]')].every(r => /Retail placement/.test(r.innerText))`)); await click('[data-insc="box"]'); await sleep(1500);
 { const ps = await ev(`[...document.querySelectorAll('table.intent tr[data-open]')].slice(0, 5).map(r => r.cells[0].innerText.trim() + ' ' + r.querySelector('b').innerText)`);
-  await click('[data-app="out"]'); await sleep(2500);
-  const out = await ev(`[...document.querySelectorAll('[data-testid="out-ready"] .orow b')].slice(0, 5).map(b => b.innerText.replace('#', '').trim())`);
+  const out = await ev(`[...document.querySelectorAll('[data-testid="out-ready"] .orow b')].slice(0, 5).map(b => b.textContent.replace('#', '').trim())`);
   const rest = ps.filter(x => out.includes(x));
   ok('Outreach shows the same owners with the same numbers', rest.length >= Math.min(3, out.length) && out.length >= 3, JSON.stringify({ ps: ps.slice(0, 3), out: out.slice(0, 3) }));
-  await click('[data-app="ps"]'); await sleep(2500); }
+  }
 ok('Three search modes', await ev(`document.querySelectorAll('[data-mode]').length`) === 3);
 ok('History lists searches', await ev(`document.querySelectorAll('[data-open]').length`) >= 2);
 await click('[data-mode="target"]'); await sleep(600); ok('Switch to Find firms to buy', await ev(`document.querySelector('[data-mode="target"]').classList.contains('on')`));
@@ -113,18 +115,8 @@ ok('Set a deal stage', await ev(`document.querySelector('.pscard [data-stage]').
 await click('#ps-back'); await sleep(1200); ok('Pipeline counts it', await ev(`document.querySelector('.pipes li.on b')?.textContent`) === '1'); await shot('ps-pipeline');
 await click('.pipe tr[data-open]'); await sleep(1800); ok('Pipeline row opens the target', await ev(`!!document.querySelector('.psd [data-stage]')`));
 await ev(`(()=>{const x=document.querySelector('.psd [data-stage]'); x.value=''; x.dispatchEvent(new Event('change'))})()`); await sleep(900); await click('#ps-close'); await sleep(300);
-await click('[data-app="docs"]'); await sleep(1500);
-ok('Documents: two jobs', await ev(`document.querySelectorAll('[data-dm]').length`) === 2);
-ok('Documents: firm facts follow the kind of firm', await ev(`(()=>{const x=document.querySelector('#dc-sub'); x.value='engineering'; x.dispatchEvent(new Event('change')); return true})()`) && (await sleep(900), await ev(`!!document.querySelector('[data-ff="credentials"]') && !document.querySelector('[data-ff="placements"]')`)));
-ok('Documents: real RFP response listed', await ev(`[...document.querySelectorAll('tr[data-doc]')].some(r => /County Administrator|Executive Search/i.test(r.innerText))`)); await shot('docs-home');
-await ev(`[...document.querySelectorAll('tr[data-doc]')].find(r => /RFP response/.test(r.innerText))?.click()`); await sleep(1500);
-ok('RFP response: requirements quoted with pages', await ev(`document.querySelectorAll('.doc table.hist tr').length`) > 20 && await ev(`[...document.querySelectorAll('.doc td')].some(t => t.innerText.startsWith('p. '))`));
-ok('RFP response: gaps highlighted, not invented', await ev(`document.querySelectorAll('mark.need').length`) > 0); await shot('docs-proposal');
-await click('#dc-back'); await sleep(1000);
-await ev(`[...document.querySelectorAll('tr[data-doc]')].find(r => /Candidate write-up/.test(r.innerText))?.click()`); await sleep(1500);
-ok('Write-up: fit table with evidence', await ev(`document.querySelectorAll('.doc .tbadge').length`) >= 5); await shot('docs-writeup');
-await click('#dc-back'); await sleep(800); await click('[data-app="ps"]'); await sleep(1500);
-await cmd('Page.reload'); await sleep(2500); ok('Stays on Proprietary Search after refresh', await ev(`document.querySelector('[data-app="ps"]').classList.contains('on')`));
+
+await cmd('Page.reload'); await sleep(2500); ok('Stays on Search & Outreach after refresh', await ev(`document.querySelector('[data-app="ps"]').classList.contains('on')`));
 await click('[data-app="vc"]'); await sleep(1500); ok('Back to Value Creation', await ev(`!!document.querySelector('.hero2 h1')`));
 ok('No page errors', errs.length === 0, errs.join(' | '));
 sock.close(); chrome.kill();
