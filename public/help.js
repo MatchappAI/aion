@@ -27,7 +27,7 @@ export function mountHelp(main) {
         <li>Once: open <b>Inboxes and settings</b>, connect your Gmail and add your mailing address.</li>
         <li>Press <b>Write outreach</b> on a firm. AION writes a first email, two follow-ups, a letter, call notes and a contact-form message, only from facts it found.</li>
         <li>Read it, edit it, press <b>Send…</b>. Nothing ever goes out without your OK.</li>
-        <li>A note about selling only goes to the owner, never to a shared inbox like info@. If there’s no owner email, mail the letter.</li>
+        <li>A note about selling only goes to the owner, never to a shared inbox like info@. Press <b>Find the owner’s email</b>: AION reads their website, asks Hunter.io (free key in Settings), then suggests a likely address in the firm’s own format. You choose whether to use it; if it bounces, AION offers the next one. Or mail the letter.</li>
         <li>Replies are checked every 10 minutes. AION suggests open times from your calendar and sends the invite when you pick one.</li>
         <li>After a good call: NDA, books request, then a letter of intent (LOI). Have a lawyer review the NDA and LOI.</li></ol><button class="ghost sm" data-go="ps">Open Search &amp; Outreach</button></section>
       <section class="panel"><h3>3. Check a firm’s numbers <span class="note">Value Creation</span></h3><ol>

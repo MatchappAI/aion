@@ -286,6 +286,9 @@ async function outreachTick() { try { if (GMAIL.accounts().length) await OUT.syn
 const CLUE_ORDER = { exit_planning: 0, recap_interest: 0, retirement: 0, succession: 1, next_chapter: 1, career_length: 2, second_in_command: 2, partner_left: 2, partner_program: 3, alliance: 3, subcontracts: 3, capacity_strain: 4, growth_hiring: 4, new_service: 4, stale_website: 5, going_quiet: 5, ai_interest: 8 };
 const unent = t => String(t || '').replace(/&#x27;|&#39;/g, '’').replace(/&quot;/g, '"').replace(/&amp;/g, '&').replace(/&nbsp;/g, ' ').replace(/&#x([0-9a-f]+);/gi, (m, h) => String.fromCodePoint(parseInt(h, 16))).replace(/&#(\d+);/g, (m, d) => String.fromCodePoint(+d));
 const normName = t => String(t || '').toLowerCase().replace(/[^a-z0-9]+/g, ' ').replace(/\b(llc|inc|corp|co|the|group|ltd)\b/g, '').trim();
+const FINDERS = () => path.join(ROOTWS, 'finders.json');
+function finderKeys() { try { return JSON.parse(fs.readFileSync(FINDERS(), 'utf8')); } catch { return {}; } }
+function saveFinderKeys(k) { fs.writeFileSync(FINDERS(), JSON.stringify(k), { mode: 0o600 }); fs.chmodSync(FINDERS(), 0o600); }
 function ownerList() {
   const B = OUT.board(), byKey = new Map(B.map(x => [`${x.search}|${x.entity}`, x])), byName = new Map(B.filter(x => x.mode === 'target').map(x => [normName(x.name), x]));
   const ss = listSearches().map(h => loadSearch(h.id)).filter(Boolean).sort((a, b) => String(b.created || '').localeCompare(String(a.created || '')));
@@ -703,6 +706,7 @@ const server = http.createServer(async (req, res) => {
         try { const kind = url.searchParams.get('kind'), it = OUT.get(url.searchParams.get('id')); const buf = await outreachPdf(it.id, kind);
           res.writeHead(200, { 'Content-Type': 'application/pdf', 'Content-Disposition': `attachment; filename="${(kind === 'letter' ? 'Letter' : it.docs?.[kind]?.title || kind).replace(/[^\w ()-]+/g, '')} - ${it.name.replace(/[^\w &-]+/g, '')}.pdf"` }); return res.end(buf); } catch (e) { return send(res, 400, { error: e.message }); }
       }
+      if (req.method === 'GET' && p === 'finders') return send(res, 200, { hunter: !!(finderKeys().hunter || process.env.HUNTER_API_KEY) });
       if (req.method === 'GET' && p === 'outreach/item') { try { return send(res, 200, OUT.item(url.searchParams.get('id'))); } catch (e) { return send(res, 404, { error: e.message }); } }
       if (req.method === 'GET' && p === 'outreach/google/callback') {
         const err = url.searchParams.get('error');
@@ -855,7 +859,13 @@ const server = http.createServer(async (req, res) => {
         case 'outreach/answer': { try { return send(res, 200, await OUT.draftAnswer(b.id, { model: MODELS.analysis, cwd: path.join(ROOTWS, 'outreach') })); } catch (e) { return send(res, 400, { error: e.message }); } }
         case 'outreach/answer-send': { try { return send(res, 200, await OUT.sendAnswer(b.id, { confirmed: b.confirmed === true })); } catch (e) { return send(res, 400, { error: e.message }); } }
         case 'outreach/book': { try { return send(res, 200, await OUT.bookCall(b.id, { start: b.start, minutes: b.minutes, confirmed: b.confirmed === true })); } catch (e) { return send(res, 400, { error: e.message }); } }
-        case 'outreach/find-email': { try { return send(res, 200, await OUT.findEmail(b.id)); } catch (e) { return send(res, 400, { error: e.message }); } }
+        case 'outreach/find-email': { try { return send(res, 200, await OUT.findEmail(b.id, { hunterKey: finderKeys().hunter || process.env.HUNTER_API_KEY })); } catch (e) { return send(res, 400, { error: e.message }); } }
+        case 'finders/key': { // Hunter.io free plan key: checked with Hunter, stored only on this Mac (owner-only file)
+          const k = String(b.key || '').trim(), cur = finderKeys();
+          if (!k) { delete cur.hunter; saveFinderKeys(cur); return send(res, 200, { hunter: false }); }
+          try { const r = await fetch(`https://api.hunter.io/v2/account?api_key=${encodeURIComponent(k)}`, { signal: AbortSignal.timeout(15000) }); const j = await r.json(); if (!r.ok) throw new Error(j.errors?.[0]?.details || 'Hunter.io did not accept that key'); cur.hunter = k; saveFinderKeys(cur); return send(res, 200, { hunter: true, left: j.data?.requests?.searches?.available != null ? j.data.requests.searches.available - (j.data.requests.searches.used || 0) : null }); }
+          catch (e) { return send(res, 400, { error: e.message }); }
+        }
         case 'outreach/doc': {
           try {
             const it = OUT.get(b.id);
