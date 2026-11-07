@@ -812,3 +812,4 @@ table.intent tr[data-open] { cursor: pointer; }
 /* long AI-written words or tables never push the page sideways */
 [data-tab="details"] { min-width: 0; overflow-wrap: anywhere; }
 [data-tab="details"] table { display: block; max-width: 100%; overflow-x: auto; }
+.inout{margin:10px 0 4px}.inout summary{cursor:pointer;color:var(--mute);font-size:13px}.inout ul{margin:6px 0 0 18px;padding:0}.inout li{margin:3px 0;font-size:13px}

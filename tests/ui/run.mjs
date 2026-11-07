@@ -94,7 +94,7 @@ ok('Deal pipeline panel on home', await ev(`document.querySelectorAll('.pipes li
 ok('Demand radar on home', await ev(`!!document.querySelector('.radar #rd-go') && /How this works/.test(document.querySelector('.radar').innerText)`));
 ok('Demand radar shows federal contract surges', await ev(`document.querySelectorAll('.radar [data-rdfed]').length`) >= 1);
 ok('Demand radar shows a real scan', await ev(`document.querySelectorAll('.radar [data-rdlook]').length`) >= 1, await ev(`document.querySelector('.radar .note')?.innerText`));
-await ev(`[...document.querySelectorAll('tr[data-open]')].find(r => /Find firms to buy/.test(r.innerText) && /founder/i.test(r.innerText))?.click()`); await sleep(2000);
+await ev(`[...document.querySelectorAll('tr[data-open]')].find(r => /Find firms to buy/.test(r.innerText) && /founder/i.test(r.innerText) && !/Running|Partly complete|Failed/.test(r.innerText) && +r.cells[3]?.innerText > 0)?.click()`); await sleep(2000);
 ok('Targets: a failed must-have is capped at 40%', await ev(`[...document.querySelectorAll('.pscard')].every(c => !c.querySelector('.failx') || parseInt(c.querySelector('.sbadge b').textContent) <= 40)`));
 ok('Results: refresh data signals', await ev(`!!document.querySelector('#ps-sig')`));
 await ev(`document.querySelector('[data-detail]').click()`); await sleep(700);

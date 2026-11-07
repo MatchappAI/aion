@@ -61,3 +61,17 @@ test('the owner’s address wins over a general inbox; order, support and career
   assert.equal(bestEmail([{ email: 'orders@x.com' }, { email: 'careers@x.com' }]), null);
   assert.equal(contactsFor({ contactInfo: [{ kind: 'email', value: 'orders@x.com' }, { kind: 'email', value: 'info@x.com' }] }).emails[0].email, 'info@x.com');
 });
+
+import { buyBox, headcount } from '../lib/search/buybox.mjs';
+test('buy box: independent and the right size, or set aside', () => {
+  assert.deepEqual(headcount('250-350+ staff, 3 offices'), { low: 250, high: 350 });
+  assert.equal(headcount('directory shows 0 employees'), null);
+  assert.equal(buyBox({ ownership: 'PE-backed', size: '40 staff' }).status, 'out');
+  assert.equal(buyBox({ ownership: 'founder-owned', size: '400+ employees' }).status, 'out');
+  assert.equal(buyBox({ ownership: 'founder-owned', size: 'About 3 employees' }).status, 'out');
+  assert.equal(buyBox({ ownership: 'unknown (part of a larger group: acquired by X in 2022)', size: '' }).status, 'out');
+  assert.equal(buyBox({ ownership: 'founder-owned', size: '51-200 employees (third-party)' }).status, 'in');
+  assert.equal(buyBox({ ownership: 'founder-owned', size: 'About 15 employees' }).status, 'in');
+  const c = buyBox({ ownership: 'unknown', size: 'Not stated' });
+  assert.equal(c.status, 'check'); assert.deepEqual(c.reasons, ['Ownership not confirmed', 'Size not confirmed']);
+});
