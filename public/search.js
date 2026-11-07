@@ -290,12 +290,14 @@ async function drawNetwork() {
 
 // one honest line on how good the best results are, and the most common reason the rest fell short
 function verdict(scored, s, M) {
-  const best = Math.max(...scored.map(e => e.score)), strong = scored.filter(e => e.score >= 70).length, miss = {};
-  for (const e of scored) for (const r of e.breakdown || []) if (r.weight >= 2 && (r.status === 'mismatch' || r.status === 'no_evidence')) miss[r.label] = (miss[r.label] || 0) + 1;
-  const top = Object.entries(miss).sort((a, b) => b[1] - a[1])[0];
-  const head = strong ? `<b>${strong} strong ${strong === 1 ? M.one : M.noun}</b> (70% or more)` : `<b>No ${M.one} met every must-have</b> (best ${best}%)`;
+  // a clear miss is a real shortfall; a fact no firm publishes (fees, cash collection) is a question for the first call, not a miss
+  const best = Math.max(...scored.map(e => e.score)), strong = scored.filter(e => e.score >= 70).length, miss = {}, unknown = {};
+  for (const e of scored) for (const r of e.breakdown || []) if (r.weight >= 2) { if (r.status === 'mismatch') miss[r.label] = (miss[r.label] || 0) + 1; else if (r.status === 'no_evidence') unknown[r.label] = (unknown[r.label] || 0) + 1; }
+  const top = Object.entries(miss).sort((a, b) => b[1] - a[1])[0], ask = Object.entries(unknown).sort((a, b) => b[1] - a[1])[0];
+  const lab = t => { const v = String(t).split(/[(:]/)[0].trim(); return esc(/^[A-Z][a-z]/.test(v) ? v[0].toLowerCase() + v.slice(1) : v); };
+  const head = strong ? `<b>${strong} strong ${strong === 1 ? M.one : M.noun}</b> (70% or more)` : `<b>No ${M.one} scored 70% or more yet</b> (best ${best}%)`;
   const act = scored.filter(e => e.timing?.badge === 'act').length, fails = scored.filter(e => (e.failed || []).length).length;
-  return `<p class="verdict ${strong ? 'good' : 'weak'}">${head} out of ${scored.length} checked in depth.${act ? ` <b>${act} marked Act now</b> by timing clues.` : ''}${top && top[1] >= 3 ? ` Most common shortfall: ${esc(top[0].split('(')[0].trim())} (${top[1]} of ${scored.length}).` : ''}${fails ? ` ${fails} fail${fails === 1 ? 's' : ''} a must-have and ${fails === 1 ? 'is' : 'are'} capped at 40%.` : ''}${!strong ? ' Try a wider area or looser size, or edit the searches and rerun.' : ''}</p>`;
+  return `<p class="verdict ${strong ? 'good' : 'weak'}">${head} out of ${scored.length} checked in depth.${act ? ` <b>${act} marked Act now</b> by timing clues.` : ''}${top && top[1] >= 3 ? ` Most common miss: ${lab(top[0])} (${top[1]} of ${scored.length}).` : ''}${fails ? ` ${fails} fail${fails === 1 ? 's' : ''} a must-have and ${fails === 1 ? 'is' : 'are'} capped at 40%.` : ''}${ask && ask[1] >= scored.length / 2 ? ` Not public for most firms, so ask on the first call: ${lab(ask[0])}.` : ''}${!strong && !(ask && ask[1] >= scored.length / 2) ? ' Try a wider area or looser size, or edit the searches and rerun.' : ''}</p>`;
 }
 
 // ownership is stated as fact only when the ownership criterion is a strong, sourced match

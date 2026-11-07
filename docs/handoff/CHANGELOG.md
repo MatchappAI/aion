@@ -8,6 +8,7 @@
 - Duplicate clues count once; strongest signs show first; HTML codes decoded.
 - Brand demand radar replaces the operations-hiring radar.
 - Search modes: Find firms to buy (default), Find brands, Find people. Documents, Help, outreach pitches and the AI's industry classifier speak to ecommerce consulting.
+- Search results banner: a clear miss is reported as a miss; a fact no firm publishes (fees, cash collection) is listed as a question for the first call, not a shortfall.
 - Off-thesis searches (staffing, HVAC, manufacturing clients, candidates) archived to `workspace/searches/archive/`, weekly re-runs stopped. New searches: ecommerce strategy & analytics; retail placement brokers and agencies.
 
 ## October 25, 2026 (investor review pass)
