@@ -822,3 +822,26 @@ table.intent tr[data-open] { cursor: pointer; }
 table.intent .isig b { font-weight: 600; }
 table.intent td .sm { white-space: nowrap; }
 .warnline.sm{display:block;margin-top:4px;padding:3px 8px;font-size:12px}
+
+/* Search & Outreach on one page */
+body[data-outview="item"] #psown{display:none}
+body[data-psview="search"] #psout,body[data-psview="network"] #psout{display:none}
+#psout .ps{padding-bottom:0}
+.inboxes{display:flex;flex-wrap:wrap;gap:10px;margin:6px 0 14px;align-items:stretch}
+.inboxes .inbox{display:flex;flex-direction:column;align-items:flex-start;gap:2px;text-align:left;background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:10px 14px;color:var(--ink);min-width:220px}
+.inboxes .inbox b{font-size:13.5px}.inboxes .inbox span{font-size:12.5px;color:var(--mute)}.inboxes .inbox em{font-style:normal;color:var(--acc);font-weight:600}
+.inboxes .inbox.on{border-color:var(--acc);box-shadow:0 0 0 1px var(--acc) inset}
+.seg.offers{display:flex;flex-wrap:wrap;gap:6px;align-items:center;flex-basis:100%;background:transparent;padding:0}
+.seg.offers button{border:1px solid var(--line);background:var(--panel);border-radius:980px;padding:5px 12px;font-size:12.5px;color:var(--ink)}
+.seg.offers button.on{background:var(--ink);color:var(--panel);border-color:var(--ink)}
+.ochips{display:flex;flex-wrap:wrap;gap:4px;margin-top:3px}
+.pill2.inbox{background:transparent;border:1px dashed var(--line)}
+.oinboxline{margin:0 0 8px}
+details.odet>summary{cursor:pointer;list-style:none}details.odet>summary::-webkit-details-marker{display:none}
+details.odet>summary::before{content:'▸ ';color:var(--mute)}details.odet[open]>summary::before{content:'▾ '}
+.wsteps{list-style:none;padding:0;margin:14px 0;display:grid;gap:8px}
+.wsteps li{color:var(--mute)}.wsteps li.on{color:var(--ink);font-weight:600}.wsteps li.done{color:var(--ink)}
+.spin{display:inline-block;width:10px;height:10px;border:2px solid var(--line);border-top-color:var(--acc);border-radius:50%;animation:wspin .8s linear infinite;vertical-align:-1px}
+@keyframes wspin{to{transform:rotate(360deg)}}
+@media (max-width:600px){.inboxes .inbox{min-width:0;flex:1 1 100%}}
+details.odet:not([open]){padding-top:14px;padding-bottom:14px}details.odet>summary.h2{margin:0}

@@ -234,3 +234,26 @@ test('outreach refuses firms already listed for sale (proprietary only)', async 
   s.entities.push(e4); MEM.ingest(s);
   await assert.rejects(OUT.createDraft({ s, e: e4, model: 'x', cwd: dir, engineFn: fakeAI }), /listed for sale/);
 });
+
+test('a failed draft can be written again, with a different offer, and drafts cut off by a restart start again', async () => {
+  const e3 = { ...e, id: 'eretry', company: 'Retry Heating', website: 'https://retry.test', contactInfo: [{ kind: 'email', value: 'a@retry.test', verified: true }] }; s.entities.push(e3);
+  const boom = async () => { throw new Error('AI is busy'); };
+  const it = await OUT.createDraft({ s, e: e3, model: 'x', cwd: dir, engineFn: boom });
+  await wait(() => OUT.get(it.id).phase !== 'writing');
+  assert.equal(OUT.get(it.id).phase, 'failed');
+  // pressing Write outreach again on a failed one rewrites it instead of refusing
+  let prompt = '';
+  const again = await OUT.createDraft({ s, e: e3, model: 'x', cwd: dir, engineFn: async a => { prompt = a.prompt; return fakeAI(a); } });
+  assert.equal(again.id, it.id);
+  await wait(() => OUT.get(it.id).phase !== 'writing');
+  assert.equal(OUT.get(it.id).phase, 'review');
+  // switch the offer: every draft rewritten for a majority stake
+  OUT.rewrite(it.id, { s, pitch: 'majority', model: 'x', cwd: dir, engineFn: async a => { prompt = a.prompt; return fakeAI(a); } });
+  await wait(() => OUT.get(it.id).phase !== 'writing');
+  assert.equal(OUT.get(it.id).pitch, 'majority'); assert.match(prompt, /majority stake/); assert.match(prompt, /Tailored to the offer/);
+  // a draft left in "writing" (AION stopped mid-way) is picked up again
+  OUT.get(it.id).phase = 'writing'; OUT.get(it.id).startedAt = new Date().toISOString();
+  assert.equal(OUT.resumeWriting({ model: 'x', cwd: dir, engineFn: fakeAI, load: () => s }), 1);
+  await wait(() => OUT.get(it.id).phase !== 'writing');
+  assert.equal(OUT.get(it.id).phase, 'review');
+});
