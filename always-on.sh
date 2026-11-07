@@ -38,4 +38,11 @@ lsof -ti tcp:8765 -sTCP:LISTEN | xargs kill 2>/dev/null
 sleep 1
 launchctl bootstrap "gui/$(id -u)" "$PLIST"
 for i in $(seq 1 40); do curl -s -o /dev/null --max-time 1 http://localhost:8765/api/deals && { echo "AION is running in the background and will start at every login: http://localhost:8765"; exit 0; }; sleep 0.5; done
+if tail -40 "$LOG/server.log" 2>/dev/null | grep -q "EINTR\|EPERM\|Operation not permitted"; then
+  echo "macOS is blocking background access to the Desktop folder, where AION lives."
+  echo "Fix: System Settings → Privacy & Security → Files and Folders → node → turn on Desktop Folder"
+  echo "(or answer the \"node would like to access files in your Desktop folder\" prompt with Allow), then run ./always-on.sh again."
+  open "x-apple.systempreferences:com.apple.preference.security?Privacy_FilesAndFolders" 2>/dev/null
+  exit 1
+fi
 echo "AION did not start. See $LOG/server.log"; exit 1
