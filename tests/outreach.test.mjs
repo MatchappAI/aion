@@ -257,3 +257,12 @@ test('a failed draft can be written again, with a different offer, and drafts cu
   await wait(() => OUT.get(it.id).phase !== 'writing');
   assert.equal(OUT.get(it.id).phase, 'review');
 });
+
+test('not a template: sentences shared with another firm’s email are caught; the honest status line is allowed', async () => {
+  const { sharedLines } = await import('../lib/outreach/outreach.mjs');
+  const other = 'Hi Ann, Northfield has added three retail leads this year. We would buy most of the firm while you keep running it. AION has not bought a firm yet.';
+  const mine = 'Hi Bo, your Costco roadshows stand out. We would buy most of the firm while you keep running it. AION has not bought a firm yet.';
+  const hit = sharedLines(mine, [other], ['AION has not bought a firm yet.']);
+  assert.deepEqual(hit, ['We would buy most of the firm while you keep running it.']);
+  assert.deepEqual(sharedLines('Hi Bo, your Costco roadshows stand out.', [other]), []);
+});

@@ -46,9 +46,9 @@ test('headlines: partnerships and launches are partner clues for firms to buy on
 
 test('a partnership pitch changes the draft goal; older sale/both pitches are a full buyout; ownership stays the default', () => {
   const me = { name: 'Mohil Gupta' };
-  assert.match(draftPrompt('target', 'Owner at Acme', [], me, null, 'partner'), /growth partnership/);
-  assert.match(draftPrompt('target', 'Owner at Acme', [], me, null, 'sale'), /full buyout planned as a succession/);
-  assert.match(draftPrompt('target', 'Owner at Acme', [], me, null, 'both'), /full buyout planned as a succession/);
+  assert.match(draftPrompt('target', 'Owner at Acme', [], me, null, 'partner'), /wants a growth partner or investor/);
+  assert.match(draftPrompt('target', 'Owner at Acme', [], me, null, 'sale'), /buy the whole firm/);
+  assert.match(draftPrompt('target', 'Owner at Acme', [], me, null, 'both'), /buy the whole firm/);
   assert.match(draftPrompt('target', 'Owner at Acme', [], me, null, null), /keeps firms for the long term and may want to buy/);
 });
 
