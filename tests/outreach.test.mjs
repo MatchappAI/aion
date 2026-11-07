@@ -270,7 +270,7 @@ test('not a template: sentences shared with another firm’s email are caught; t
 test('owner email: the firm’s format gives a likely address that is never used until you choose it', async () => {
   assert.equal(OUT.formatOf('Michael Horstmann', 'mhorstmann@acme.test'), '{f}{last}');
   assert.equal(OUT.applyFormat('{f}{last}', 'Jane Roe', 'acme.test'), 'jroe@acme.test');
-  const e2 = { id: 'e2', company: 'Northfield Brokers', website: 'https://northfield.test', owner: 'Jane Roe', scored: true, score: 70, industry: 'Food broker',
+  const e2 = { id: 'e2', company: 'Northfield Brokers', website: 'https://northfield.test', owner: 'Jane Roe', founded: '2002', scored: true, score: 70, industry: 'Food broker',
     contactInfo: [{ person: 'Company', kind: 'email', value: 'info@northfield.test', verified: true, url: 'https://northfield.test' }], contacts: [{ name: 'Jane Roe', title: 'Founder' }] };
   s.entities.push(e2);
   const it = await OUT.createDraft({ s, e: e2, model: 'x', cwd: dir, engineFn: fakeAI }); await wait(() => it.phase !== 'writing');
@@ -288,4 +288,21 @@ test('a bounced likely address is never suggested again; the next format is offe
   const r = await OUT.findEmail(item.id, { fetcher: async () => '<p>Write to info@northfield.test</p>', hunterKey: '' });
   const likely = r.contacts.emails.find(x => x.likely);
   assert.ok(likely, 'a new likely address'); assert.notEqual(likely.email, 'jane.roe@northfield.test');
+});
+
+test('no owner email: the discreet note can go to info@, the selling email never can', async () => {
+  const item = OUT.get(JSON.parse(fs.readFileSync(path.join(dir, 'outreach.json'), 'utf8')).items.find(x => x.name === 'Northfield Brokers').id);
+  OUT.editItem(item.id, { to: 'info@northfield.test' });
+  assert.ok(!OUT.preflight(item.id, 'email').ok, 'selling email to a shared inbox stays blocked');
+  const pf = OUT.preflight(item.id, 'form');
+  assert.ok(pf.ok, pf.problems.join('; ')); assert.match(pf.subject, /^For Jane/); assert.match(pf.warn, /discreet note/);
+  const r = await OUT.sendStep(item.id, 'form', { confirmed: true });
+  assert.ok(r.sent); assert.equal(OUT.get(item.id).messages.at(-1).kind, 'form');
+  assert.ok(!OUT.preflight(item.id, 'form').ok, 'only once');
+});
+
+test('a note that talks about buying the firm can never go to a shared inbox', async () => {
+  const { SALE_TALK } = OUT;
+  assert.ok(SALE_TALK.test('We would buy a majority of Example Growth Co')); assert.ok(SALE_TALK.test('the kind of brokerage AION hopes to acquire'));
+  assert.ok(!SALE_TALK.test('Hello, this note is for Jane. Could she spare 15 minutes this month, or share her direct email?'));
 });
