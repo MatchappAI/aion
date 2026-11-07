@@ -31,7 +31,7 @@ const titleCo = t => String(t || '').toLowerCase().replace(/\b([a-z])([a-z']*)/g
 const ST = { strong: ['Strong match', 'ok'], partial: ['Partial match', 'mid'], no_evidence: ['No evidence found', 'na'], mismatch: ['Mismatch', 'bad'] };
 
 export function mountSearch(main) { P.main = main; draw(); }
-export function leaveSearch() { clearTimeout(P.timer); P.timer = null; }
+export function leaveSearch() { clearTimeout(P.timer); P.timer = null; delete document.body.dataset.firstrun; }
 
 async function draw() {
   document.body.dataset.psview = P.view;
@@ -41,11 +41,14 @@ async function draw() {
   let hist = [], W = [], NS = { people: 0, companies: 0 }, SRC = [], PL = { stages: [], deals: [] }, RD = { events: [], scans: [] }, TD = { list: [], total: 0 }, IN = { list: [], counts: {} };
   try { [hist, PL, RD, W, NS, SRC, TD, IN] = await Promise.all([api('search/list').then(x => x.searches), api('search/pipeline'), api('search/radar'), api('search/watches').then(x => x.watches), api('search/network').then(x => x.stats), api('search/sources').then(x => x.sources), Promise.resolve(TD), api('search/intent')]); } catch {}
   const M = MODES[P.mode], on = SRC.filter(x => x.status === 'connected').length;
+  document.body.dataset.firstrun = (IN.list || []).length || hist.length ? '' : '1'; // first run: Start here and the search box come first
   const sum = [[hist.length, 'searches'], [hist.reduce((t, h) => t + (h.raw || 0), 0), 'pages read'], [(NS.people || 0) + (NS.companies || 0) + (NS.targets || 0), 'people and companies found'], [hist.reduce((t, h) => t + (h.contacts || 0), 0), 'verified contacts']];
   P.main.innerHTML = `<div class="ps">
-    <div class="pshead"><h1>Owners to contact</h1><p class="lede2">Every firm your searches found, best first. Press Write outreach on a row; the drafts, sends and replies show up in Outreach above.</p></div>
+    ${(IN.list || []).length ? `<div class="pshead"><h1>Owners to contact</h1><p class="lede2">Every firm your searches found, best first. Press Write outreach on a row; the drafts, sends and replies show up in Outreach above.</p></div>
     ${intentPanel(IN)}
-    <h2 class="h2">Find more</h2>
+    <h2 class="h2">Find more</h2>` : `<div class="pshead"><h1>Start here</h1><p class="lede2">Three steps to your first owner conversation. Nothing is sent without your OK.</p></div>
+    <ol class="starthere" data-testid="start-here"><li><b>Find firms.</b> Describe the firms you want to buy below and press Search. It takes 4–8 minutes; every firm found is ranked here, best first.</li><li><b>Connect your Gmail.</b> Under Inboxes and settings (in Outreach, below), connect the inbox you send from and add your mailing address.</li><li><b>Write to owners.</b> Press Write outreach on a firm. AION writes a personal email from what it found about that firm; you read it, edit it and press Send.</li></ol>
+    <h2 class="h2">Find your first firms</h2>`}
     <div class="psmodes">${Object.entries(MODES).map(([k, m]) => `<button data-mode="${k}" class="${P.mode === k ? 'on' : ''}"><b>${m.label}</b><span>${m.sub}</span></button>`).join('')}</div>
     <div class="psform">
       ${P.mode === 'candidate' ? '' : `<label class="pssub"><span>${P.mode === 'client' ? 'Brands for which kind of firm?' : 'Kind of firm to buy'}</span><select id="ps-sub">${(() => { const cur = P.sub ?? 'ecommerce', opt = ([k, v]) => `<option value="${k}" ${cur === k ? 'selected' : ''}>${esc(v.label)}${k === 'talent' && P.mode === 'client' ? ' (recruiting)' : ''}</option>`, E = Object.entries(SUBSECTORS);
@@ -56,7 +59,7 @@ async function draw() {
     </div>
     ${hist.length ? `<p class="quiet">${sum.map(([n, l]) => `<b>${Number(n).toLocaleString()}</b> ${l}`).join(' · ')} · <span class="link" id="ps-net">your network</span></p>` : ''}
     ${radarPanel(RD)}
-    ${pipelinePanel(PL)}
+    ${(IN.list || []).length || (PL.deals || []).length ? pipelinePanel(PL) : ''}
     <h2 class="h2">Your searches</h2>
     ${hist.length ? `<div class="tblw"><table class="hist"><tr><th>Search</th><th class="m-hide">Type</th><th class="m-hide">Date</th><th class="num">Firms</th><th>Re-runs weekly</th><th></th></tr>${hist.map(h => { const w = W.find(x => x.lastSearch === h.id || x.objective === h.objective); return `<tr data-open="${h.id}"><td>${esc(h.objective.length > 110 ? h.objective.slice(0, 110) + '…' : h.objective)}${h.status !== 'done' ? ` <span class="pill2 ${h.status}">${{ running: 'Running', partial: 'Partly complete', failed: 'Failed' }[h.status] || h.status}</span>` : ''}</td><td class="m-hide">${MODES[h.mode].label}</td><td class="m-hide nowrap">${day(h.created)}</td><td class="num">${h.results}</td><td class="nowrap">${w ? `${w.running ? 'running now' : `next ${day(w.next)}`}${w.history.slice(-1)[0]?.fresh ? ` · ${w.history.slice(-1)[0].fresh} new` : ''} · <span class="link" data-wrun="${w.id}">run now</span>` : '<span class="note">no</span>'}</td><td><span class="link note" data-arch="${h.id}" title="Moves it to the archive folder; nothing is deleted">remove</span></td></tr>`; }).join('')}</table></div>` : '<p class="note">No searches yet. Describe who you’re looking for above.</p>'}
     <details class="more2 srcs"><summary>Data sources · ${on} of ${SRC.length} connected</summary>
