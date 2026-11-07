@@ -13,7 +13,7 @@
 | | Deal tabs: switch, rename, new, close (archive) | Tested |
 | Search | Find firms / clients / people, filters, examples | Tested; start intercepted |
 | | Results: filters, sort, save/priority/reject, notes, deal stages, watch weekly, refresh signals, linked searches, edit queries | Tested |
-| | Home: who to call this week, pipeline, watched, history, network, demand radar, data sources, contacts upload | Tested; scans and uploads intercepted |
+| | Home: owners to contact (shared with Outreach), pipeline, watched, history, network, brand demand radar, data sources, contacts upload | Tested; scans and uploads intercepted |
 | Documents | RFP answer, candidate write-up, document view | Tested; drafting intercepted |
 | Settings | AI engines, Test, Use this, keys, automatic | Tested; Claude Code Test live |
 | Help | Guides, troubleshooting, buttons into each tool | Tested |

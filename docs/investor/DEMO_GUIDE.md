@@ -10,7 +10,7 @@
 | 2:00 | Plan tab → Build it on the top move | "Each move is priced from this company's accounts and capped by public peer margins; moves without a benchmark aren't counted." | Basis line, NYU Stern peer, KPIs, prompt |
 | 2:45 | AION fit tab | "The thesis check: PASS/WATCH/FAIL with the evidence for each." | Evidence column |
 | 3:15 | Search results | "One search: 30 web searches, ~250 pages, ranked against the buy box. Every fact has its link; contacts appear only if found word for word." | Open a card → sources, timing badge |
-| 4:15 | Who to call this week / deal pipeline | "Dated seller signals, a stage for each owner conversation, a weekly re-run that flags only new names." | — |
+| 4:15 | Owners to contact / deal pipeline | "Dated seller signals, a stage for each owner conversation, a weekly re-run that flags only new names." | — |
 | 4:45 | Export 1-page PDF | "This is what goes to the investment committee." | PDF downloads |
 
 **What to avoid claiming**

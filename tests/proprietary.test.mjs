@@ -70,8 +70,9 @@ test('buy box: independent and the right size, or set aside', () => {
   assert.equal(buyBox({ ownership: 'founder-owned', size: '400+ employees' }).status, 'out');
   assert.equal(buyBox({ ownership: 'founder-owned', size: 'About 3 employees' }).status, 'out');
   assert.equal(buyBox({ ownership: 'unknown (part of a larger group: acquired by X in 2022)', size: '' }).status, 'out');
-  assert.equal(buyBox({ ownership: 'founder-owned', size: '51-200 employees (third-party)' }).status, 'in');
-  assert.equal(buyBox({ ownership: 'founder-owned', size: 'About 15 employees' }).status, 'in');
+  assert.equal(buyBox({ ownership: 'founder-owned', size: '51-200 employees (third-party)', location: 'Austin, TX' }).status, 'in');
+  assert.equal(buyBox({ ownership: 'founder-owned', size: 'About 15 employees', location: 'Portland, Oregon' }).status, 'in');
   const c = buyBox({ ownership: 'unknown', size: 'Not stated' });
-  assert.equal(c.status, 'check'); assert.deepEqual(c.reasons, ['Ownership not confirmed', 'Size not confirmed']);
+  assert.equal(buyBox({ ownership: 'founder-owned', size: 'About 15 employees', location: 'Brașov', website: 'shop.ro' }).status, 'out');
+  assert.equal(c.status, 'check'); assert.deepEqual(c.reasons, ['Ownership not confirmed', 'US location not confirmed', 'Size not confirmed']);
 });

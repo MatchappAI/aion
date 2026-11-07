@@ -28,9 +28,13 @@ test('"both" clues count toward each path; clients and candidates get no intent'
   assert.equal(PATH.next_chapter, 'both');
 });
 
-test('niche follows the deck: physical-economy consulting and HR/search, not HVAC', () => {
-  assert.ok(inNiche({ company: 'LMA Consulting Group', industry: 'Supply chain and manufacturing consulting' }));
-  assert.ok(inNiche({ company: 'Acme Search', industry: 'Retained executive search' }));
+test('niche = the v4.0 buy box: ecommerce consulting segments, not DTC agencies, 3PL advisors, recruiters or HVAC', () => {
+  assert.ok(inNiche({ company: 'A', industry: 'Food and beverage brokerage / sales agency for natural brands' }));
+  assert.ok(inNiche({ company: 'B', industry: 'Amazon and Walmart.com marketplace agency' }));
+  assert.ok(inNiche({ company: 'C', industry: 'Ecommerce strategy and analytics consultancy for CPG brands' }));
+  assert.ok(!inNiche({ company: 'D', industry: 'Paid social and SEO agency for DTC brands' }));
+  assert.ok(!inNiche({ company: 'E', industry: 'Supply chain and 3PL consulting' }));
+  assert.ok(!inNiche({ company: 'F', industry: 'Retained executive search' }));
   assert.ok(!inNiche({ company: 'Cool Air HVAC', industry: 'HVAC installation and repair' }));
 });
 

@@ -22,7 +22,7 @@ Claude Code is used first when logged in. Add Codex (`codex login`) or an Anthro
 1. Pick **Find firms to buy**, **Find clients**, or **Find people**. Type a sentence or click an example; optional filters.
 2. **Search** (4–8 minutes; two can run at once). Watch the steps or come back later.
 3. Results: fit score, timing badge, every fact with its link, verified contacts. **Save / Priority / Reject**, notes, **Deal stage**, **Watch weekly** (runs while the app is open), **Refresh data signals**, linked searches (clients for a firm, people for a role).
-4. Home page: **Who to call this week**, deal pipeline, watched searches, history, **your network**, **Demand radar** (scan a region for buying signals), data sources (upload your contacts CSV to see warm introductions).
+4. Home page: **Owners to contact** (every ecommerce consulting firm found, ranked, filterable by segment, with Write outreach on each row; Outreach shows the same list), deal pipeline, watched searches, history, **your network**, **Brand demand radar** (brands likely to need retail or marketplace help), data sources (upload your contacts CSV to see warm introductions).
 
 ## Documents
 - **Answer an RFP:** upload or link the RFP; AION drafts each section in the order asked, highlighting what needs your input.

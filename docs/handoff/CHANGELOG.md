@@ -1,5 +1,15 @@
 # Changelog
 
+## November 6, 2026 (buy box v4.0: ecommerce consulting)
+- Thesis v4.0 in `lib/thesis.mjs`: US ecommerce consulting firms, $500K–$5M EBITDA, three segments in priority order (retail placement, marketplace agencies, ecommerce strategy & analytics); DTC growth agencies, 3PL / operations advisory, recruiters and software companies excluded. v3.0 subsectors kept as `legacy`.
+- `segmentOf()` classifies each firm from its industry label first (ignores "not a …" phrases); used by Search, the owner list, Outreach and the docs.
+- Buy box gate adds a US check (location or a country domain).
+- One owner list (`ownerList()` in `server.mjs`): Search "Owners to contact" and Outreach "Next owners to contact" share it; same # on both; outreach status and Write outreach on every row; segment filters. "Who to call this week" retired.
+- Duplicate clues count once; strongest signs show first; HTML codes decoded.
+- Brand demand radar replaces the operations-hiring radar.
+- Search modes: Find firms to buy (default), Find brands, Find people. Documents, Help, outreach pitches and the AI's industry classifier speak to ecommerce consulting.
+- Off-thesis searches (staffing, HVAC, manufacturing clients, candidates) archived to `workspace/searches/archive/`, weekly re-runs stopped. New searches: ecommerce strategy & analytics; retail placement brokers and agencies.
+
 ## October 25, 2026 (investor review pass)
 - `tests/eval/grounding.mjs`: automated check of AI outputs (add-backs tied to ledger rows, source links on every fact, contact, criterion and timing clue, 40% cap on failed must-haves). 5,065 checks pass on the workspace; planted errors are caught.
 - Run-time copy now matches the logs (about a minute for a ledger, a few minutes for a PDF).

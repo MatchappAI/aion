@@ -18,7 +18,7 @@ import { initContacts, importContacts, contactStats, clearContacts, warm } from 
 import { loadEnv, sources } from './lib/search/sources.mjs';
 import { timing, inNiche, listedFor } from './lib/search/timing.mjs';
 import { rankAll, rankOne, APPROACH } from './lib/search/rank.mjs';
-import { initRadar, demandScan, scans as radarScans, recentEvents, intentScan } from './lib/search/radar.mjs';
+import { initRadar, brandScan, scans as radarScans, recentEvents, intentScan } from './lib/search/radar.mjs';
 let INTENT = null, LAST_INTENT = null; // the deal-intent scan: progress while it runs, and when it last finished
 import { addSignals } from './lib/search/pipeline.mjs';
 import { initDocs, saveDoc, loadDoc, listDocs, getFirm, setFirm, readSource, draftProposal, draftWriteup, candidateFromSearch } from './lib/docs/docs.mjs';
@@ -278,24 +278,41 @@ function notifyMac(title, body) { if (process.env.AION_GMAIL_MOCK === '1') retur
 async function outreachTick() { try { if (GMAIL.accounts().length) await OUT.syncReplies(); for (const a of OUT.alerts()) notifyMac(a.title, a.body); } catch {} }
 
 /** Results worth contacting that have no outreach yet: your saved and priority picks first, then strong fits. */
+// ONE owner list, shared by Proprietary Search (owner ranking) and Outreach (ready to start): every firm to buy across all
+// searches, ranked once, each row carrying its outreach status. So a firm's number is the same on both screens.
+// strongest signs first in "why now": owner exit and succession, then a number two hired, then partnership moves; AI talk last
+const CLUE_ORDER = { exit_planning: 0, recap_interest: 0, retirement: 0, succession: 1, next_chapter: 1, career_length: 2, second_in_command: 2, partner_left: 2, partner_program: 3, alliance: 3, subcontracts: 3, capacity_strain: 4, growth_hiring: 4, new_service: 4, stale_website: 5, going_quiet: 5, ai_interest: 8 };
+const unent = t => String(t || '').replace(/&#x27;|&#39;/g, '’').replace(/&quot;/g, '"').replace(/&amp;/g, '&').replace(/&nbsp;/g, ' ').replace(/&#x([0-9a-f]+);/gi, (m, h) => String.fromCodePoint(parseInt(h, 16))).replace(/&#(\d+);/g, (m, d) => String.fromCodePoint(+d));
+const normName = t => String(t || '').toLowerCase().replace(/[^a-z0-9]+/g, ' ').replace(/\b(llc|inc|corp|co|the|group|ltd)\b/g, '').trim();
+function ownerList() {
+  const B = OUT.board(), byKey = new Map(B.map(x => [`${x.search}|${x.entity}`, x])), byName = new Map(B.filter(x => x.mode === 'target').map(x => [normName(x.name), x]));
+  const ss = listSearches().map(h => loadSearch(h.id)).filter(Boolean).sort((a, b) => String(b.created || '').localeCompare(String(a.created || '')));
+  const outOf = (s2, e) => byKey.get(`${s2.id}|${e.id}`) || byName.get(normName(e.company));
+  const R = rankAll(ss, { warm: e => warm('target', e), contacted: (s2, e) => !!outOf(s2, e), niche: false });
+  const find = x => { const s2 = ss.find(y => y.id === x.search); return [s2, s2?.entities.find(y => y.id === x.entity)]; };
+  const slim = x => { const [s2, e] = find(x), o = s2 && e ? outOf(s2, e) : null;
+    return { search: x.search, entity: x.entity, rank: x.rank, name: x.name, website: x.website, place: x.place, industry: x.industry, fit: x.fit, fitRecounted: !!x.fitRecounted, niche: x.niche, focus: x.focus, segment: x.segment, segmentLabel: x.segmentLabel, rankScore: x.score, parts: x.parts, box: x.box, kinds: x.kinds, approach: x.approach, approachText: APPROACH[x.approach], owner: x.owner, emails: x.emails, phone: x.phone, warmIntro: x.warmIntro, contacted: !!o, why: x.why, intent: x.intent,
+      outreach: o ? { id: o.id, phase: o.phase, status: o.status, sentAt: o.sentAt } : null, decision: e?.decision || '',
+      deal: s2 && e ? dealOf(s2, e)?.stage || '' : '',
+      signals: x.signals.filter(y => y.path).map(y => ({ key: y.key, label: y.label, path: y.path, text: unent(y.text), url: y.url, date: y.date, direction: y.direction, confidence: y.confidence, source: y.source })).sort((a, b) => (CLUE_ORDER[a.key] ?? 5) - (CLUE_ORDER[b.key] ?? 5)) }; };
+  const list = R.ranked.map(slim); let n = 0; for (const x of list) if (x.niche) x.nicheRank = ++n;
+  return { R, list, ss };
+}
 function outreachReady() {
-  const B = OUT.board(), have = new Set(B.map(x => `${x.search}|${x.entity}`)), haveName = new Set(B.map(x => `${x.mode}|${String(x.name).toLowerCase()}`)), out = [];
-  for (const h of listSearches()) {
-    const s2 = loadSearch(h.id); if (!s2?.entities) continue;
-    for (const e of s2.entities.filter(e => e.scored && e.decision !== 'rejected' && !(s2.mode === 'target' && (e.listed || listedFor((e.timing?.signals || []).map(x => ({ ...x, signal: x.key })), e))))) {
-      if (have.has(`${s2.id}|${e.id}`) || haveName.has(`${s2.mode}|${String(s2.mode === 'candidate' ? e.name : e.company).toLowerCase()}`)) continue;
-      const picked = ['saved', 'priority'].includes(e.decision), R = s2.mode === 'target' ? rankOne(e) : null, I = R?.intent || null;
-      if (R && !R.niche && !picked) continue; // off-niche firms only when you saved them
-      if (R && R.box.status === 'out' && !picked) continue; // outside the buy box only when you saved them
-      if (!picked && (e.score ?? 0) < 70 && !(I?.high && (e.score ?? 0) >= 55)) continue;
-      const emails = (e.contactInfo || []).filter(c => c.kind === 'email').length;
-      out.push({ search: s2.id, entity: e.id, mode: s2.mode, name: s2.mode === 'candidate' ? e.name : e.company, where: String(e.location || '').split(/\s[(;]/)[0], score: e.score ?? 0, picked, priority: e.decision === 'priority', emails, objective: s2.objective, pitch: R ? (R.approach === 'watch' ? null : R.approach) : null, box: R?.box || null, high: !!I?.high, rankScore: R?.score ?? null, site: !!e.website });
-    }
+  const { list, ss } = ownerList(), out = [];
+  // firms to buy: the owner ranking's buy-box firms (in a segment, not set aside), in rank order, not yet in outreach
+  for (const x of list) { if (x.outreach || !x.niche || x.box?.status === 'out') continue;
+    out.push({ search: x.search, entity: x.entity, mode: 'target', name: x.name, where: x.place, score: x.fit, picked: ['saved', 'priority'].includes(x.decision), priority: x.decision === 'priority', emails: x.emails, pitch: x.approach === 'watch' ? null : x.approach, box: x.box, high: !!x.intent?.high, rankScore: x.rankScore, rank: x.nicheRank, segment: x.segment, segmentLabel: x.segmentLabel, site: !!x.website }); }
+  // anything else you saved yourself (a firm outside the segments, a brand, a person) comes after, so nothing you picked is lost
+  const B = OUT.board(), have = new Set(B.map(x => `${x.search}|${x.entity}`)), seen = new Set(out.map(r => normName(r.name)));
+  for (const s2 of ss) for (const e of (s2.entities || []).filter(e => e.scored && ['saved', 'priority'].includes(e.decision))) {
+    const name = s2.mode === 'candidate' ? e.name : e.company; if (have.has(`${s2.id}|${e.id}`) || seen.has(normName(name))) continue;
+    if (s2.mode === 'target' && (e.listed || listedFor((e.timing?.signals || []).map(x => ({ ...x, signal: x.key })), e))) continue;
+    if (s2.mode === 'target' && list.some(x => x.search === s2.id && x.entity === e.id && x.outreach)) continue;
+    seen.add(normName(name)); const R = s2.mode === 'target' ? rankOne(e) : null;
+    out.push({ search: s2.id, entity: e.id, mode: s2.mode, name, where: String(e.location || '').split(/\s[(;]/)[0], score: e.score ?? 0, picked: true, priority: e.decision === 'priority', emails: (e.contactInfo || []).filter(c => c.kind === 'email').length, pitch: R && R.approach !== 'watch' ? R.approach : null, box: R?.box || null, high: !!R?.intent?.high, rankScore: R?.score ?? null, rank: null, segment: R?.segment || null, segmentLabel: R?.segmentLabel || null, site: !!e.website });
   }
-  // one row per firm or person, even when several searches found it (the best-scoring copy wins)
-  const seen = new Set(), norm = t => String(t || '').toLowerCase().replace(/[^a-z0-9]+/g, ' ').replace(/\b(llc|inc|corp|co|the|group|ltd)\b/g, '').trim();
-  return out.sort((a, b) => (b.priority - a.priority) || (b.picked - a.picked) || ((b.rankScore ?? b.score) - (a.rankScore ?? a.score)) || (b.emails > 0) - (a.emails > 0) || b.score - a.score)
-    .filter(r => { const k = `${r.mode}|${norm(r.name)}`; if (seen.has(k)) return false; seen.add(k); return true; }).slice(0, 80);
+  return out.slice(0, 80);
 }
 function runDoc(d, fn) { DRUN[d.id] = true; d.log = []; const log = t => { d.log.push({ t: new Date().toISOString(), text: t }); saveDoc(d); }; fn(d, { cwd: path.join(ROOTWS, 'docs'), model: MODELS.analysis, log }).catch(e => { d.status = 'failed'; d.error = e.message; saveDoc(d); }).finally(() => { delete DRUN[d.id]; }); }
 function startSearch({ mode, objective, filters, from, queries, criteria, link, watchId }) {
@@ -666,19 +683,14 @@ const server = http.createServer(async (req, res) => {
       if (req.method === 'GET' && p === 'search/intent') {
         // owner ranking: every firm to buy across all searches, ranked by deal intent (majority sale or growth partnership),
         // breadth of signals, fit and reachability. Proprietary only: firms already listed on a marketplace are set aside.
-        const B = OUT.board(), out = new Set(B.map(x => `${x.search}|${x.entity}`)), outName = new Set(B.map(x => String(x.name).toLowerCase()));
-        const ss = listSearches().map(h => loadSearch(h.id)).filter(Boolean).sort((a, b) => String(b.created || '').localeCompare(String(a.created || '')));
-        const R = rankAll(ss, { warm: e => warm('target', e), contacted: (s2, e) => out.has(`${s2.id}|${e.id}`) || outName.has(String(e.company).toLowerCase()), niche: false });
-        const slim = x => ({ search: x.search, entity: x.entity, rank: x.rank, name: x.name, website: x.website, place: x.place, industry: x.industry, fit: x.fit, niche: x.niche, focus: x.focus, rankScore: x.score, parts: x.parts, box: x.box, kinds: x.kinds, approach: x.approach, approachText: APPROACH[x.approach], owner: x.owner, emails: x.emails, phone: x.phone, warmIntro: x.warmIntro, contacted: x.contacted, why: x.why, intent: x.intent,
-          deal: (() => { const s2 = ss.find(y => y.id === x.search); const e = s2?.entities.find(y => y.id === x.entity); return s2 && e ? dealOf(s2, e)?.stage || '' : ''; })(),
-          signals: x.signals.filter(y => y.path).map(y => ({ key: y.key, label: y.label, path: y.path, text: y.text, url: y.url, date: y.date, direction: y.direction, confidence: y.confidence, source: y.source })) });
-        const list = R.ranked.map(slim); let n = 0; for (const x of list) if (x.niche) x.nicheRank = ++n;
-        return send(res, 200, { scanning: INTENT, lastScan: LAST_INTENT, list, listed: R.listed.map(x => ({ name: x.name, place: x.place, website: x.website })), outside: R.outside.filter(x => x.niche).map(x => ({ search: x.search, entity: x.entity, name: x.name, place: x.place, focus: x.focus, why: x.box.reasons.join('; ') })), counts: { outside: R.outside.filter(x => x.niche).length, outsideFocus: R.outside.filter(x => x.focus).length, inBox: list.filter(x => x.box.status === 'in').length, all: list.length, high: list.filter(x => x.intent.high).length, sale: list.filter(x => x.intent.sale.level === 'high').length, partner: list.filter(x => x.intent.partner.level === 'high').length, niche: list.filter(x => x.niche).length, focus: list.filter(x => x.focus).length, listed: R.listed.length } });
+        const { R, list } = ownerList();
+        return send(res, 200, { scanning: INTENT, lastScan: LAST_INTENT, list, listed: R.listed.map(x => ({ name: x.name, place: x.place, website: x.website })), outside: R.outside.filter(x => x.niche).map(x => ({ search: x.search, entity: x.entity, name: x.name, place: x.place, focus: x.focus, segmentLabel: x.segmentLabel, why: x.box.reasons.join('; ') })), counts: { outside: R.outside.filter(x => x.niche).length, outsideFocus: R.outside.filter(x => x.focus).length, inBox: list.filter(x => x.box.status === 'in').length, all: list.length, high: list.filter(x => x.intent.high).length, sale: list.filter(x => x.intent.sale.level === 'high').length, partner: list.filter(x => x.intent.partner.level === 'high').length, niche: list.filter(x => x.niche).length, focus: list.filter(x => x.focus).length, listed: R.listed.length, segments: Object.fromEntries(['retail_placement', 'marketplace', 'strategy'].map(k => [k, list.filter(x => x.niche && x.segment === k).length])), inOutreach: list.filter(x => x.niche && x.outreach).length } });
       }
       if (req.method === 'GET' && p === 'search/radar') return send(res, 200, { events: recentEvents(), scans: radarScans(), scanning: SCAN });
       if (req.method === 'GET' && p === 'search/pipeline') return send(res, 200, { stages: DEAL_STAGES, deals: pipeline() });
       // Outreach: its own board, senders and drafts (sends only from your connected senders in AION_SENDERS, only with your OK)
-      if (req.method === 'GET' && p === 'outreach/state') return send(res, 200, { settings: OUT.settings(), accounts: GMAIL.accounts(), gmailReady: GMAIL.configured(), board: OUT.board(), ready: outreachReady(), suppressed: OUT.suppressed().length });
+      if (req.method === 'GET' && p === 'outreach/state') return send(res, 200, { settings: OUT.settings(), accounts: GMAIL.accounts(), gmailReady: GMAIL.configured(), board: (() => { const { R, list } = ownerList(), off = new Map(R.outside.map(x => [`${x.search}|${x.entity}`, x.box.reasons.join('; ')])), on = new Map(list.map(x => [`${x.search}|${x.entity}`, x]));
+          return OUT.board().map(b => { const k = `${b.search}|${b.entity}`, r = on.get(k); return { ...b, outside: off.get(k) || null, rank: r?.nicheRank || null, segmentLabel: r?.segmentLabel || null }; }); })(), ready: outreachReady(), suppressed: OUT.suppressed().length });
       if (req.method === 'GET' && p === 'outreach/results') return send(res, 200, OUT.results());
       if (req.method === 'GET' && p === 'outreach/slots') { try { return send(res, 200, await OUT.openSlots()); } catch (e) { return send(res, 400, { error: e.message }); } }
       if (req.method === 'GET' && p === 'outreach/attachments') { try { return send(res, 200, { files: await OUT.listAttachments(url.searchParams.get('id')) }); } catch (e) { return send(res, 400, { error: e.message }); } }
@@ -803,10 +815,10 @@ const server = http.createServer(async (req, res) => {
           return send(res, 200, { ok: true });
         }
         case 'radar/scan': {
-          const region = String(b.region || '').trim().slice(0, 80); if (region.length < 2) return send(res, 400, { error: 'Type a state or region, for example Virginia.' });
+          const region = String(b.region || '').trim().slice(0, 80) || 'United States';
           if (SCAN) return send(res, 409, { error: 'A scan is already running. It takes about a minute.' });
           SCAN = { region, at: new Date().toISOString() };
-          demandScan({ region, industry: String(b.industry || '').trim() || undefined, days: Math.min(180, Math.max(14, +b.days || 60)) }, { cwd: path.join(ROOTWS, 'searches'), model: MODELS.extraction }).catch(() => {}).finally(() => { SCAN = null; });
+          brandScan({ region, days: Math.min(180, Math.max(14, +b.days || 60)) }, { cwd: path.join(ROOTWS, 'searches'), model: MODELS.extraction }).catch(() => {}).finally(() => { SCAN = null; });
           return send(res, 200, { ok: true });
         }
         case 'docs/firm': return send(res, 200, { firm: setFirm(b.firm) });

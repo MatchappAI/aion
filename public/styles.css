@@ -813,3 +813,12 @@ table.intent tr[data-open] { cursor: pointer; }
 [data-tab="details"] { min-width: 0; overflow-wrap: anywhere; }
 [data-tab="details"] table { display: block; max-width: 100%; overflow-x: auto; }
 .inout{margin:10px 0 4px}.inout summary{cursor:pointer;color:var(--mute);font-size:13px}.inout ul{margin:6px 0 0 18px;padding:0}.inout li{margin:3px 0;font-size:13px}
+
+/* v4.0 buy box: segment pills and the shared owner rank number */
+.pill2.seg-retail_placement { background: #e8f0fb; color: #1f4f8a; }
+.pill2.seg-marketplace { background: #f3ecfa; color: #5b3a86; }
+.pill2.seg-strategy { background: #fbf1e4; color: #8a5a1f; }
+.orank { color: var(--mute); font-weight: 600; font-variant-numeric: tabular-nums; margin-right: 2px; }
+table.intent .isig b { font-weight: 600; }
+table.intent td .sm { white-space: nowrap; }
+.warnline.sm{display:block;margin-top:4px;padding:3px 8px;font-size:12px}

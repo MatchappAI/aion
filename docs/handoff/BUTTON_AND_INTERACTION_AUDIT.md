@@ -1,5 +1,7 @@
 # Button and interaction audit
 
+> Recorded October 25, 2026, before the ecommerce buy box (v4.0). Screen names have changed since ("Who to call this week" is now "Owners to contact"; the demand radar is now the brand demand radar). Re-run `tests/ui/crawl.mjs` for a current count.
+
 Every visible control on every screen was found and exercised automatically by `tests/ui/crawl.mjs` in headless Chrome against throwaway copies of real test workspaces (a copy of your own workspace folder). Repeated controls (the same button on every card) were tried twice per screen. Anything that would call an AI, start a search, upload, archive or restart was intercepted and answered with a fake error, so for those the check is that **the error is shown to the person**. Confirm and prompt dialogs were dismissed (the "Cancel" path).
 
 Result key: **changed the screen** (navigated, opened, filtered, filled), **saved to the app** (called the app and kept the result), **asked for confirmation** (destructive action guarded), **blocked action, error shown** (AI/upload path; the failure message appeared), **external link** (opens in the browser), **no visible effect** (each one explained).

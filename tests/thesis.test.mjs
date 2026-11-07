@@ -3,7 +3,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { levers, quality, periods, DEFAULT_ASSUMPTIONS, FEE_CATS, CATEGORIES } from '../lib/model.mjs';
-import { THESIS, SUBSECTORS, subsectorOf, detectSubsector, thesisCheck, toolFit, valueBuckets, hundredDays, whyAion, searchCriteria, revenueMix, TOOLKIT, firmFields, FIRM_KEYS } from '../lib/thesis.mjs';
+import { THESIS, SUBSECTORS, ACTIVE_SUBSECTORS, subsectorOf, detectSubsector, thesisCheck, toolFit, valueBuckets, hundredDays, whyAion, searchCriteria, revenueMix, TOOLKIT, firmFields, FIRM_KEYS } from '../lib/thesis.mjs';
 import { profile } from '../lib/industry.mjs';
 import { mustHave, score } from '../lib/search/score.mjs';
 import { libraryPlan } from '../lib/playbooks.mjs';
@@ -16,7 +16,9 @@ function deal({ revenue = 5e6, normalized = 900e3, byCat = {}, dso = 50, quality
 const find = (rows, k) => rows.find(r => r.key === k);
 
 test('thesis constants: sector, size and language', () => {
-  assert.equal(THESIS.sector, 'Specialized B2B Professional & Technical Services');
+  assert.equal(THESIS.sector, 'Ecommerce Consulting');
+  assert.deepEqual(THESIS.segments.map(s => s.key), ['retail_placement', 'marketplace', 'strategy']);
+  assert.deepEqual(ACTIVE_SUBSECTORS, ['ecommerce']);
   assert.deepEqual([THESIS.ebitda.min, THESIS.ebitda.max, THESIS.ebitda.priorityMin, THESIS.ebitda.priorityMax], [500e3, 5e6, 500e3, 2e6]);
   assert.ok(!/general services/i.test(THESIS.long + THESIS.short));
   assert.deepEqual(Object.keys(SUBSECTORS), ['engineering', 'supply_chain', 'compliance', 'testing', 'implementation', 'talent', 'ecommerce']);
@@ -176,7 +178,7 @@ test('100-day plan: understand, then commercial/operating, then 1–3 AI pilots'
   assert.ok(!H.phases[0].items.concat(H.phases[1].items).some(x => /^Pilot/.test(x.text)), 'no AI pilots before day 61');
   const pilots = H.phases[2].items.filter(x => /^Pilot/.test(x.text));
   assert.ok(pilots.length >= 1 && pilots.length <= 3); assert.match(pilots[0].text, /Proposal copilot/);
-  assert.match(H.philosophy, /augments expert employees first/);
+  assert.match(H.philosophy, /augments the account teams first/);
   const W = whyAion({ S, d, profile: PR, check, fit });
   assert.match(W.verdict, /1 AION module/);
 });

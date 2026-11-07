@@ -16,7 +16,7 @@ Use a real company's books if you have them. If you use the test files, say so: 
 ## Proprietary Search (about 2 minutes)
 Everything here is real: real searches, real firms, every fact linked to its source.
 
-8. **Home:** point at the Demand radar (companies likely to need ops leaders before the job is posted; built for talent and operations-advisory firms), the running totals and the Deal pipeline. Say plainly how many owners are in it.
+8. **Home:** point at the Brand demand radar (consumer brands that just raised money, won a retailer or opened a marketplace store: the clients our firms serve), the running totals and the Deal pipeline. Say plainly how many owners are in it.
 9. **Open an Acquisition Targets search:** read the verdict line at the top.
 10. **Open a target:** show the criteria table. Must-haves are marked, and a firm that breaks one (size, niche, payment terms) is capped at 40%, so it can't rank high.
 11. **Signals from data sources:** in the same drawer, show what was read directly (domain record, website history, news) and that it sets timing, not fit.
