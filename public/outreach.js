@@ -13,7 +13,7 @@ const api = async (p, b) => { const r = await fetch('/api/' + p, b === undefined
 const day = d => d ? new Date(d).toLocaleDateString(undefined, { month: 'short', day: 'numeric' }) : '';
 const when = d => d ? new Date(d).toLocaleString(undefined, { weekday: 'short', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }) : '';
 const how = t => `<p class="howline"><b>How this works:</b> ${t}</p>`;
-const KINDS = [['email', 'First email'], ['followup1', 'Follow-up 1'], ['followup2', 'Follow-up 2'], ['letter', 'Letter'], ['call', 'Call notes'], ['form', 'Contact form'], ['answer', 'Your reply']];
+const KINDS = [['email', 'First email'], ['followup1', 'Follow-up 1'], ['followup2', 'Follow-up 2'], ['letter', 'Letter'], ['call', 'Call notes'], ['form', 'Discreet note'], ['answer', 'Your reply']];
 const MODE = { target: 'Firm to buy', client: 'Client', candidate: 'Candidate' };
 const RKIND = { interested: 'interested', later: 'not now', reply: 'replied', optout: 'no thanks' };
 let O = { main: null, view: 'board', id: null, kind: 'email', timer: null, st: null, it: null, pick: new Set(), queue: null, allSig: false, slots: null };
@@ -121,7 +121,8 @@ async function drawItem() {
   if (!it.drafts?.[O.kind]) O.kind = avail[0]?.[0] || 'email';
   const d = it.drafts?.[O.kind], sent = it.messages.find(m => m.kind === O.kind), pf = it.preflight?.[O.kind];
   const used = new Set(d?.used || []);
-  const sendable = ['email', 'followup1', 'followup2'].includes(O.kind), manual = ['letter', 'call', 'form'].includes(O.kind);
+  const noteSend = O.kind === 'form' && it.preflight?.form && !it.preflight.form.problems.some(p => /only to a shared inbox|already emailed/.test(p));
+  const sendable = ['email', 'followup1', 'followup2'].includes(O.kind) || noteSend, manual = ['letter', 'call'].includes(O.kind) || (O.kind === 'form' && !noteSend);
   const accts = S.accounts.filter(a => !a.error).map(a => a.email);
   const talking = !!it.replied || it.phase === 'conversation' || !!it.call;
   // they picked one of the offered times in their reply: show it ready to book
@@ -159,7 +160,7 @@ async function drawItem() {
     <div class="ogrid">
       <section class="card">
         <nav class="dtabs">${avail.map(([k, l]) => `<button data-kind="${k}" class="${k === O.kind ? 'on' : ''}">${l}${it.messages.some(m => m.kind === k) ? ' ✓' : ''}</button>`).join('')}</nav>
-        ${(!it.to || it.addr?.block) && !it.messages.some(m => m.sentAt) ? `<p class="warnline">${it.to ? `${esc(it.to)} is a shared inbox, so a note about selling can’t go there.` : 'No email address for them yet.'} <button class="ghost sm" id="ofind" data-testid="out-find">Find the owner’s email</button> or use the letter, call notes or contact form.</p>` : ''}
+        ${(!it.to || it.addr?.block) && !it.messages.some(m => m.sentAt) ? `<p class="warnline">${it.to ? `${esc(it.to)} is a shared inbox, so a note about selling can’t go there.` : 'No email address for them yet.'} <button class="ghost sm" id="ofind" data-testid="out-find">Find the owner’s email</button>${it.to ? ' or <span class="link" id="onote">send the discreet note to ' + esc(it.to) + '</span> (asks for the owner’s time, no mention of buying)' : ' or use the letter, call notes or contact form'}.</p>` : ''}
         ${(it.contacts.emails || []).filter(c => c.likely && c.email !== it.to).map(c => `<p class="note" data-testid="out-likely">Likely address for ${esc(c.name)}: <b>${esc(c.email)}</b>, from ${esc(c.source)}. Not confirmed: if it’s wrong, Gmail bounces it and AION marks it. <button class="ghost sm" data-uselikely="${esc(c.email)}">Use it</button></p>`).join('')}
         ${sent ? `<p class="note" data-testid="out-sent">${sent.manual ? `Marked done ${day(sent.sentAt)}${sent.note ? `: ${esc(sent.note)}` : ''}` : `Sent ${day(sent.sentAt)} from ${esc(sent.from)} to ${esc(sent.to)}`}</p><pre class="obody">${esc(sent.body || d?.body || '')}</pre>` : d ? `
         ${sendable || O.kind === 'answer' ? `<div class="ofields">
@@ -202,6 +203,7 @@ async function drawItem() {
   q('#osave') && (q('#osave').onclick = () => act(saveEdits, 'Saved'));
   ['#oto', '#ofrom'].forEach(s => q(s) && (q(s).onchange = () => act(saveEdits)));
   q('#ofind') && (q('#ofind').onclick = ev => { ev.target.disabled = true; ev.target.textContent = 'Looking…'; act(() => api('outreach/find-email', { id: it.id }), 'Done: see the address above'); });
+  q('#onote') && (q('#onote').onclick = () => { O.kind = 'form'; draw(); });
   O.main.querySelectorAll('[data-uselikely]').forEach(b => b.onclick = () => act(() => api('outreach/edit', { id: it.id, to: b.dataset.uselikely }), 'Using the likely address. Read the draft before sending.'));
   q('#osend') && (q('#osend').onclick = async () => {
     try { await saveEdits(); const fresh = await api(`outreach/item?id=${encodeURIComponent(it.id)}`); const p = fresh.preflight[O.kind]; if (!p.ok) { toast(p.problems[0], 'err'); return drawItem(); }
