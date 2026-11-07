@@ -159,15 +159,17 @@ async function drawItem() {
     <div class="ogrid">
       <section class="card">
         <nav class="dtabs">${avail.map(([k, l]) => `<button data-kind="${k}" class="${k === O.kind ? 'on' : ''}">${l}${it.messages.some(m => m.kind === k) ? ' ✓' : ''}</button>`).join('')}</nav>
-        ${!it.to && !it.messages.some(m => m.sentAt) ? `<p class="warnline">No email address for them yet. <button class="ghost sm" id="ofind" data-testid="out-find">Find a verified email</button> or use the letter, call notes or contact form.</p>` : ''}
+        ${(!it.to || it.addr?.block) && !it.messages.some(m => m.sentAt) ? `<p class="warnline">${it.to ? `${esc(it.to)} is a shared inbox, so a note about selling can’t go there.` : 'No email address for them yet.'} <button class="ghost sm" id="ofind" data-testid="out-find">Find the owner’s email</button> or use the letter, call notes or contact form.</p>` : ''}
+        ${(it.contacts.emails || []).filter(c => c.likely && c.email !== it.to).map(c => `<p class="note" data-testid="out-likely">Likely address for ${esc(c.name)}: <b>${esc(c.email)}</b>, from ${esc(c.source)}. Not confirmed: if it’s wrong, Gmail bounces it and AION marks it. <button class="ghost sm" data-uselikely="${esc(c.email)}">Use it</button></p>`).join('')}
         ${sent ? `<p class="note" data-testid="out-sent">${sent.manual ? `Marked done ${day(sent.sentAt)}${sent.note ? `: ${esc(sent.note)}` : ''}` : `Sent ${day(sent.sentAt)} from ${esc(sent.from)} to ${esc(sent.to)}`}</p><pre class="obody">${esc(sent.body || d?.body || '')}</pre>` : d ? `
         ${sendable || O.kind === 'answer' ? `<div class="ofields">
           <label>From${it.messages.some(m => m.threadId) ? `<input value="${esc(it.sender)}" disabled title="This conversation is in this account’s Gmail">` : `<select id="ofrom">${[...new Set([it.sender, ...accts])].map(e => `<option ${e === it.sender ? 'selected' : ''}>${esc(e)}</option>`).join('')}</select>`}</label>
-          <label>To${it.contacts.emails.length > 1 ? `<select id="oto">${it.contacts.emails.map(c => `<option value="${esc(c.email)}" ${c.email === it.to ? 'selected' : ''}>${esc(c.name ? `${c.name} <${c.email}>` : c.email)}${c.verified ? ' (verified)' : ''}</option>`).join('')}</select>` : `<input id="oto" value="${esc(it.to)}" placeholder="name@company.com" data-testid="out-to">`}</label>
+          <label>To${it.contacts.emails.length > 1 ? `<select id="oto">${it.contacts.emails.map(c => `<option value="${esc(c.email)}" ${c.email === it.to ? 'selected' : ''}>${esc(c.name ? `${c.name} <${c.email}>` : c.email)}${c.verified ? ' (verified)' : c.likely ? ' (likely, not confirmed)' : ''}</option>`).join('')}</select>` : `<input id="oto" value="${esc(it.to)}" placeholder="name@company.com" data-testid="out-to">`}</label>
           ${O.kind === 'email' ? `<label class="wide">Subject<input id="osubj" value="${esc(d.subject)}" data-testid="out-subject"></label>` : ''}</div>` : ''}
         <textarea id="obody" class="obody" rows="${O.kind === 'letter' ? 18 : 14}" data-testid="out-body">${esc(d.body)}</textarea>
         ${sendable || O.kind === 'answer' ? `<p class="note">Your signature${sendable ? ', mailing address and a one-line “no thanks” opt-out are' : ' is'} added below when it sends.</p>` : ''}
-        ${d.check?.length ? `<p class="warnline" data-testid="out-check">Check before sending: ${d.check.map(esc).join(', ')} ${d.check.length === 1 ? 'isn’t' : 'aren’t'} in AION’s signals for them.</p>` : ''}
+        ${(() => { const facts = (d.check || []).filter(x => !/^Also in an email to another firm/.test(x)), dup = (d.check || []).filter(x => /^Also in an email to another firm/.test(x));
+          return `${facts.length ? `<p class="warnline" data-testid="out-check">Check before sending: ${facts.map(esc).join(', ')} ${facts.length === 1 ? 'isn’t' : 'aren’t'} in what AION found about them.</p>` : ''}${dup.length ? `<p class="warnline" data-testid="out-dup">Make it more personal: ${dup.map(x => esc(x.replace(/^Also in an email to another firm: /, ''))).join(' · ')} also appears in an email to another firm.</p>` : ''}`; })()}
         <div class="oacts">
           <button class="ghost" id="osave">Save edits</button>
           ${sendable ? `<button id="osend" ${pf?.ok ? '' : 'disabled'} data-testid="out-send">Send…</button><button class="ghost" id="ogdraft" ${pf?.problems?.some(p => /connect|address|recipient/i.test(p)) ? 'disabled' : ''}>Save to Gmail Drafts</button>` : ''}
@@ -199,7 +201,8 @@ async function drawItem() {
   const saveEdits = async () => { if (q('#obody')) await api('outreach/edit', edits()); };
   q('#osave') && (q('#osave').onclick = () => act(saveEdits, 'Saved'));
   ['#oto', '#ofrom'].forEach(s => q(s) && (q(s).onchange = () => act(saveEdits)));
-  q('#ofind') && (q('#ofind').onclick = ev => { ev.target.disabled = true; ev.target.textContent = 'Looking…'; act(() => api('outreach/find-email', { id: it.id }), 'Found a verified email'); });
+  q('#ofind') && (q('#ofind').onclick = ev => { ev.target.disabled = true; ev.target.textContent = 'Looking…'; act(() => api('outreach/find-email', { id: it.id }), 'Done: see the address above'); });
+  O.main.querySelectorAll('[data-uselikely]').forEach(b => b.onclick = () => act(() => api('outreach/edit', { id: it.id, to: b.dataset.uselikely }), 'Using the likely address. Read the draft before sending.'));
   q('#osend') && (q('#osend').onclick = async () => {
     try { await saveEdits(); const fresh = await api(`outreach/item?id=${encodeURIComponent(it.id)}`); const p = fresh.preflight[O.kind]; if (!p.ok) { toast(p.problems[0], 'err'); return drawItem(); }
       if (!confirm(`Send this email now?\n\nFrom: ${p.from}\nTo: ${p.to}\nSubject: ${p.subject}\n\n${p.body.slice(0, 1200)}${p.check.length ? `\n\nCheck: ${p.check.join(', ')}` : ''}`)) return;
