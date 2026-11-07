@@ -1,4 +1,4 @@
-// Documents: answer an RFP (any subsector in the thesis) and write up a candidate (talent firms). Same pattern already proven
+// Documents: answer an RFP or agency brief (ecommerce consulting by default) and write up a candidate for a hire. Same pattern already proven
 // at Entro (proposals) and MGT (reports). Firm-profile fields follow the firm's subsector from the thesis module.
 import { SUBSECTORS, firmFields } from '/thesis.mjs';
 const $ = s => document.querySelector(s);
@@ -26,10 +26,10 @@ async function draw() {
   if (D.view === 'doc' && D.id) return drawDoc();
   let L = { docs: [], firm: {} }, C = { candidates: [] };
   try { [L, C] = await Promise.all([api('docs/list'), api('docs/candidates')]); } catch {}
-  const F = L.firm || {}; D.sub ??= F.subsector || ''; const FF = firmFields(D.sub), filled = FF.filter(([k]) => F[k]).length;
+  const F = L.firm || {}; D.sub ??= F.subsector ?? 'ecommerce'; const FF = firmFields(D.sub), filled = FF.filter(([k]) => F[k]).length;
   D.main.innerHTML = `<div class="ps">
-    <div class="pshead"><h1>Documents</h1><p class="lede2">Two jobs that eat expert time, done in minutes: answering an RFP, RFQ or proposal request for any specialized services firm, and writing up a candidate for a talent firm. A person reviews everything before it is sent.</p></div>
-    <div class="psmodes">${[['proposal', 'Answer an RFP', 'Every requirement pulled out, then the response drafted'], ['writeup', 'Write up a candidate', 'Talent firms: a client-ready summary, with evidence for each must-have']].map(([k, l, s]) => `<button data-dm="${k}" class="${D.mode === k ? 'on' : ''}"><b>${l}</b><span>${s}</span></button>`).join('')}</div>
+    <div class="pshead"><h1>Documents</h1><p class="lede2">Two jobs that eat account-team time, done in minutes: answering a brand’s or retailer’s RFP or agency brief, and writing up a candidate for a hire at a firm you own. A person reviews everything before it is sent.</p></div>
+    <div class="psmodes">${[['proposal', 'Answer an RFP', 'A brand’s agency RFP or brief: every requirement pulled out, then the response drafted'], ['writeup', 'Write up a candidate', 'For a hire at a firm you own: a summary with evidence for each must-have']].map(([k, l, s]) => `<button data-dm="${k}" class="${D.mode === k ? 'on' : ''}"><b>${l}</b><span>${s}</span></button>`).join('')}</div>
     <div class="psform">${D.mode === 'proposal' ? `
       <label class="dlab">The RFP</label>
       <div class="row dsrc"><button class="ghost" id="dc-pick">Choose a PDF</button><input type="file" id="dc-file" accept=".pdf,.txt,.html" hidden><span class="note" id="dc-fname">or paste a link</span><input id="dc-url" placeholder="https://… link to the RFP (PDF or web page)"></div>
@@ -46,7 +46,7 @@ async function draw() {
     ${how(D.mode === 'proposal' ? 'every requirement, deadline and scoring rule is quoted word for word with its page, then each section is drafted. Firm facts come only from your profile; gaps are marked “needs input”, never invented.' : 'each job requirement is matched to a word-for-word quote from the candidate’s materials. No quote means unknown, and becomes a question to ask.')}
     <details class="more2" ${filled < 3 && D.mode === 'proposal' ? 'open' : ''}><summary>Your firm’s facts · ${filled ? `${filled} of ${FF.length} filled` : 'not filled yet'}</summary>
       <p class="note">${filled < 3 ? '<b>Fill these once and every proposal needs far fewer inputs.</b> ' : ''}Used in every proposal. Leave anything you don’t want stated blank; it appears as “needs input” instead. Licenses and certifications are only ever stated if you list them here.</p>
-      <label class="dlab">Kind of firm</label><select id="dc-sub"><option value="">Other specialized services firm</option>${Object.entries(SUBSECTORS).map(([k, v]) => `<option value="${k}" ${D.sub === k ? 'selected' : ''}>${esc(v.label)}</option>`).join('')}</select>
+      <label class="dlab">Kind of firm</label><select id="dc-sub">${(() => { const E = Object.entries(SUBSECTORS), opt = ([k, v]) => `<option value="${k}" ${D.sub === k ? 'selected' : ''}>${esc(v.label)}</option>`; return `${E.filter(([, v]) => !v.legacy).map(opt).join('')}<option value="" ${D.sub === '' ? 'selected' : ''}>Other services firm</option><optgroup label="Earlier thesis">${E.filter(([, v]) => v.legacy).map(opt).join('')}</optgroup>`; })()}</select>
       <div class="ffacts">${FF.map(([k, l]) => `<label><span>${l}</span><textarea data-ff="${k}" rows="${k === 'name' ? 1 : 2}">${esc(F[k] || '')}</textarea></label>`).join('')}</div>
       <div class="row"><button class="ghost" id="dc-save">Save facts</button><span class="note" id="dc-saved"></span></div></details>
     <h2 class="h2">Your documents</h2>

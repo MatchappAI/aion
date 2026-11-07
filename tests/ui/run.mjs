@@ -71,29 +71,37 @@ ok('Replay shows every step', seen.size >= 5, [...seen].join(' / ')); ok('Replay
 
 // Proprietary Search
 await click('[data-app="ps"]'); await sleep(1800); await shot('ps-home');
-ok('Home leads with who to call this week', await ev(`document.querySelector('.pshead h1').innerText`) === 'Who to call this week' && await ev(`document.querySelectorAll('.today .trow').length`) >= 1, await ev(`document.querySelector('.today')?.innerText.slice(0, 120)`));
+ok('Home leads with owners to contact (one ranked list)', await ev(`document.querySelector('.pshead h1').innerText`) === 'Owners to contact' && await ev(`document.querySelectorAll('table.intent tr[data-open]').length`) >= 5, await ev(`document.querySelector('table.intent tr[data-open]')?.innerText.slice(0, 120)`));
+ok('Owner list: segment filters for the buy box', await ev(`['box','retail_placement','marketplace','strategy','all'].every(k => !!document.querySelector('[data-insc="'+k+'"]'))`));
+ok('Owner list: every buy-box row has a segment and an outreach action', await ev(`[...document.querySelectorAll('table.intent tr[data-open]')].every(r => /Retail placement|Marketplace agency|Strategy & analytics/.test(r.innerText) && (r.querySelector('[data-outwrite]') || r.querySelector('[data-outopen]')))`));
+await click('[data-insc="retail_placement"]'); await sleep(1500); ok('Segment filter: only retail placement', await ev(`[...document.querySelectorAll('table.intent tr[data-open]')].every(r => /Retail placement/.test(r.innerText))`)); await click('[data-insc="box"]'); await sleep(1500);
+{ const ps = await ev(`[...document.querySelectorAll('table.intent tr[data-open]')].slice(0, 5).map(r => r.cells[0].innerText.trim() + ' ' + r.querySelector('b').innerText)`);
+  await click('[data-app="out"]'); await sleep(2500);
+  const out = await ev(`[...document.querySelectorAll('[data-testid="out-ready"] .orow b')].slice(0, 5).map(b => b.innerText.replace('#', '').trim())`);
+  const rest = ps.filter(x => out.includes(x));
+  ok('Outreach shows the same owners with the same numbers', rest.length >= Math.min(3, out.length) && out.length >= 3, JSON.stringify({ ps: ps.slice(0, 3), out: out.slice(0, 3) }));
+  await click('[data-app="ps"]'); await sleep(2500); }
 ok('Three search modes', await ev(`document.querySelectorAll('[data-mode]').length`) === 3);
 ok('History lists searches', await ev(`document.querySelectorAll('[data-open]').length`) >= 2);
 await click('[data-mode="target"]'); await sleep(600); ok('Switch to Find firms to buy', await ev(`document.querySelector('[data-mode="target"]').classList.contains('on')`));
-ok('Find firms to buy: all seven subsectors offered', await ev(`document.querySelectorAll('#ps-sub option').length === 8`));
+ok('Find firms to buy is the default, ecommerce consulting first', await ev(`document.querySelector('#ps-sub option:checked')?.textContent === 'Ecommerce Consulting' && !!document.querySelector('#ps-sub optgroup')`));
 await ev(`document.querySelector('#ps-obj').value='short'`); await click('#ps-run'); await sleep(800); ok('Plain error for a too-short request', /Describe what you are looking for/.test(await ev(`document.querySelector('#ps-err').textContent`)));
 await click('#ps-net'); await sleep(1200); ok('Your network opens', await ev(`document.querySelectorAll('tr[data-nopen]').length`) > 5); await shot('ps-network');
-await click('[data-nm="client"]'); await sleep(800); ok('Network: client companies', await ev(`document.querySelectorAll('tr[data-nopen]').length`) > 5);
-await ev(`(()=>{const i=document.querySelector('#ps-nq'); i.value='muncie'; i.dispatchEvent(new Event('input'))})()`); await sleep(900); ok('Network filter', await ev(`document.querySelectorAll('tr[data-nopen]').length`) >= 1);
+await click('[data-nm="target"]'); await sleep(800); ok('Network: firms to buy', await ev(`document.querySelectorAll('tr[data-nopen]').length`) > 5);
+await ev(`(()=>{const i=document.querySelector('#ps-nq'); i.value='amazon'; i.dispatchEvent(new Event('input'))})()`); await sleep(900); ok('Network filter', await ev(`document.querySelectorAll('tr[data-nopen]').length`) >= 1);
 await click('tr[data-nopen]'); await sleep(1800); ok('Network row opens the search at that result', await ev(`!!document.querySelector('.psd')`)); await click('#ps-close'); await sleep(400);
 ok('Results explain themselves', await ev(`!!document.querySelector('.ps .howline')`));
 ok('Ranked cards', await ev(`document.querySelectorAll('.pscard').length`) >= 5); await shot('ps-results');
 await click('[data-detail]'); await sleep(600); ok('Detail: criteria and sources', await ev(`document.querySelectorAll('.psd .crt tr').length >= 4 && document.querySelectorAll('.psd a[href^="http"]').length >= 2`)); await shot('ps-detail');
 ok('Detail: must-haves marked', await ev(`document.querySelectorAll('.psd .musttag').length`) >= 1);
-ok('Detail: matching button', await ev(`!!document.querySelector('[data-match]') || /No open role/.test(document.querySelector('.dsec.match')?.innerText||'')`));
+ok('Detail: deal intent (sale or partnership) for a firm to buy', await ev(`/Deal intent|Owner and leaders|Why this company/i.test(document.querySelector('.psd')?.innerText || '')`));
 await click('#ps-close'); await sleep(300);
 await click('[data-dec="rejected"]'); await sleep(500); await click('[data-filter="rejected"]'); await sleep(300); ok('Reject and filter', await ev(`document.querySelectorAll('.pscard').length`) === 1); await click('[data-dec="rejected"]'); await sleep(400); await click('[data-filter="all"]'); await sleep(300);
 await click('#ps-edit'); await sleep(300); ok('Edit searches', await ev(`(document.querySelector('#ps-q')?.value||'').split('\\n').length >= 15`)); await click('#ps-cancel'); await sleep(300);
 await click('#ps-back'); await sleep(1200);
 ok('Deal pipeline panel on home', await ev(`document.querySelectorAll('.pipes li').length`) === 6);
-ok('Demand radar on home', await ev(`!!document.querySelector('.radar #rd-go') && /How this works/.test(document.querySelector('.radar').innerText)`));
-ok('Demand radar shows federal contract surges', await ev(`document.querySelectorAll('.radar [data-rdfed]').length`) >= 1);
-ok('Demand radar shows a real scan', await ev(`document.querySelectorAll('.radar [data-rdlook]').length`) >= 1, await ev(`document.querySelector('.radar .note')?.innerText`));
+ok('Brand demand radar on home', await ev(`!!document.querySelector('.radar #rd-go') && /Brand demand radar/.test(document.querySelector('.radar').innerText) && /How this works/.test(document.querySelector('.radar').innerText)`));
+ok('Brand demand radar shows a real scan of brands', await ev(`document.querySelectorAll('.radar [data-rdlook]').length`) >= 1, await ev(`document.querySelector('.radar .note')?.innerText`));
 await ev(`[...document.querySelectorAll('tr[data-open]')].find(r => /Find firms to buy/.test(r.innerText) && /founder/i.test(r.innerText) && !/Running|Partly complete|Failed/.test(r.innerText) && +r.cells[3]?.innerText > 0)?.click()`); await sleep(2000);
 ok('Targets: a failed must-have is capped at 40%', await ev(`[...document.querySelectorAll('.pscard')].every(c => !c.querySelector('.failx') || parseInt(c.querySelector('.sbadge b').textContent) <= 40)`));
 ok('Results: refresh data signals', await ev(`!!document.querySelector('#ps-sig')`));

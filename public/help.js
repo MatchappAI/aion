@@ -15,7 +15,7 @@ const TROUBLE = [
 export function mountHelp(main) {
   main.innerHTML = `<div class="ps help">
     <h1>How to use AION</h1>
-    <p class="lede2">Find companies, clients and people, turn a company’s books into a value-creation plan, and draft RFP answers and candidate write-ups. Everything stays on this computer except the prompts sent to the AI chosen in Settings.</p>
+    <p class="lede2">AION buys US ecommerce consulting firms (retail placement first, then marketplace agencies, then ecommerce strategy and analytics) with about $500K–$5M yearly profit. Find the owners, write to them, turn a firm’s books into a value-creation plan, and draft RFP answers. Everything stays on this computer except the prompts sent to the AI chosen in Settings.</p>
     <div class="helpgrid">
       <section class="panel"><h3>Value Creation <span class="note">a few minutes</span></h3><ol>
         <li>Drop in the books: QuickBooks General Ledger (best), Profit and Loss Detail, or PDF statements / a CIM.</li>
@@ -23,22 +23,24 @@ export function mountHelp(main) {
         <li>Tabs: AION fit (thesis check with evidence), Plan (ranked actions, 100 days), Trends, Deal (price, loan and returns; a loss-making company can be priced on revenue), After you buy, Questions & checks.</li>
         <li>1-page PDF and Excel export the result.</li></ol><button class="ghost sm" data-go="vc">Open Value Creation</button></section>
       <section class="panel"><h3>Proprietary Search <span class="note">4–8 minutes</span></h3><ol>
-        <li>Pick a mode: <b>Find firms to buy</b>, <b>Find clients</b> for a firm’s service, or <b>Find people</b> for a role.</li>
+        <li><b>Owners to contact</b> (top of the page): every ecommerce consulting firm your searches found, in one ranked list. Filter by segment (Retail placement, Marketplace, Strategy & analytics) or by Not contacted, High intent, Sale or Partnership. Press <b>Write outreach</b> on a row, or <b>Open in Outreach</b> once it has started; Outreach shows the same list in the same order.</li>
+        <li>Pick a search: <b>Find firms to buy</b>, <b>Find brands</b> that need retail or marketplace help, or <b>Find people</b> for a hire.</li>
         <li>Describe it in a sentence and press Search. 20–40 web searches run; the best results are checked in depth.</li>
         <li>Every fact links to its source; contacts appear only if found word for word on a page; timing badges show why now.</li>
-        <li><b>Deal intent</b> (Search home): every firm to buy, split into signs it may sell a majority and signs it wants to grow with a partner (partner or referral programs, growth hiring, AI services, partnerships, investor talk). “Only my niche” keeps the deck’s segments. Refresh intent signals reads every firm’s own site and headlines again. Outreach pitches a partnership when that is what the signs point to.</li>
+        <li>Each firm shows <b>why now</b> (signs it may sell a majority or want a growth partner) and the <b>offer</b> to make. Firms outside the buy box (outside the US, PE-backed or part of a group, too big or too small, DTC growth agencies, 3PL or operations advisors, recruiters) are set aside with the reason. <b>Refresh signals</b> reads every firm’s own site and headlines again.</li>
+        <li><b>Brand demand radar</b>: consumer brands that just raised money, won a retailer, hired a sales or ecommerce lead or opened a marketplace store. These are the clients AION’s firms serve.</li>
         <li>Save, reject, set deal stages, Watch weekly, or start a linked search from any result.</li></ol><button class="ghost sm" data-go="ps">Open Proprietary Search</button></section>
       <section class="panel"><h3>Outreach <span class="note">a minute per firm</span></h3><ol>
         <li>Under <b>Senders</b>, connect your sending accounts (the first in AION_SENDERS is the default; the second is optional), and add your mailing address (required on outreach email).</li>
-        <li>Under <b>Ready to start</b>, press <b>Write outreach</b> on a firm. AION writes a first email, two follow-ups, a letter, call notes and a contact-form message from everything it knows about that firm, and shows which facts it used.</li>
+        <li>Under <b>Next owners to contact</b> (the same ranked list as Proprietary Search), press <b>Write outreach</b> on a firm. AION writes a first email, two follow-ups, a letter, call notes and a contact-form message from everything it knows about that firm, and shows which facts it used.</li>
         <li>Edit, pick who it’s from and to, and press <b>Send…</b>: you see exactly what goes out and confirm it. Or save it to Gmail Drafts. Follow-ups wait for your OK too.</li>
         <li>Tick several firms and press <b>Write outreach for N</b>; then <b>Review drafts one by one</b>. No email found? <b>Find a verified email</b> (needs a People Data Labs or Apollo key) or download the <b>letter PDF</b> on AION letterhead.</li>
         <li>Replies, bounces and “no thanks” are checked every 10 minutes, with a Mac notification. <b>Draft my reply</b> offers your real open times from your calendars; pick one and <b>Send calendar invite</b> (with a Google Meet link).</li>
         <li>After the call, <b>Deal steps</b>: the NDA (PDF), the books request, their files opened in Value Creation in one click, then a non-binding LOI written from that analysis. Have a lawyer review the NDA and LOI.</li>
         <li><b>Results</b> shows who you contacted, reply rate, interest, calls and which openers get answers. A “no thanks” is never emailed again; at most 20 emails a day per sender.</li></ol><button class="ghost sm" data-go="out">Open Outreach</button></section>
       <section class="panel"><h3>Documents</h3><ol>
-        <li><b>Answer an RFP:</b> upload or link the RFP; AION drafts each section in the order asked, with what needs your input highlighted.</li>
-        <li><b>Candidate write-up:</b> pick a candidate from a search (or upload a résumé) and a job order.</li>
+        <li><b>Answer an RFP:</b> upload or link a brand’s agency RFP or brief; AION drafts each section in the order asked, with what needs your input highlighted.</li>
+        <li><b>Candidate write-up:</b> for a hire at a firm you own; pick a candidate from a search (or upload a résumé) and the job.</li>
         <li>Drafts only: you edit and send.</li></ol><button class="ghost sm" data-go="docs">Open Documents</button></section>
       <section class="panel"><h3>Settings: which AI</h3><ul>
         <li>Claude Code is used first. Codex, an Anthropic key or an OpenAI key can back it up; when one hits its usage limit the next takes over.</li>
