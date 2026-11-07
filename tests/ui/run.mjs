@@ -104,7 +104,7 @@ await click('#ps-close'); await sleep(300);
 await click('[data-dec="rejected"]'); await sleep(500); await click('[data-filter="rejected"]'); await sleep(300); ok('Reject and filter', await ev(`document.querySelectorAll('.pscard').length`) === 1); await click('[data-dec="rejected"]'); await sleep(400); await click('[data-filter="all"]'); await sleep(300);
 await click('#ps-edit'); await sleep(300); ok('Edit searches', await ev(`(document.querySelector('#ps-q')?.value||'').split('\\n').length >= 15`)); await click('#ps-cancel'); await sleep(300);
 await click('#ps-back'); await sleep(1200);
-ok('Deal pipeline panel on home', await ev(`document.querySelectorAll('.pipes li').length`) === 6);
+ok('Deal pipeline panel on home, with a diligence step', await ev(`document.querySelectorAll('.pipes li').length`) === 7 && /diligence/.test(await ev(`document.querySelector('.pipes').innerText`)));
 ok('Brand demand radar on home', await ev(`!!document.querySelector('.radar #rd-go') && /Brand demand radar/.test(document.querySelector('.radar').innerText) && /How this works/.test(document.querySelector('.radar').innerText)`));
 ok('Brand demand radar shows a real scan of brands', await ev(`document.querySelectorAll('.radar [data-rdlook]').length`) >= 1, await ev(`document.querySelector('.radar .note')?.innerText`));
 await ev(`[...document.querySelectorAll('tr[data-open]')].find(r => /Find firms to buy/.test(r.innerText) && /founder/i.test(r.innerText) && !/Running|Partly complete|Failed/.test(r.innerText) && +r.cells[3]?.innerText > 0)?.click()`); await sleep(2000);

@@ -1,5 +1,5 @@
 import { toast, busy } from './ui.js';
-import { SUBSECTORS } from '/thesis.mjs';
+import { SUBSECTORS, asksForPartner } from '/thesis.mjs';
 // Proprietary Search: find people, clients and firms to buy on one shared search engine.
 const $ = s => document.querySelector(s);
 const esc = v => String(v ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -30,9 +30,6 @@ const cap1 = t => t.charAt(0).toUpperCase() + t.slice(1);
 const titleCo = t => String(t || '').toLowerCase().replace(/\b([a-z])([a-z']*)/g, (m, a, b) => /^(llc|usa|lp|llp)$/.test(a + b) ? (a + b).toUpperCase() : a.toUpperCase() + b).replace(/\b(Of|And|The)\b(?!^)/g, w => w.toLowerCase()).replace(/^./, c => c.toUpperCase());
 const ST = { strong: ['Strong match', 'ok'], partial: ['Partial match', 'mid'], no_evidence: ['No evidence found', 'na'], mismatch: ['Mismatch', 'bad'] };
 
-// the firm's own words asking for a partner or investor (same rule as lib/search/rank.mjs)
-const ASK = /\b(seek(s|ing)?|looking for|open to|exploring|explore|interested in|welcom\w*|wants?|raising|in search of)\b[^.;]{0,40}?\b(growth|strategic|equity|capital|financial|operating|investment)?\s*(partners?|partnerships?|investors?|investment|capital)\b/i;
-const NOT_ASK = /\b(no|not|never|without|declin\w*|took|taken|received|closed|acquired|bought|backed|referral|affiliate|program|certified|verified|badge|agency status)\b/i;
 export function mountSearch(main) { P.main = main; draw(); }
 export function leaveSearch() { clearTimeout(P.timer); P.timer = null; }
 
@@ -170,7 +167,7 @@ function whyNowPanel(e, s) {
   if (!e.timing) return '';
   const T = e.timing, what = { target: 'the owner may sell or partner', client: 'they will need outside retail or marketplace help', candidate: 'they may be open to a move' }[s.mode];
   const li = x => `<li class="${x.direction}"><b>${esc(x.label)}</b> <span class="srctag">${x.source === 'radar' || x.source === 'intent' ? 'data source' : 'web search'}</span>${x.direction === 'against' ? ' <span class="tagx">reason to wait</span>' : ''} ${esc(x.text)}${x.date ? ` <span class="note">· ${esc(x.date)}</span>` : ''} <span class="note">· inferred, ${x.confidence}</span> <a href="${safeUrl(x.url)}" target="_blank" rel="noopener">source</a></li>`;
-  if (s.mode === 'target' && T.intent) { const I = T.intent, asked = T.signals.filter(x => x.direction === 'for' && ASK.test(x.text || '') && !NOT_ASK.test(x.text || ''));
+  if (s.mode === 'target' && T.intent) { const I = T.intent, asked = T.signals.filter(x => x.direction === 'for' && asksForPartner(x.text));
     const sale = T.signals.filter(x => x.direction === 'for' && x.path !== 'partner'), wait = T.signals.filter(x => x.direction === 'against');
     return `<div class="dsec"><small>Why now · signs the owner may sell</small>
       <p>${I.sale.level !== 'none' ? `<span class="tbadge ${LV[I.sale.level][1]}">${LV[I.sale.level][0]}</span>` : '<span class="note">No signs yet</span>'}</p>
@@ -319,7 +316,7 @@ function facts2(e, s) {
 function failLine(e) { return (e.failed || []).length ? `<p class="failx">Fails a must-have: ${e.failed.map(l => esc(l.split(/[(:]/)[0].trim())).join('; ')}. Score capped at 40%.</p>` : ''; }
 
 // deal pipeline: stages are set by you, never inferred
-const DEAL = [['contacted', 'Contacted'], ['met', 'Meeting held'], ['nda', 'Confidentiality signed (NDA)'], ['books', 'Books received'], ['loi', 'Offer sent (LOI)'], ['closed', 'Closed'], ['passed', 'Passed']];
+const DEAL = [['contacted', 'Contacted'], ['met', 'Meeting held'], ['nda', 'Confidentiality signed (NDA)'], ['books', 'Books received'], ['loi', 'Offer sent (LOI)'], ['diligence', 'LOI signed · diligence'], ['closed', 'Closed'], ['passed', 'Passed']];
 const stageName = k => (DEAL.find(d => d[0] === k) || [k, 'Not contacted'])[1];
 function stageSel(e) { const v = e.deal?.stage || ''; return `<label class="stagesel"><span>Deal stage</span><select data-stage="${e.id}"><option value="">Not contacted</option>${DEAL.map(([k, l]) => `<option value="${k}" ${v === k ? 'selected' : ''}>${l}</option>`).join('')}</select>${v ? ` <span class="note">since ${day(e.deal.history[e.deal.history.length - 1].at)}</span>` : ''}</label>`; }
 function pipelinePanel(PL) {
