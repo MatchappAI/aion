@@ -97,3 +97,13 @@ test('deal returns: sources equal uses, improvements raise returns, downside low
   assert.ok(r.base.moic > r.none.moic && r.none.moic > r.downside.moic);
   assert.ok(Math.abs(r.base.moic - 4.34) < 0.05 && Math.abs(r.none.moic - 3.31) < 0.05, `matches thesis: ${r.base.moic} / ${r.none.moic}`);
 });
+
+test('majority stake: investors put in and receive their share; the owner rolls the rest; returns per $1 unchanged', () => {
+  const full = dealReturns(755000, 33000, { ...DEFAULT_ASSUMPTIONS }, 3460000), maj = dealReturns(755000, 33000, { ...DEFAULT_ASSUMPTIONS, stake: 0.7 }, 3460000);
+  near(maj.investorEquity + maj.rollover, full.equity, 'investor money + rollover = equity');
+  near(maj.investorEquity, full.equity * 0.7, 'investors put in 70%');
+  near(maj.sellerCashAtClose, full.sellerCashAtClose - maj.rollover, 'seller cash at close falls by the rolled share');
+  assert.equal(maj.base.net.moic, full.base.net.moic);
+  near(maj.base.net.stillOwned, full.base.net.stillOwned * 0.7, 'investors own 70% of the company');
+  assert.equal(dealReturns(755000, 0, { ...DEFAULT_ASSUMPTIONS, stake: 0.2 }, 3460000).stake, 0.5); // never below a majority
+});

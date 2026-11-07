@@ -91,3 +91,14 @@ test('buy box: headcount must fit $500K–$5M profit, not just 5–150 people', 
   assert.equal(wide.status, 'check'); assert.ok(wide.reasons.some(r => /too big/.test(r)));
   assert.equal(buyBox({ ownership: 'founder-owned', size: 'About 20 employees', location: 'Austin, TX' }).status, 'in');
 });
+
+test('two different firms found on the same news or directory site are never merged', async () => {
+  const { siteOf, ownDomain } = await import('../lib/search/resolve.mjs');
+  assert.equal(ownDomain('theshelbyreport.com', 'Fresh Pantry Sales'), false);
+  assert.equal(ownDomain('northfieldbrokers.com', 'Northfield Brokers'), true);
+  assert.equal(siteOf({ company: 'Acme Retail Partners', website: 'https://acmerp.com' }), 'acmerp.com'); // its own site, even if the name differs
+  assert.equal(siteOf({ company: 'Acme Retail Partners', website: 'Not found in public sources reviewed.', domain: 'clutch.co' }), '');
+  const e = (id, company) => ({ id, company, website: 'Not found in public sources reviewed.', domain: 'theshelbyreport.com', scored: true, score: 60, industry: 'Food broker, retail placement', timing: { signals: [] } });
+  const R = rankAll([{ id: 's1', mode: 'target', entities: [e('e1', 'Fresh Pantry Sales'), e('e2', 'Harbor Food Brokers')] }], { niche: false });
+  assert.equal(R.ranked.length + R.outside.length + R.offNiche.length, 2);
+});

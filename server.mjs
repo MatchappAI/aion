@@ -864,7 +864,7 @@ const server = http.createServer(async (req, res) => {
               if (busy()) return send(res, 409, { error: 'An analysis is still running. Try again when it finishes.' });
               const was = CUR; loadDeal(it.dealId); const d = derive(); loadDeal(was);
               if (!d.deal) return send(res, 400, { error: 'That company’s books haven’t been analyzed yet (or it can’t be priced). Open it in Value Creation and press Analyze.' });
-              const numbers = { fees: d.deal.fees || 0, ebitda: d.normalization.normalized, price: d.deal.price, multiple: d.deal.multiple, basis: d.deal.basis, senior: d.deal.senior, seller: d.deal.seller, equity: d.deal.equity, revenue: d.pnl?.TTM?.revenue || 0 };
+              const numbers = { fees: d.deal.fees || 0, ebitda: d.normalization.normalized, price: d.deal.price, multiple: d.deal.multiple, basis: d.deal.basis, senior: d.deal.senior, seller: d.deal.seller, equity: d.deal.equity, revenue: d.pnl?.TTM?.revenue || 0, stake: d.deal.stake ?? 1, rollover: d.deal.rollover || 0, wcPeg: d.wc?.peg ?? null };
               // whole thousands, with costs = sources − price, so every figure in the letter adds up exactly
               const k = v => Math.round((+v || 0) / 1000) * 1000;
               for (const f of ['ebitda', 'price', 'senior', 'seller', 'equity', 'revenue']) numbers[f] = k(numbers[f]);
@@ -980,6 +980,7 @@ const server = http.createServer(async (req, res) => {
           for (const [k, v] of Object.entries(a)) {
             if (k === 'workflows') { for (const w of v) { const t = S.assumptions.workflows.find(x => x.key === w.key); if (t) t.saved = Math.min(1, Math.max(0, +w.saved || 0)); } }
             else if (k === 'vehicle') { if (['holdco', 'fund', 'sponsor', 'search', 'sba'].includes(v)) S.assumptions.vehicle = v; }
+            else if (k === 'stake') { const x = +v; if (x >= 0.5 && x <= 1) S.assumptions.stake = x; }
             else if (k === 'price_basis') { if (['ebitda', 'revenue'].includes(v)) S.assumptions.price_basis = v; }
             else if (k in DEFAULT_ASSUMPTIONS) S.assumptions[k] = +v || 0;
           }
