@@ -286,9 +286,10 @@ function outreachReady() {
       if (have.has(`${s2.id}|${e.id}`) || haveName.has(`${s2.mode}|${String(s2.mode === 'candidate' ? e.name : e.company).toLowerCase()}`)) continue;
       const picked = ['saved', 'priority'].includes(e.decision), R = s2.mode === 'target' ? rankOne(e) : null, I = R?.intent || null;
       if (R && !R.niche && !picked) continue; // off-niche firms only when you saved them
+      if (R && R.box.status === 'out' && !picked) continue; // outside the buy box only when you saved them
       if (!picked && (e.score ?? 0) < 70 && !(I?.high && (e.score ?? 0) >= 55)) continue;
       const emails = (e.contactInfo || []).filter(c => c.kind === 'email').length;
-      out.push({ search: s2.id, entity: e.id, mode: s2.mode, name: s2.mode === 'candidate' ? e.name : e.company, where: String(e.location || '').split(/\s[(;]/)[0], score: e.score ?? 0, picked, priority: e.decision === 'priority', emails, objective: s2.objective, pitch: R ? (R.approach === 'watch' ? null : R.approach) : null, high: !!I?.high, rankScore: R?.score ?? null, site: !!e.website });
+      out.push({ search: s2.id, entity: e.id, mode: s2.mode, name: s2.mode === 'candidate' ? e.name : e.company, where: String(e.location || '').split(/\s[(;]/)[0], score: e.score ?? 0, picked, priority: e.decision === 'priority', emails, objective: s2.objective, pitch: R ? (R.approach === 'watch' ? null : R.approach) : null, box: R?.box || null, high: !!I?.high, rankScore: R?.score ?? null, site: !!e.website });
     }
   }
   // one row per firm or person, even when several searches found it (the best-scoring copy wins)
@@ -311,6 +312,18 @@ function startSearch({ mode, objective, filters, from, queries, criteria, link, 
   }).finally(() => { delete SRUN[s2.id]; });
   return s2;
 }
+// a search cut off by a restart: one that had not reached the in-depth checks starts again (keeping its strategy);
+// one that had checked firms keeps them and is marked partial, so "Check more in depth" can carry on
+function resumeInterrupted() {
+  for (const h of listSearches()) { if (h.status !== 'running' || SRUN[h.id]) continue; const s2 = loadSearch(h.id); if (!s2) continue;
+    const checked = (s2.entities || []).filter(e => e.scored).length;
+    if (checked) { s2.status = 'partial'; s2.stage = 'done'; (s2.log ||= []).push({ t: (Date.now() - (s2.t0 || Date.now())) / 1000, text: `Interrupted by a restart after ${checked} in-depth checks. Use “Check more in depth” to continue.` }); saveSearch(s2); continue; }
+    if (Object.keys(SRUN).length >= 2) { s2.status = 'failed'; s2.error = 'Interrupted by a restart; run it again.'; s2.stage = 'done'; saveSearch(s2); continue; }
+    SRUN[s2.id] = s2; console.log(`Resuming search ${s2.id} after a restart`);
+    runSearch(s2, { cwd: path.join(ROOTWS, 'searches'), model: MODELS.extraction, emit: () => {} }).then(() => ingest(s2)).finally(() => { delete SRUN[s2.id]; });
+  }
+}
+if (!process.env.AION_NO_RESUME) setTimeout(resumeInterrupted, 2000);
 // weekly watchlists: check every 30 minutes while the app is running
 setInterval(() => { for (const w of due()) { if (Object.keys(SRUN).length >= 2) break; const last = loadSearch(w.lastSearch); if (!last) continue; watchStarted(w); startSearch({ mode: w.mode, objective: w.objective, filters: w.filters, from: last.id, queries: last.queries, watchId: w.id }); } }, 30 * 60000);
 const busy = () => Object.values(jobs).some(j => j.status === 'running');
@@ -656,11 +669,11 @@ const server = http.createServer(async (req, res) => {
         const B = OUT.board(), out = new Set(B.map(x => `${x.search}|${x.entity}`)), outName = new Set(B.map(x => String(x.name).toLowerCase()));
         const ss = listSearches().map(h => loadSearch(h.id)).filter(Boolean).sort((a, b) => String(b.created || '').localeCompare(String(a.created || '')));
         const R = rankAll(ss, { warm: e => warm('target', e), contacted: (s2, e) => out.has(`${s2.id}|${e.id}`) || outName.has(String(e.company).toLowerCase()), niche: false });
-        const slim = x => ({ search: x.search, entity: x.entity, rank: x.rank, name: x.name, website: x.website, place: x.place, industry: x.industry, fit: x.fit, niche: x.niche, focus: x.focus, rankScore: x.score, parts: x.parts, kinds: x.kinds, approach: x.approach, approachText: APPROACH[x.approach], owner: x.owner, emails: x.emails, phone: x.phone, warmIntro: x.warmIntro, contacted: x.contacted, why: x.why, intent: x.intent,
+        const slim = x => ({ search: x.search, entity: x.entity, rank: x.rank, name: x.name, website: x.website, place: x.place, industry: x.industry, fit: x.fit, niche: x.niche, focus: x.focus, rankScore: x.score, parts: x.parts, box: x.box, kinds: x.kinds, approach: x.approach, approachText: APPROACH[x.approach], owner: x.owner, emails: x.emails, phone: x.phone, warmIntro: x.warmIntro, contacted: x.contacted, why: x.why, intent: x.intent,
           deal: (() => { const s2 = ss.find(y => y.id === x.search); const e = s2?.entities.find(y => y.id === x.entity); return s2 && e ? dealOf(s2, e)?.stage || '' : ''; })(),
           signals: x.signals.filter(y => y.path).map(y => ({ key: y.key, label: y.label, path: y.path, text: y.text, url: y.url, date: y.date, direction: y.direction, confidence: y.confidence, source: y.source })) });
         const list = R.ranked.map(slim); let n = 0; for (const x of list) if (x.niche) x.nicheRank = ++n;
-        return send(res, 200, { scanning: INTENT, lastScan: LAST_INTENT, list, listed: R.listed.map(x => ({ name: x.name, place: x.place, website: x.website })), counts: { all: list.length, high: list.filter(x => x.intent.high).length, sale: list.filter(x => x.intent.sale.level === 'high').length, partner: list.filter(x => x.intent.partner.level === 'high').length, niche: list.filter(x => x.niche).length, focus: list.filter(x => x.focus).length, listed: R.listed.length } });
+        return send(res, 200, { scanning: INTENT, lastScan: LAST_INTENT, list, listed: R.listed.map(x => ({ name: x.name, place: x.place, website: x.website })), outside: R.outside.filter(x => x.niche).map(x => ({ search: x.search, entity: x.entity, name: x.name, place: x.place, focus: x.focus, why: x.box.reasons.join('; ') })), counts: { outside: R.outside.filter(x => x.niche).length, outsideFocus: R.outside.filter(x => x.focus).length, inBox: list.filter(x => x.box.status === 'in').length, all: list.length, high: list.filter(x => x.intent.high).length, sale: list.filter(x => x.intent.sale.level === 'high').length, partner: list.filter(x => x.intent.partner.level === 'high').length, niche: list.filter(x => x.niche).length, focus: list.filter(x => x.focus).length, listed: R.listed.length } });
       }
       if (req.method === 'GET' && p === 'search/radar') return send(res, 200, { events: recentEvents(), scans: radarScans(), scanning: SCAN });
       if (req.method === 'GET' && p === 'search/pipeline') return send(res, 200, { stages: DEAL_STAGES, deals: pipeline() });
