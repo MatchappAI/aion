@@ -845,3 +845,5 @@ details.odet>summary::before{content:'▸ ';color:var(--mute)}details.odet[open]
 @keyframes wspin{to{transform:rotate(360deg)}}
 @media (max-width:600px){.inboxes .inbox{min-width:0;flex:1 1 100%}}
 details.odet:not([open]){padding-top:14px;padding-bottom:14px}details.odet>summary.h2{margin:0}
+
+.seg.tracks{display:inline-flex;margin:0 0 6px}.seg.tracks button{font-size:14px;padding:7px 16px}

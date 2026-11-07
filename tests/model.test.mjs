@@ -92,7 +92,7 @@ test('levers: no demand means freed capacity earns nothing', () => {
 });
 
 test('deal returns: sources equal uses, improvements raise returns, downside lowest', () => {
-  const r = dealReturns(754705, 136746, { ...DEFAULT_ASSUMPTIONS, implementation: 40000, senior_multiple: 2.25 }, 3456000);
+  const r = dealReturns(754705, 136746, { ...DEFAULT_ASSUMPTIONS, entry_multiple: 4.0, implementation: 40000, senior_multiple: 2.25 }, 3456000); // math check at a fixed 4.0× price
   near(r.senior + r.seller + r.equity, r.price + r.fees, 'sources = uses');
   assert.ok(r.base.moic > r.none.moic && r.none.moic > r.downside.moic);
   assert.ok(Math.abs(r.base.moic - 4.34) < 0.05 && Math.abs(r.none.moic - 3.31) < 0.05, `matches thesis: ${r.base.moic} / ${r.none.moic}`);
