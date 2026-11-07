@@ -845,3 +845,11 @@ details.odet>summary::before{content:'▸ ';color:var(--mute)}details.odet[open]
 @keyframes wspin{to{transform:rotate(360deg)}}
 @media (max-width:600px){.inboxes .inbox{min-width:0;flex:1 1 100%}}
 details.odet:not([open]){padding-top:14px;padding-bottom:14px}details.odet>summary.h2{margin:0}
+
+.seg.tracks{display:inline-flex;margin:0 0 6px}.seg.tracks button{font-size:14px;padding:7px 16px}
+
+/* first-run: three steps to the first owner conversation */
+.starthere { margin: 8px 0 28px; padding: 18px 22px 18px 40px; background: var(--card, #fff); border-radius: 16px; display: grid; gap: 10px; line-height: 1.5; }
+.starthere li::marker { font-weight: 600; }
+body[data-firstrun="1"] #main{display:flex;flex-direction:column}
+body[data-firstrun="1"] #psown{order:-1}

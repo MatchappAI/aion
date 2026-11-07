@@ -21,13 +21,20 @@ test('niche covers ecommerce consulting and retail placement, not off-niche trad
   assert.ok(!inNiche({ industry: 'Residential HVAC services' }));
 });
 
-test('rank: many kinds of signal, fit and reach beat one loud signal; both paths → let them choose', () => {
+test('rank: many kinds of signal, fit and reach beat one loud signal; every firm is a buyout unless it asks for a partner', () => {
   const many = { company: 'A', score: 70, industry: 'Ecommerce consulting agency', owner: 'Jane Roe', contactInfo: [{ kind: 'email', value: 'jane@a.com' }], timing: { signals: [sig('succession'), sig('exit_planning'), sig('partner_program'), sig('growth_hiring', { date: '2026-10' })] } };
   const one = { company: 'B', score: 40, industry: 'Ecommerce consulting agency', timing: { signals: [sig('stale_website')] } };
   const a = rankOne(many), b = rankOne(one);
   assert.ok(a.score > b.score, `${a.score} > ${b.score}`);
-  assert.equal(a.approach, 'both'); assert.equal(a.owner, 'Jane Roe'); assert.ok(a.parts.reach >= 10);
-  assert.equal(rankOne({ company: 'C', score: 50, timing: { signals: [] } }).approach, 'watch');
+  assert.equal(a.approach, 'sale'); assert.equal(a.offer, 'full'); assert.equal(a.owner, 'Jane Roe'); assert.ok(a.parts.reach >= 10);
+  // growth signs alone (hiring, a referral program) are not an ask for a partner: still a buyout
+  const grow = rankOne({ company: 'G', score: 60, timing: { signals: [sig('partner_program'), sig('growth_hiring', { date: '2026-10' })] } });
+  assert.equal(grow.approach, 'sale'); assert.equal(grow.offer, 'majority'); // owner still building → majority stake
+  // no signs yet: still a buyout offer
+  assert.equal(rankOne({ company: 'C', score: 50, timing: { signals: [] } }).offer, 'full');
+  // the firm says it wants a growth partner: partnership
+  const ask = rankOne({ company: 'D', score: 60, timing: { signals: [sig('recap_interest', { text: 'Founder says the firm is seeking a strategic growth partner to scale' })] } });
+  assert.equal(ask.offer, 'partner'); assert.equal(ask.approach, 'partner');
 });
 
 test('rankAll sets listed firms aside and dedupes across searches', () => {
@@ -75,4 +82,23 @@ test('buy box: independent and the right size, or set aside', () => {
   const c = buyBox({ ownership: 'unknown', size: 'Not stated' });
   assert.equal(buyBox({ ownership: 'founder-owned', size: 'About 15 employees', location: 'Brașov', website: 'shop.ro' }).status, 'out');
   assert.equal(c.status, 'check'); assert.deepEqual(c.reasons, ['Ownership not confirmed', 'US location not confirmed', 'Size not confirmed']);
+});
+
+test('buy box: headcount must fit $500K–$5M profit, not just 5–150 people', () => {
+  const small = buyBox({ ownership: 'founder-owned', size: 'About 6 employees', location: 'Boca Raton, FL' });
+  assert.equal(small.status, 'check'); assert.ok(small.reasons.some(r => /under \$500K profit/.test(r)));
+  const wide = buyBox({ ownership: 'founder-owned', size: '106-500 employees', location: 'Nashville, TN' });
+  assert.equal(wide.status, 'check'); assert.ok(wide.reasons.some(r => /too big/.test(r)));
+  assert.equal(buyBox({ ownership: 'founder-owned', size: 'About 20 employees', location: 'Austin, TX' }).status, 'in');
+});
+
+test('two different firms found on the same news or directory site are never merged', async () => {
+  const { siteOf, ownDomain } = await import('../lib/search/resolve.mjs');
+  assert.equal(ownDomain('theshelbyreport.com', 'Fresh Pantry Sales'), false);
+  assert.equal(ownDomain('northfieldbrokers.com', 'Northfield Brokers'), true);
+  assert.equal(siteOf({ company: 'Acme Retail Partners', website: 'https://acmerp.com' }), 'acmerp.com'); // its own site, even if the name differs
+  assert.equal(siteOf({ company: 'Acme Retail Partners', website: 'Not found in public sources reviewed.', domain: 'clutch.co' }), '');
+  const e = (id, company) => ({ id, company, website: 'Not found in public sources reviewed.', domain: 'theshelbyreport.com', scored: true, score: 60, industry: 'Food broker, retail placement', timing: { signals: [] } });
+  const R = rankAll([{ id: 's1', mode: 'target', entities: [e('e1', 'Fresh Pantry Sales'), e('e2', 'Harbor Food Brokers')] }], { niche: false });
+  assert.equal(R.ranked.length + R.outside.length + R.offNiche.length, 2);
 });
