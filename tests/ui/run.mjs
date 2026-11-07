@@ -73,20 +73,23 @@ ok('Replay shows every step', seen.size >= 5, [...seen].join(' / ')); ok('Replay
 await click('[data-app="ps"]'); await sleep(1800); await shot('ps-home');
 ok('One tab: Search & Outreach (no separate Outreach or Documents tab)', await ev(`!document.querySelector('[data-app="out"]') && !document.querySelector('[data-app="docs"]') && /Search & Outreach/.test(document.querySelector('[data-app="ps"]').innerText)`));
 ok('Outreach on the same page, with the inbox each one uses', await ev(`!!document.querySelector('#psout [data-testid="outreach"]') && document.querySelectorAll('#psout .inboxes .inbox').length >= 1`));
-ok('Owner list: filter by offer (full buyout, majority stake, partnership, their choice)', await ev(`['full','majority','partner','both'].every(k => !!document.querySelector('[data-inf="'+k+'"]'))`));
+ok('Owner list: one list, no separate partnerships tab', await ev(`!document.querySelector('[data-intrack]') && /confirmed/.test(document.querySelector('.pipe.intent').innerText)`));
+ok('Owner list: filter by buyout offer; no “their choice” or “watch”', await ev(`['all','new','full','majority'].every(k => !!document.querySelector('[data-inf="'+k+'"]')) && !document.querySelector('[data-inf="both"]') && !document.querySelector('[data-inf="watch"]') && !/Their choice/.test(document.body.innerText)`));
+{ const L = await ev(`fetch('/api/search/intent').then(r => r.json()).then(d => d.list.filter(x => x.niche).map(x => x.offer))`);
+  ok('Every firm is a full buyout or majority stake unless it asked for a partner', L.length > 0 && L.every(o => ['full', 'majority', 'partner'].includes(o)), JSON.stringify(L.reduce((c, o) => (c[o] = (c[o] || 0) + 1, c), {}))); }
+await ev(`document.querySelector('#in-all')?.click()`); await sleep(1500);
+{ const withSize = await ev(`fetch('/api/search/intent').then(r => r.json()).then(d => d.list.filter(x => x.niche && x.track !== 'partner' && x.size).length)`);
+  ok('Owner list: rough size from headcount where known', withSize === 0 || await ev(`[...document.querySelectorAll('table.intent tr[data-open]')].some(r => /people · rough profit/.test(r.innerText))`), `${withSize} firms with a size`); }
+await ev(`document.querySelector('#in-all')?.click()`); await sleep(1200);
 ok('Home leads with owners to contact (one ranked list)', await ev(`document.querySelector('#psown .pshead h1').innerText`) === 'Owners to contact' && await ev(`document.querySelectorAll('table.intent tr[data-open]').length`) >= 5, await ev(`document.querySelector('table.intent tr[data-open]')?.innerText.slice(0, 120)`));
-ok('Owner list: segment filters for the buy box', await ev(`['box','retail_placement','marketplace','strategy','all'].every(k => !!document.querySelector('[data-insc="'+k+'"]'))`));
+ok('Owner list: segment filters for the buy box', await ev(`['box','retail_placement','marketplace','strategy'].every(k => !!document.querySelector('[data-insc="'+k+'"]'))`));
 ok('Owner list: every buy-box row has a segment and an outreach action', await ev(`[...document.querySelectorAll('table.intent tr[data-open]')].every(r => /Retail placement|Marketplace agency|Strategy & analytics/.test(r.innerText) && (r.querySelector('[data-outwrite]') || r.querySelector('[data-outopen]')))`));
 await click('[data-insc="retail_placement"]'); await sleep(1500); ok('Segment filter: only retail placement', await ev(`[...document.querySelectorAll('table.intent tr[data-open]')].every(r => /Retail placement/.test(r.innerText))`)); await click('[data-insc="box"]'); await sleep(1500);
-{ const ps = await ev(`[...document.querySelectorAll('table.intent tr[data-open]')].slice(0, 5).map(r => r.cells[0].innerText.trim() + ' ' + r.querySelector('b').innerText)`);
-  const out = await ev(`[...document.querySelectorAll('[data-testid="out-ready"] .orow b')].slice(0, 5).map(b => b.textContent.replace('#', '').trim())`);
-  const rest = ps.filter(x => out.includes(x));
-  ok('Outreach shows the same owners with the same numbers', rest.length >= Math.min(3, out.length) && out.length >= 3, JSON.stringify({ ps: ps.slice(0, 3), out: out.slice(0, 3) }));
-  }
+ok('Outreach: write for many at once without a second copy of the owner list', await ev(`!!document.querySelector('[data-many]') && !document.querySelector('[data-testid="out-ready"] .orow')`));
 ok('Three search modes', await ev(`document.querySelectorAll('[data-mode]').length`) === 3);
 ok('History lists searches', await ev(`document.querySelectorAll('[data-open]').length`) >= 2);
 await click('[data-mode="target"]'); await sleep(600); ok('Switch to Find firms to buy', await ev(`document.querySelector('[data-mode="target"]').classList.contains('on')`));
-ok('Find firms to buy is the default, ecommerce consulting first', await ev(`document.querySelector('#ps-sub option:checked')?.textContent === 'Ecommerce Consulting' && !!document.querySelector('#ps-sub optgroup')`));
+ok('Find firms to buy is the default, ecommerce consulting first', await ev(`document.querySelector('#ps-sub option:checked')?.textContent === 'Ecommerce Consulting' && !document.querySelector('#ps-sub optgroup')`));
 await ev(`document.querySelector('#ps-obj').value='short'`); await click('#ps-run'); await sleep(800); ok('Plain error for a too-short request', /Describe what you are looking for/.test(await ev(`document.querySelector('#ps-err').textContent`)));
 await click('#ps-net'); await sleep(1200); ok('Your network opens', await ev(`document.querySelectorAll('tr[data-nopen]').length`) > 5); await shot('ps-network');
 await click('[data-nm="target"]'); await sleep(800); ok('Network: firms to buy', await ev(`document.querySelectorAll('tr[data-nopen]').length`) > 5);
@@ -101,7 +104,7 @@ await click('#ps-close'); await sleep(300);
 await click('[data-dec="rejected"]'); await sleep(500); await click('[data-filter="rejected"]'); await sleep(300); ok('Reject and filter', await ev(`document.querySelectorAll('.pscard').length`) === 1); await click('[data-dec="rejected"]'); await sleep(400); await click('[data-filter="all"]'); await sleep(300);
 await click('#ps-edit'); await sleep(300); ok('Edit searches', await ev(`(document.querySelector('#ps-q')?.value||'').split('\\n').length >= 15`)); await click('#ps-cancel'); await sleep(300);
 await click('#ps-back'); await sleep(1200);
-ok('Deal pipeline panel on home', await ev(`document.querySelectorAll('.pipes li').length`) === 6);
+ok('Deal pipeline panel on home, with a diligence step', await ev(`document.querySelectorAll('.pipes li').length`) === 7 && /diligence/.test(await ev(`document.querySelector('.pipes').innerText`)));
 ok('Brand demand radar on home', await ev(`!!document.querySelector('.radar #rd-go') && /Brand demand radar/.test(document.querySelector('.radar').innerText) && /How this works/.test(document.querySelector('.radar').innerText)`));
 ok('Brand demand radar shows a real scan of brands', await ev(`document.querySelectorAll('.radar [data-rdlook]').length`) >= 1, await ev(`document.querySelector('.radar .note')?.innerText`));
 await ev(`[...document.querySelectorAll('tr[data-open]')].find(r => /Find firms to buy/.test(r.innerText) && /founder/i.test(r.innerText) && !/Running|Partly complete|Failed/.test(r.innerText) && +r.cells[3]?.innerText > 0)?.click()`); await sleep(2000);

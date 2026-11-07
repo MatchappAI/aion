@@ -475,12 +475,11 @@ function simple() {
   if (!S.file) {
     main.innerHTML = `<div class="sw center"><p class="kicker">For ETA buyers, independent sponsors, PE firms and business owners · EBITDA improvement and value creation</p><h1>See a company’s real profit, and how to grow it.</h1><p class="lede">EBITDA (profit before interest, tax and depreciation) is a company’s yearly profit from running the business, the number buyers price it on. This tool finds what it really is and how to raise it. For anyone buying, owning or investing in a business, in any industry. Answers in about a minute from a ledger, a few minutes from a PDF.</p>
       <div class="why3"><div><b>The problem</b><span>The profit a seller reports often includes the owner’s own pay and personal costs, so it can look better or worse than it really is.</span></div>
-        <div><b>Why it matters</b><span>Businesses usually sell for about 4–5 years of profit (the “multiple”). Every $1 of yearly profit found or added is worth about $4–5 when the company is sold.</span></div>
+        <div><b>Why it matters</b><span>Small firms usually sell for about 3–5 years of profit (the “multiple”). So every $1 of yearly profit found or added makes the company worth about $3–5 more.</span></div>
         <div><b>What this does</b><span>It reads the company’s own records, works out the real profit, finds the 3 changes most likely to raise it, and checks whether the price makes sense.</span></div></div>
       <div class="drop big" id="drop"><b>Drop the company’s books here</b><div class="note">QuickBooks General Ledger (.xlsx or .csv) or a PDF · or click to choose</div><input type="file" id="file" accept=".xlsx,.xls,.csv,.pdf" hidden></div>
       <ol class="how3s"><li><b>1</b><span>Drop in the books</span><small>the record of every payment in and out (a QuickBooks General Ledger)</small></li><li><b>2</b><span>Watch it work</span><small>about a minute for a ledger, one step at a time</small></li><li><b>3</b><span>Get the plan</span><small>real profit, top 3 actions, first 100 days</small></li></ol>
-      <p class="note"><label><input type="checkbox" id="mask" ${S.maskNames === false ? '' : 'checked'}> Hide customer and staff names from the AI</label></p></div>
-      <div class="sw" style="text-align:left;margin-top:28px"><details class="more2"><summary>Tools we could build next · ${VC_NEXT.length}, not built yet</summary>${vcNextHTML()}</details></div>`;
+      <p class="note"><label><input type="checkbox" id="mask" ${S.maskNames === false ? '' : 'checked'}> Hide customer and staff names from the AI</label></p></div>`;
     $('#mask').onchange = async e => { V = await api('mask', { on: e.target.checked }); };
     wireDrop(); return;
   }
@@ -530,7 +529,7 @@ function simple() {
     <nav class="dtabs">${[['overview', 'Overview'], ['fit', 'AION fit'], ['plan', 'Plan'], ['trends', 'Trends'], ['deal', 'Deal'], ['run', 'After you buy'], ['details', 'Questions & checks']].map(([k, l]) => `<button data-tab-btn="${k}" class="${tab === k ? 'on' : ''}">${l}</button>`).join('')}</nav>
 
     <section class="hero2" data-tab="overview">
-      <h1>Profit can grow from <span>${k$(n.normalized)}</span> to <span>${k$(d.proForma)}</span> a year</h1>
+      <h1>${Math.round(d.proForma) > Math.round(n.normalized) ? `Profit can grow from <span>${k$(n.normalized)}</span> to <span>${k$(d.proForma)}</span> a year` : `Real profit is <span>${k$(n.normalized)}</span> a year`}</h1>
       ${guide(S, d, top, pick, big)}
       ${S.file?.kind === 'pdf' ? `<p class="howline"><b>How this works:</b> profit here is EBITDA: operating profit from the published statements, before interest, tax and non-cash charges like depreciation. Each green bar is one change, priced from the company’s own accounts${aiCost ? '; the red bar is what the AI tools would cost' : ''}.</p>` : `<p class="howline"><b>How this works:</b> profit here is EBITDA (before interest, tax and depreciation). Real profit = profit in the books + the owner’s pay and one-off costs − the salary of a hired manager. Each green bar is one change, priced from the books${aiCost ? '; the red bar is what the AI tools would cost' : ''}.</p>`}
       <div class="wf">${wf}</div>
@@ -553,10 +552,11 @@ function simple() {
     ${dealMetrics(S, d)}
     ${D ? `<section class="deal2" data-tab="deal"><h2 class="h2">Is it a good deal for investors?</h2><p class="howline"><b>How this works:</b> the price is a number of years of real profit (the “multiple”). Part is paid with a bank loan at today’s rate; the rest is the buyer’s or investors’ own money. Then five years are run three ways: the plan works, nothing changes, profit falls 15%. All returns are after fees. <b>What to do:</b> pick who is buying below; the numbers update.</p>
       <div class="veh">${Object.entries(V.vehicles || {}).map(([k, v]) => `<button class="${D.vehicle === k ? 'on' : ''}" data-veh="${k}"><b>${esc(v.label)}</b><span>${esc(v.sub)}</span></button>`).join('')}</div>
-      <p>Buy it for <b>${k$(D.price)}</b> (${D.multiple} years of profit). ${D.sba ? 'The buyer' : 'Investors'} put in <b>${k$(D.equity)}</b>; the rest is borrowed. After 5 years, each $1 ${D.sba ? 'the buyer puts' : 'investors put'} in becomes:</p>
+      ${D.sba ? '' : `<div class="veh stake">${[[1, 'Full buyout', 'AION buys all of it'], [0.7, 'Majority stake', 'AION buys 70%, the owner keeps 30%']].map(([k, l, t]) => `<button class="${Math.abs((D.stake ?? 1) - k) < 0.01 ? 'on' : ''}" data-stake="${k}"><b>${l}</b><span>${t}</span></button>`).join('')}</div>`}
+      <p>Buy ${(D.stake ?? 1) < 1 ? `<b>${Math.round(D.stake * 100)}%</b> of the company, valued at` : 'it for'} <b>${k$(D.price)}</b> (${D.multiple} years of profit). Paid with a <b>${k$(D.senior)}</b> bank loan, <b>${k$(D.seller)}</b> paid to the seller over the next few years (a seller note), ${(D.stake ?? 1) < 1 ? `<b>${k$(D.rollover)}</b> the owner keeps in the company (their ${Math.round((1 - D.stake) * 100)}%), ` : ''}and <b>${k$(D.investorEquity ?? D.equity)}</b> from ${D.sba ? 'the buyer' : 'investors'}. The seller gets about <b>${k$(D.sellerCashAtClose ?? (D.price - D.seller))}</b> in cash at closing. After 5 years, each $1 ${D.sba ? 'the buyer puts' : 'investors put'} in becomes:</p>
       <div class="dbars">${dbar('if the actions work', D.base, 'up')}${dbar('if nothing changes', D.none, 'flat')}${dbar('if profit falls 15%', D.downside, 'down')}</div>
       <p class="dnote">${vehNote(D)}</p>
-      <p class="dnext"><b>Offer about ${k$(D.price)}</b> once an accountant confirms the profit. <b>Walk away above ${k$(n.normalized * 5)}</b> (5 years of profit, the top of the usual range for a business this size).</p>
+      <p class="dnext"><b>Offer about ${k$(D.price)}</b> once an accountant confirms the profit. ${(S.assumptions.vehicle || 'holdco') === 'holdco' ? `<b>Walk away above ${k$(n.normalized * 3.5)}</b> (3.5 years of profit, AION’s limit). Anything more is paid only as an earnout: later, and only if profit holds.` : `<b>Walk away above ${k$(n.normalized * 5)}</b> (5 years of profit, the top of the usual range for a business this size).`}</p>
       </section>` : ''}
 
     ${dealExtras(S, d)}
@@ -591,6 +591,7 @@ function simple() {
   document.querySelectorAll('[data-xrm]').forEach(l => l.onclick = async () => { V = await api('extra', { type: l.dataset.xrm, remove: true }); render(); });
   document.querySelectorAll('[data-xdrop]').forEach(z => { z.ondragover = e => { e.preventDefault(); z.classList.add('over'); }; z.ondragleave = () => z.classList.remove('over'); z.ondrop = e => { e.preventDefault(); z.classList.remove('over'); sendExtra(z.dataset.xdrop, e.dataTransfer.files[0]); }; });
   document.querySelectorAll('[data-veh]').forEach(b => b.onclick = async () => { V = await api('assumptions', { assumptions: { vehicle: b.dataset.veh } }); render(); });
+  document.querySelectorAll('[data-stake]').forEach(b => b.onclick = async () => { V = await api('assumptions', { assumptions: { stake: +b.dataset.stake } }); render(); });
   document.querySelectorAll('[data-build]').forEach(b => b.onclick = () => { const x = acts.find(y => y.id === b.dataset.build); openBuild({ ...x, basisText: basisOf(x, d, S) }); });
   wireGrow(); wireFit();
   { const QR = queueRows(S, d, acts); document.querySelectorAll('tr.qrow').forEach(r => r.onclick = () => { const x = QR[+r.dataset.q]; openBuild({ ...x, basisText: x.priced ? basisOf(x, d, S) : '' }); }); }
@@ -619,7 +620,7 @@ function guide(S, d, top, pick, big) {
   const counted = top.filter(x => !x.pending), sum = counted.reduce((t, x) => t + x.value, 0), pi = top.findIndex(x => x.id === pick);
   const ask = big && !big.current ? `Then answer one question below: it could change profit by ${k$(big.amount)}.` : '';
   return `<div class="guide"><p>I read <b>${S.file?.kind === 'pdf' ? `${num(S.accounts?.length)} statement lines` : `${num(rows)} payments`}</b> from this ${esc(V.profile?.name || 'business')}. Real profit is <b>${k$(n.normalized)}</b> a year.</p>
-    <p>I found ways to add <b>${k$(L.runRate)}</b> a year${D ? `, about <b>${k$(L.runRate * D.multiple)}</b> in company value` : ''}. Each green bar below is one of them.</p>
+    ${L.runRate > 0 ? `<p>I found ways to add <b>${k$(L.runRate)}</b> a year${D ? `, about <b>${k$(L.runRate * D.multiple)}</b> in company value` : ''}. Each green bar below is one of them.</p>` : `<p>No extra profit is counted yet${top.some(x => x.pending) ? ': the ideas below count once the seller confirms them' : ''}.</p>`}
     ${pi >= 0 ? `<p>Start with <b>#${pi + 1}</b>: the most profit for the least work. ${ask}</p>` : ask ? `<p>${ask}</p>` : ''}</div>`;
 }
 // every check the tool ran, in plain words
@@ -1064,8 +1065,7 @@ ${priced.length ? `<div class="qsum"><div><small>Realistic profit added, year 1<
     ${C.length ? `<section data-tab="plan"><h2 class="h2">Three cases <span class="h2s">weighted by how well each number is backed by data</span></h2><p class="howline"><b>How this works:</b> the same changes counted three ways: only the surest part, as planned, or beating target. “Each $1 becomes” is what each dollar invested is worth after 5 years; “% a year” is the same return as a yearly rate (IRR).</p><div class="cases">${C.map((c, i) => `<div class="case ${i === 1 ? 'mid' : ''}"><b>${c.name}</b><span class="cv">+${k$(c.gain)}</span><small>profit a year → ${k$(c.ebitda)}</small><ul><li>Company value <b>+${k$(c.value)}</b></li><li>Each $1 becomes <b>$${c.moic.toFixed(2)}</b></li><li>About <b>${Math.round((c.irr || 0) * 100)}%</b> a year</li></ul></div>`).join('')}</div>
       <p class="note"><b>Cautious</b>: counts 80% of the changes backed by the books, and only 30–50% of the ones based on a guess. <b>Expected</b>: every change as planned. <b>Stretch</b>: the changes beat their targets by 20–50%. None of these assume the company is sold for a higher price.</p>
       <div class="assume">Try your own numbers: prices <input type="number" data-a="pricing_uplift" data-p="1" value="${+(S.assumptions.pricing_uplift * 100).toFixed(1)}" step="0.5">% higher on new work · write-offs <input type="number" data-a="writeoff_reduction" data-p="1" value="${Math.round(S.assumptions.writeoff_reduction * 100)}" step="5">% lower · buy at <input type="number" class="mult" data-a="entry_multiple" value="${d.deal.multiple}" step="0.25" min="1"> years of profit. Everything updates instantly.</div></section>` : ''}
-    <section data-tab="plan">${growHTML(S, d, rows)}</section>
-    <section data-tab="plan"><details class="more2"><summary>Tools we could build next · ${VC_NEXT.length}, not built yet</summary>${vcNextHTML()}</details></section>`;
+    <section data-tab="plan">${growHTML(S, d, rows)}</section>`;
 }
 // ---------- hypothetical: what it would take to reach a target multiple of today's profit ----------
 // The counted plan above never changes. This keeps the queue going past what the books prove: the rest of each

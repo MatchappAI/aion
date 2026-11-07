@@ -62,6 +62,8 @@ function loadDeal(id) {
   CUR = id; S = load(path.join(D(), 'state.json'), fresh()); ROWS = load(path.join(D(), 'gl.json'), []); CHECK = load(path.join(D(), 'checkin.json'), []);
   S.assumptions = { ...structuredClone(DEFAULT_ASSUMPTIONS), ...(S.assumptions || {}) };
   delete S.assumptions.extra_client_searches;
+  // one-time: the old 4.0× default becomes the thesis price (about 3.25×, never above 3.5×); a multiple you set yourself stays
+  if (!S.assumptions.priceRuleV) { if (S.assumptions.entry_multiple === 4) S.assumptions.entry_multiple = 3.25; S.assumptions.priceRuleV = 1; }
   S.name ??= niceName(S.file?.name);
   save(CUR_F, { id });
 }
@@ -291,18 +293,19 @@ function ownerList() {
   const R = rankAll(ss, { warm: e => warm('target', e), contacted: (s2, e) => !!outOf(s2, e), niche: false });
   const find = x => { const s2 = ss.find(y => y.id === x.search); return [s2, s2?.entities.find(y => y.id === x.entity)]; };
   const slim = x => { const [s2, e] = find(x), o = s2 && e ? outOf(s2, e) : null;
-    return { search: x.search, entity: x.entity, rank: x.rank, name: x.name, website: x.website, place: x.place, industry: x.industry, fit: x.fit, fitRecounted: !!x.fitRecounted, niche: x.niche, focus: x.focus, segment: x.segment, segmentLabel: x.segmentLabel, rankScore: x.score, parts: x.parts, offer: x.offer, offerWhy: x.offerWhy, email: x.email || '', box: x.box, kinds: x.kinds, approach: x.approach, approachText: APPROACH[x.approach], owner: x.owner, emails: x.emails, phone: x.phone, warmIntro: x.warmIntro, contacted: !!o, why: x.why, intent: x.intent,
+    return { search: x.search, entity: x.entity, rank: x.rank, name: x.name, website: x.website, place: x.place, industry: x.industry, fit: x.fit, fitRecounted: !!x.fitRecounted, niche: x.niche, focus: x.focus, segment: x.segment, segmentLabel: x.segmentLabel, rankScore: x.score, parts: x.parts, size: x.size, offer: x.offer, offerWhy: x.offerWhy, email: x.email || '', box: x.box, kinds: x.kinds, approach: x.approach, approachText: APPROACH[x.approach], owner: x.owner, emails: x.emails, phone: x.phone, warmIntro: x.warmIntro, contacted: !!o, why: x.why, intent: x.intent,
       outreach: o ? { id: o.id, phase: o.phase, status: o.status, sentAt: o.sentAt, sender: o.sender, to: o.to } : null, decision: e?.decision || '',
       deal: s2 && e ? dealOf(s2, e)?.stage || '' : '',
       signals: x.signals.filter(y => y.path).map(y => ({ key: y.key, label: y.label, path: y.path, text: unent(y.text), url: y.url, date: y.date, direction: y.direction, confidence: y.confidence, source: y.source })).sort((a, b) => (CLUE_ORDER[a.key] ?? 5) - (CLUE_ORDER[b.key] ?? 5)) }; };
-  const list = R.ranked.map(slim); let n = 0; for (const x of list) if (x.niche) x.nicheRank = ++n;
+  // one list, one numbering: every firm is a buyout (full or majority); a partnership only when the firm asked for one
+  const list = R.ranked.map(slim); let n = 0; for (const x of list) { x.track = x.offer === 'partner' ? 'partner' : 'buy'; if (x.niche) x.nicheRank = ++n; }
   return { R, list, ss };
 }
 function outreachReady() {
   const { list, ss } = ownerList(), out = [];
   // firms to buy: the owner ranking's buy-box firms (in a segment, not set aside), in rank order, not yet in outreach
   for (const x of list) { if (x.outreach || !x.niche || x.box?.status === 'out') continue;
-    out.push({ search: x.search, entity: x.entity, mode: 'target', name: x.name, where: x.place, score: x.fit, picked: ['saved', 'priority'].includes(x.decision), priority: x.decision === 'priority', emails: x.emails, pitch: x.offer === 'watch' ? null : x.offer, dealWhy: x.offerWhy, box: x.box, high: !!x.intent?.high, rankScore: x.rankScore, rank: x.nicheRank, segment: x.segment, segmentLabel: x.segmentLabel, site: !!x.website }); }
+    out.push({ search: x.search, entity: x.entity, mode: 'target', name: x.name, where: x.place, score: x.fit, picked: ['saved', 'priority'].includes(x.decision), priority: x.decision === 'priority', emails: x.emails, pitch: x.offer, track: x.track, dealWhy: x.offerWhy, box: x.box, high: !!x.intent?.high, rankScore: x.rankScore, rank: x.nicheRank, segment: x.segment, segmentLabel: x.segmentLabel, site: !!x.website }); }
   // anything else you saved yourself (a firm outside the segments, a brand, a person) comes after, so nothing you picked is lost
   const B = OUT.board(), have = new Set(B.map(x => `${x.search}|${x.entity}`)), seen = new Set(out.map(r => normName(r.name)));
   for (const s2 of ss) for (const e of (s2.entities || []).filter(e => e.scored && ['saved', 'priority'].includes(e.decision))) {
@@ -310,7 +313,7 @@ function outreachReady() {
     if (s2.mode === 'target' && (e.listed || listedFor((e.timing?.signals || []).map(x => ({ ...x, signal: x.key })), e))) continue;
     if (s2.mode === 'target' && list.some(x => x.search === s2.id && x.entity === e.id && x.outreach)) continue;
     seen.add(normName(name)); const R = s2.mode === 'target' ? rankOne(e) : null;
-    out.push({ search: s2.id, entity: e.id, mode: s2.mode, name, where: String(e.location || '').split(/\s[(;]/)[0], score: e.score ?? 0, picked: true, priority: e.decision === 'priority', emails: (e.contactInfo || []).filter(c => c.kind === 'email').length, pitch: R && R.offer !== 'watch' ? R.offer : null, box: R?.box || null, high: !!R?.intent?.high, rankScore: R?.score ?? null, rank: null, segment: R?.segment || null, segmentLabel: R?.segmentLabel || null, site: !!e.website });
+    out.push({ search: s2.id, entity: e.id, mode: s2.mode, name, where: String(e.location || '').split(/\s[(;]/)[0], score: e.score ?? 0, picked: true, priority: e.decision === 'priority', emails: (e.contactInfo || []).filter(c => c.kind === 'email').length, pitch: R ? R.offer : null, box: R?.box || null, high: !!R?.intent?.high, rankScore: R?.score ?? null, rank: null, segment: R?.segment || null, segmentLabel: R?.segmentLabel || null, site: !!e.website });
   }
   return out.slice(0, 80);
 }
@@ -347,7 +350,7 @@ const busy = () => Object.values(jobs).some(j => j.status === 'running');
 function job(name, fn) {
   const id = Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
   jobs[id] = { id, name, status: 'running', started: Date.now() };
-  fn(jobs[id]).then(() => { jobs[id].status = 'done'; persist(); }).catch(e => { jobs[id].status = 'error'; jobs[id].error = e.message; });
+  fn(jobs[id]).then(() => { jobs[id].status = 'done'; persist(); }).catch(e => { jobs[id].status = 'error'; jobs[id].error = e.message; console.error(`Job ${id} failed:`, e.stack); });
   return id;
 }
 
@@ -470,7 +473,7 @@ const AI = {
     const inEbitda = a => ['direct', 'opex'].includes(CATEGORIES[S.mapping[a.account]]?.group);
     S.addbacks = (data.addbacks || []).filter(inEbitda).map((a, i) => { const m = matchRows(ROWS, a, S.mapping, S.signMode, per.ttm); return { ...a, id: 'ab' + i, amount: m.amount, ids: m.ids, accepted: false }; }).filter(a => a.ids.length);
     S.vendors = (data.vendors || []).map((v, i) => { const m = matchRows(ROWS, v, S.mapping, S.signMode, per.ttm); const pct = Math.min(0.5, Math.max(0, +v.suggested_savings_pct || 0)); return { ...v, id: 'v' + i, spend: m.amount, ids: m.ids, pct, amount: r2(m.amount * pct), accepted: false }; }).filter(v => v.ids.length);
-    S.flags = data.flags || [];
+    S.flags = (data.flags || []).map(f => ({ ...f, title: String(f?.title || f?.label || f?.text || "").trim() })).filter(f => f.title); // the AI sometimes says "label"
     S.normConfirmed = false;
   },
   async ops() {
@@ -690,7 +693,7 @@ const server = http.createServer(async (req, res) => {
       if (req.method === 'GET' && p === 'search/pipeline') return send(res, 200, { stages: DEAL_STAGES, deals: pipeline() });
       // Outreach: its own board, senders and drafts (sends only from your connected senders in AION_SENDERS, only with your OK)
       if (req.method === 'GET' && p === 'outreach/state') return send(res, 200, { settings: OUT.settings(), accounts: GMAIL.accounts(), gmailReady: GMAIL.configured(), board: (() => { const { R, list } = ownerList(), off = new Map(R.outside.map(x => [`${x.search}|${x.entity}`, x.box.reasons.join('; ')])), on = new Map(list.map(x => [`${x.search}|${x.entity}`, x]));
-          return OUT.board().map(b => { const k = `${b.search}|${b.entity}`, r = on.get(k); return { ...b, outside: off.get(k) || null, rank: r?.nicheRank || null, segmentLabel: r?.segmentLabel || null }; }); })(), ready: outreachReady(), suppressed: OUT.suppressed().length });
+          return OUT.board().map(b => { const k = `${b.search}|${b.entity}`, r = on.get(k); return { ...b, outside: off.get(k) || null, rank: r?.nicheRank || null, track: r?.track || null, segmentLabel: r?.segmentLabel || null }; }); })(), ready: outreachReady(), suppressed: OUT.suppressed().length });
       if (req.method === 'GET' && p === 'outreach/results') return send(res, 200, OUT.results());
       if (req.method === 'GET' && p === 'outreach/slots') { try { return send(res, 200, await OUT.openSlots()); } catch (e) { return send(res, 400, { error: e.message }); } }
       if (req.method === 'GET' && p === 'outreach/attachments') { try { return send(res, 200, { files: await OUT.listAttachments(url.searchParams.get('id')) }); } catch (e) { return send(res, 400, { error: e.message }); } }
@@ -861,7 +864,7 @@ const server = http.createServer(async (req, res) => {
               if (busy()) return send(res, 409, { error: 'An analysis is still running. Try again when it finishes.' });
               const was = CUR; loadDeal(it.dealId); const d = derive(); loadDeal(was);
               if (!d.deal) return send(res, 400, { error: 'That company’s books haven’t been analyzed yet (or it can’t be priced). Open it in Value Creation and press Analyze.' });
-              const numbers = { fees: d.deal.fees || 0, ebitda: d.normalization.normalized, price: d.deal.price, multiple: d.deal.multiple, basis: d.deal.basis, senior: d.deal.senior, seller: d.deal.seller, equity: d.deal.equity, revenue: d.pnl?.TTM?.revenue || 0 };
+              const numbers = { fees: d.deal.fees || 0, ebitda: d.normalization.normalized, price: d.deal.price, multiple: d.deal.multiple, basis: d.deal.basis, senior: d.deal.senior, seller: d.deal.seller, equity: d.deal.equity, revenue: d.pnl?.TTM?.revenue || 0, stake: d.deal.stake ?? 1, rollover: d.deal.rollover || 0, wcPeg: d.wc?.peg ?? null };
               // whole thousands, with costs = sources − price, so every figure in the letter adds up exactly
               const k = v => Math.round((+v || 0) / 1000) * 1000;
               for (const f of ['ebitda', 'price', 'senior', 'seller', 'equity', 'revenue']) numbers[f] = k(numbers[f]);
@@ -977,6 +980,7 @@ const server = http.createServer(async (req, res) => {
           for (const [k, v] of Object.entries(a)) {
             if (k === 'workflows') { for (const w of v) { const t = S.assumptions.workflows.find(x => x.key === w.key); if (t) t.saved = Math.min(1, Math.max(0, +w.saved || 0)); } }
             else if (k === 'vehicle') { if (['holdco', 'fund', 'sponsor', 'search', 'sba'].includes(v)) S.assumptions.vehicle = v; }
+            else if (k === 'stake') { const x = +v; if (x >= 0.5 && x <= 1) S.assumptions.stake = x; }
             else if (k === 'price_basis') { if (['ebitda', 'revenue'].includes(v)) S.assumptions.price_basis = v; }
             else if (k in DEFAULT_ASSUMPTIONS) S.assumptions[k] = +v || 0;
           }
