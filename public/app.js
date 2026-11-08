@@ -203,12 +203,12 @@ function pEarnings() {
     <div class="panel kpi hi"><small>Real profit (normalized EBITDA)</small><b>${kfmt(n.normalized)}</b><span>${pct(n.normalized / d.pnl.TTM.revenue, 1)} of sales</span></div>
   </div>
   <h2>From profit in the books to real profit</h2>
-  <p class="howline"><b>How this works:</b> start from profit in the books, add what a new owner won’t pay, then pay a hired manager at a market salary. Change the salary or the number of owners to replace and everything updates.</p>
+  <p class="howline"><b>How this works:</b> start from profit in the books, add what a new owner won’t pay, then pay whoever runs the firm after closing (the seller if they stay, or a hired manager) a market salary. Change the salary or the number of leaders and everything updates.</p>
   <div class="panel"><table>
     <tr><td>Profit in the books (EBITDA)</td><td class="num">${money(n.reported)}</td></tr>
     <tr><td>+ One-off costs you ticked (add-backs)</td><td class="num">${money(n.addbacks)}</td></tr>
     <tr><td>+ Owner’s pay found in the books <span class="note">(owner pay accounts${S.owner.extraOwnerComp ? ' + the amount you typed below' : ''})</span></td><td class="num">${money(n.ownerActual)}</td></tr>
-    <tr><td>− Salary of a hired manager to replace the owner <span class="badge ass">your guess</span> $<input type="number" id="mc" value="${S.owner.marketComp}" step="5000"> × <input type="number" id="oc" value="${S.owner.count}" step="1" style="width:60px"> owners</td><td class="num">${money(-n.replacement)}</td></tr>
+    <tr><td>− Market salary for whoever runs it after closing (the seller or a hire) <span class="badge ass">your guess</span> $<input type="number" id="mc" value="${S.owner.marketComp}" step="5000"> × <input type="number" id="oc" value="${S.owner.count}" min="1" step="1" style="width:60px"> leaders</td><td class="num">${money(-n.replacement)}</td></tr>
     <tr><td>Owner’s pay booked in other accounts (type it in, $) <input type="number" id="xo" value="${S.owner.extraOwnerComp}" step="1000"></td><td></td></tr>
     <tr class="tot"><td>Real profit (normalized EBITDA)</td><td class="num">${money(n.normalized)}</td></tr>
   </table><p class="note">This is not the seller’s “cash flow” or SDE (seller’s discretionary earnings), which leave the owner’s pay in. Real profit here already pays someone to run the business.</p></div>
@@ -501,7 +501,7 @@ function simple() {
 
   // waterfall rows: seller → real → each action → AI costs → could reach
   const rows = [{ key: 'seller', lab: S.file?.kind === 'pdf' ? 'Reported profit' : 'What the seller says', sm: S.file?.kind === 'pdf' ? 'from the published statements' : 'profit in their books', cls: 'seller', a: 0, b: n.reported, v: k$(n.reported) },
-    { key: 'real', lab: 'Real profit', sm: [n.ownerActual ? `+${k$(n.ownerActual)} owner pay` : '', n.addbacks ? `+${k$(n.addbacks)} one-off costs` : '', n.replacement ? `−${k$(n.replacement)} to hire a manager` : ''].filter(Boolean).join(', ') || 'what a new owner can count on', cls: 'real', a: 0, b: n.normalized, v: k$(n.normalized) }, { div: 1 }];
+    { key: 'real', lab: 'Real profit', sm: [n.ownerActual ? `+${k$(n.ownerActual)} owner pay` : '', n.addbacks ? `+${k$(n.addbacks)} one-off costs` : '', n.replacement ? `−${k$(n.replacement)} to pay whoever runs it` : ''].filter(Boolean).join(', ') || 'what a new owner can count on', cls: 'real', a: 0, b: n.normalized, v: k$(n.normalized) }, { div: 1 }];
   let run = n.normalized;
   top.forEach((x, i) => { if (x.pending) return; rows.push({ key: x.id, n: i + 1, lab: x.short, cls: 'up', a: run, b: run + x.value, v: '+' + k$(x.value) }); run += x.value; });
   const restV = rest.filter(x => !x.pending).reduce((s, x) => s + x.value, 0);
@@ -866,7 +866,7 @@ function howBlock(S, d) {
   else li.push(`<li>AI software and running costs → <b>−${k$(L.six.costs.software + L.six.costs.ongoing)}</b></li>`);
   return `<div class="how3">
     <div><b>Profit today ${k$(n.reported)}</b><p>Money in, last 12 months: ${k$(t.revenue)}<br>Money spent: −${k$(ev.costsTotal)}<br>= <b>${k$(n.reported)}</b> profit</p><p class="note">Biggest costs: ${(ev.topCosts || []).slice(0, 3).map(c => `${esc(c.label)} ${k$(c.amount)}`).join(' · ')}</p></div>
-    <div><b>Real profit ${k$(n.normalized)}</b><p>Profit today ${k$(n.reported)}<br>${n.ownerActual ? `+ owner’s pay, taken out ${k$(n.ownerActual)}<br>` : ''}${n.addbacks ? `+ costs a new owner won’t pay ${k$(n.addbacks)}<br>` : ''}${n.replacement ? `− salary of a hired leader ${k$(n.replacement)}<br>` : ''}= <b>${k$(n.normalized)}</b></p><p class="note">What a new owner can count on.</p></div>
+    <div><b>Real profit ${k$(n.normalized)}</b><p>Profit today ${k$(n.reported)}<br>${n.ownerActual ? `+ owner’s pay, taken out ${k$(n.ownerActual)}<br>` : ''}${n.addbacks ? `+ costs a new owner won’t pay ${k$(n.addbacks)}<br>` : ''}${n.replacement ? `− market salary of whoever runs it ${k$(n.replacement)}<br>` : ''}= <b>${k$(n.normalized)}</b></p><p class="note">What a new owner can count on.</p></div>
     <div><b>Could grow to ${k$(d.proForma)}</b><p>Real profit ${k$(n.normalized)}, plus:</p><ul>${li.join('')}</ul><p>= <b>${k$(d.proForma)}</b> a year</p></div>
   </div>`;
 }

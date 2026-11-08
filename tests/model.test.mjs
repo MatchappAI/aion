@@ -107,3 +107,12 @@ test('majority stake: investors put in and receive their share; the owner rolls 
   near(maj.base.net.stillOwned, full.base.net.stillOwned * 0.7, 'investors own 70% of the company');
   assert.equal(dealReturns(755000, 0, { ...DEFAULT_ASSUMPTIONS, stake: 0.2 }, 3460000).stake, 0.5); // never below a majority
 });
+
+test('normalize: a seller who stays is still paid a market salary, so real profit is the same as with a hire', () => {
+  const ttm = { ebitda: 600000, byCat: { comp_owner: 250000 } };
+  const hire = normalize(ttm, [], { marketComp: 225000, count: 1, stays: false });
+  const stays = normalize(ttm, [], { marketComp: 225000, count: 1, stays: true });
+  assert.equal(stays.normalized, 600000 + 250000 - 225000);
+  assert.equal(stays.normalized, hire.normalized);
+  assert.equal(stays.replacement, 225000);
+});

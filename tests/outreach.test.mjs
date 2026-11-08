@@ -313,3 +313,28 @@ test('a note that talks about buying the firm can never go to a shared inbox', a
   assert.ok(SALE_TALK.test('We would buy a majority of Example Growth Co')); assert.ok(SALE_TALK.test('the kind of brokerage AION hopes to acquire'));
   assert.ok(!SALE_TALK.test('Hello, this note is for Jane. Could she spare 15 minutes this month, or share her direct email?'));
 });
+
+test('a “yes” that quotes our footer is interested, never an opt-out', () => {
+  const quoted = 'Yes, happy to talk next week.\n\nOn Mon, Nov 3, 2026 at 9:00 AM Sam Sender <sender@example.test> wrote:\n> Hi Pat,\n> If you\'d rather not hear from me, just reply "no thanks" and I won\'t write again.';
+  assert.equal(OUT.classify(OUT.newText(quoted)), 'interested');
+  const wrapped = 'Sure, call me Tuesday.\r\nOn Mon, Nov 3, 2026 at 9:00 AM Sam Sender <\r\nsender@example.test> wrote:\r\n\r\nnot interested in selling? reply no thanks';
+  assert.equal(OUT.classify(OUT.newText(wrapped)), 'interested');
+  const outlook = 'Open to a chat.\n\nFrom: Sam Sender <sender@example.test>\nSent: Monday, November 3, 2026 9:00 AM\nSubject: Hello\nreply "no thanks" to stop';
+  assert.equal(OUT.classify(OUT.newText(outlook)), 'interested');
+  assert.equal(OUT.classify(OUT.newText('No thanks.\n\nOn Mon wrote:\n> happy to talk?')), 'optout');
+});
+
+test('sync: a quoted footer in an interested reply does not suppress the owner', async () => {
+  const e9 = { ...e, id: 'e9', company: 'Quoted Reply Co', website: 'https://quotedreply.test', contactInfo: [{ kind: 'email', value: 'owner@quotedreply.test', verified: true }] };
+  s.entities.push(e9); MEM.ingest(s);
+  const it = await OUT.createDraft({ s, e: e9, model: 'x', cwd: dir, engineFn: fakeAI });
+  await wait(() => OUT.get(it.id).phase !== 'writing');
+  await OUT.sendStep(it.id, 'email', { confirmed: true });
+  const sent = OUT.get(it.id).messages[0];
+  GM.fake.threads[sent.threadId].push({ id: 'their3', from: 'owner@quotedreply.test', subject: `Re: ${sent.subject}`, body: `Yes, happy to talk.\n\nOn Mon, Nov 3, 2026 at 9:00 AM Sam <sender@example.test> wrote:\n> ${sent.body.split('\n').join('\n> ')}`, at: new Date().toISOString() });
+  await OUT.syncReplies();
+  assert.equal(OUT.get(it.id).replied.kind, 'interested');
+  assert.notEqual(OUT.get(it.id).phase, 'finished');
+  assert.ok(!OUT.suppressed().includes('owner@quotedreply.test'));
+  assert.doesNotMatch(OUT.get(it.id).replied.text, /no thanks/);
+});

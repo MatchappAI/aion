@@ -41,7 +41,9 @@ fs.mkdirSync(DEALS, { recursive: true });
 
 const load = (f, d) => { try { return JSON.parse(fs.readFileSync(f, 'utf8')); } catch { return d; } };
 const save = (f, v) => fs.writeFileSync(f, JSON.stringify(v));
-const fresh = () => ({ assumptions: structuredClone(DEFAULT_ASSUMPTIONS), owner: { marketComp: 225000, count: 1, extraOwnerComp: 0 } });
+// marketComp: the market salary of whoever runs the firm after closing (the seller or a hire). 225000 is a starting guess,
+// shown as "your guess" in Value Creation; change it per deal.
+const fresh = () => ({ assumptions: structuredClone(DEFAULT_ASSUMPTIONS), owner: { marketComp: 225000, count: 1, extraOwnerComp: 0, ownerRuleV: 1 } });
 const CUR_F = path.join(ROOTWS, 'current.json');
 const newId = () => 'd' + Date.now().toString(36);
 const niceName = f => String(f || 'New deal').replace(/\.[^.]+$/, '').replace(/[_-]+/g, ' ').replace(/\s+/g, ' ').trim();
@@ -65,6 +67,9 @@ function loadDeal(id) {
   // one-time: the old 4.0× default becomes the thesis price (about the target multiple, never above the price cap); a multiple you set yourself stays
   if (!S.assumptions.priceRuleV) { if (S.assumptions.entry_multiple === 4) S.assumptions.entry_multiple = 4; S.assumptions.priceRuleV = 1; }
   S.name ??= niceName(S.file?.name);
+  // one-time: an older answer "the seller stays" set the leaders to pay to 0, which added their pay back with nothing taken off.
+  // Whoever runs it after closing (the seller or a hire) is paid a market salary, so at least one leader is always paid.
+  if (S.owner && !S.owner.ownerRuleV) { if (S.answers?.owner_leaving === false && !S.owner.count) S.owner.count = 1; S.owner.ownerRuleV = 1; }
   save(CUR_F, { id });
 }
 function newDeal(filename) {
@@ -635,7 +640,7 @@ function checks() {
   out.push({ key: 'ops:producers', type: 'number', step: 1, q: `How many ${profile(S).workers} ${profile(S).paidWork}?`, help: S.opsAI?.inputs?.producers?.basis === 'from GL' ? S.opsAI.inputs.producers.evidence + '.' : 'AI estimated this from payroll. It drives how much time AI can save.', current: o.producers ?? 0, value: S.answers?.['ops:producers'] ?? null });
   out.push({ key: 'ops:avg_fee', type: 'number', step: 1000, q: `What does an average ${profile(S).job} bring in, in dollars?`, help: `About $${Math.round(o.avg_fee || 0).toLocaleString()} from the invoices. Correct it if the seller gives you the real number.`, current: Math.round(o.avg_fee ?? 0), value: S.answers?.['ops:avg_fee'] ?? null });
   out.push({ key: 'ops:hours', type: 'number', step: 1, q: `Hours a week each ${profile(S).worker} spends on routine admin (emails, notes, paperwork)?`, help: 'An estimate — the ledger does not record time. Ask the seller.', current: Math.round(H), value: S.answers?.['ops:hours'] ?? null });
-  out.push({ key: 'owner_leaving', q: `Will the seller step away, so you hire a replacement leader at $${Math.round(S.owner.marketComp / 1000)}K a year?`, help: 'Yes is the safe default: we subtract the salary of a hired leader from profit.', value: S.answers?.owner_leaving ?? null, current: (S.owner.count ?? 1) > 0 });
+  out.push({ key: 'owner_leaving', q: `Will the seller step away after closing, so you hire a leader? (Either way, whoever runs it is paid a market salary of $${Math.round(S.owner.marketComp / 1000)}K a year, which comes off profit.)`, help: 'Yes or no, the same salary comes off profit: a seller who stays still has to be paid like a hired leader.', value: S.answers?.owner_leaving ?? null, current: S.owner.stays !== true });
   const ab = S.addbacks || [];
   if (ab.length) out.push({ key: 'addbacks', q: `Will these ${$k(ab.reduce((s, a) => s + a.amount, 0))} of owner personal and one-time costs stop after you buy?`, help: ab.map(a => `${a.label} ($${Math.round(a.amount / 1000)}K)`).join(' · ') + '. Yes adds them back to profit — only if the seller can prove them.', value: S.answers?.addbacks ?? null, current: ab.every(a => a.accepted) });
   const vd = S.vendors || [];
@@ -962,7 +967,8 @@ const server = http.createServer(async (req, res) => {
           }
           if (key.startsWith('map:')) { const acct = key.slice(4); if (S.mapping && acct in S.mapping && CATEGORIES[value]) { S.mapping[acct] = value; S.answers[key] = value; } }
           if (key.startsWith('owner_acct:')) { const acct = key.slice(11); if (S.mapping && acct in S.mapping) S.mapping[acct] = yes ? 'comp_owner' : 'comp_producers'; }
-          if (key === 'owner_leaving') S.owner.count = yes ? 1 : 0;
+          // the seller staying does not make profit higher: they are paid the same market salary a hired leader would be
+          if (key === 'owner_leaving') { S.owner.stays = !yes; S.owner.count = Math.max(1, S.owner.count || 0); }
           if (key === 'addbacks') for (const a of S.addbacks || []) a.accepted = yes;
           if (key === 'vendors') for (const v of S.vendors || []) v.accepted = yes;
           persist(); return send(res, 200, view());
@@ -974,7 +980,7 @@ const server = http.createServer(async (req, res) => {
           persist(); return send(res, 200, view());
         }
         case 'earnings': {
-          if (b.owner) S.owner = { ...S.owner, ...Object.fromEntries(Object.entries(b.owner).map(([k, v]) => [k, +v || 0])) };
+          if (b.owner) { S.owner = { ...S.owner, ...Object.fromEntries(Object.entries(b.owner).filter(([k]) => ['marketComp', 'count', 'extraOwnerComp'].includes(k)).map(([k, v]) => [k, Math.max(0, +v || 0)])) }; S.owner.count = Math.max(1, Math.round(S.owner.count)); }
           if (b.addbacks) for (const a of S.addbacks || []) if (a.id in b.addbacks) a.accepted = !!b.addbacks[a.id];
           if (b.vendors) for (const v of S.vendors || []) if (v.id in b.vendors) { const x = b.vendors[v.id]; if ('accepted' in x) v.accepted = !!x.accepted; if ('pct' in x) { v.pct = Math.min(1, Math.max(0, +x.pct || 0)); v.amount = r2(v.spend * v.pct); } }
           if (b.confirm != null) S.normConfirmed = !!b.confirm;
