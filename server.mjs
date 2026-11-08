@@ -27,7 +27,6 @@ let INTENT = null, LAST_INTENT = null; // the deal-intent scan: progress while i
 const JOB_ERR = {};
 const jobFailed = what => e => { const msg = String(e?.message || e || 'unknown error').slice(0, 300); JOB_ERR[what] = { at: new Date().toISOString(), error: msg }; console.error(`AION: ${what} stopped: ${msg}`); };
 import { addSignals } from './lib/search/pipeline.mjs';
-import { initDocs, saveDoc, loadDoc, listDocs, getFirm, setFirm, readSource, draftProposal, draftWriteup, candidateFromSearch } from './lib/docs/docs.mjs';
 import { initWatch, watches, setWatch, due, started as watchStarted, finished as watchFinished, watchOf } from './lib/search/watch.mjs';
 import { initBenchmarks, loanRates, marketPay, industryNames, peerMargin } from './lib/benchmarks.mjs';
 import { spawn } from 'node:child_process';
@@ -256,7 +255,6 @@ const cityOf = l => { let t = String(l || '').replace(/^(headquarters|hq|headqua
 const SRUN = {}; // running Proprietary Searches, by id
 const SIG = {}; // searches whose data signals are being refreshed
 let SCAN = null; // the demand radar scan running now
-const DRUN = {}; // documents being drafted
 // A letter or document on AION letterhead, printed to PDF by Chrome (the same way as the 1-page summary).
 const hx = v => String(v ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 function letterHtml(id, kind) {
@@ -331,7 +329,6 @@ function outreachReady() {
   }
   return out.slice(0, 80);
 }
-function runDoc(d, fn) { DRUN[d.id] = true; d.log = []; const log = t => { d.log.push({ t: new Date().toISOString(), text: t }); saveDoc(d); }; fn(d, { cwd: path.join(ROOTWS, 'docs'), model: MODELS.analysis, log }).catch(e => { d.status = 'failed'; d.error = e.message; saveDoc(d); }).finally(() => { delete DRUN[d.id]; }); }
 function startSearch({ mode, objective, filters, from, queries, criteria, link, watchId }) {
   const prev = from ? loadSearch(from) : null;
   const s2 = { id: 's' + Date.now().toString(36) + Math.random().toString(36).slice(2, 4), mode, objective, filters: filters || {}, created: new Date().toISOString(), status: 'running', from: from || null, link: link || null, watchId: watchId || null,
@@ -681,9 +678,6 @@ const server = http.createServer(async (req, res) => {
       if (req.method === 'GET' && p === 'search/list') return send(res, 200, { searches: listSearches().map(x => SRUN[x.id] ? { ...x, status: 'running' } : x) });
       if (req.method === 'GET' && p.startsWith('search/get/')) { const id = p.slice(11), s2 = SRUN[id] || loadSearch(id); if (!s2) return send(res, 404, { error: 'Search not found.' }); const { raw, ...rest } = s2; const fresh = new Set(s2.fresh || []); return send(res, 200, { ...rest, entities: (rest.entities || []).map(e => ({ ...e, ...(e.timing ? { timing: timing(e.timing.signals.map(x => ({ ...x, signal: x.key }))) } : {}), known: known(s2, e), deal: dealOf(s2, e), isNew: fresh.has(e.id), warm: warm(s2.mode, e) })), rawCount: raw?.length || 0, running: !!SRUN[id], signalsRunning: !!SIG[id], watch: watchOf(s2) }); }
       if (req.method === 'GET' && p === 'search/network') return send(res, 200, { people: network('candidate'), companies: network('client'), targets: network('target'), stats: memStats() });
-      if (req.method === 'GET' && p === 'docs/candidates') { const out = []; for (const h of listSearches().filter(x => x.mode === 'candidate')) { const s2 = loadSearch(h.id); for (const e of (s2?.entities || []).filter(e => e.scored).sort((a, b) => b.score - a.score)) out.push({ search: s2.id, entity: e.id, name: e.name, title: String(e.title || '').split(/[.(;]/)[0].slice(0, 60), employer: String(e.employer || '').split(/[.(;]/)[0].slice(0, 40), fit: e.score }); } return send(res, 200, { candidates: out }); }
-      if (req.method === 'GET' && p === 'docs/list') return send(res, 200, { docs: listDocs().map(d => DRUN[d.id] ? { ...d, status: 'running' } : d), firm: getFirm() });
-      if (req.method === 'GET' && p.startsWith('docs/get/')) { const d = loadDoc(p.slice(9)); if (!d) return send(res, 404, { error: 'Document not found.' }); const { source, job, cand, ...rest } = d; return send(res, 200, { ...rest, running: !!DRUN[d.id], sourceName: source?.name || '', jobName: job?.name || '', candName: cand?.name || '' }); }
       if (req.method === 'GET' && p === 'search/today') {
         // who to call this week: across every search, results that fit and have a reason to act now (or that you marked priority)
         const TR = { act: 3, warm: 2, none: 1, early: 0 }, out = [];
@@ -838,20 +832,6 @@ const server = http.createServer(async (req, res) => {
           SCAN = { region, at: new Date().toISOString() };
           brandScan({ region, days: Math.min(180, Math.max(14, +b.days || 60)) }, { cwd: path.join(ROOTWS, 'searches'), model: MODELS.extraction }).then(() => { delete JOB_ERR.radar; }).catch(jobFailed('radar')).finally(() => { SCAN = null; });
           return send(res, 200, { ok: true });
-        }
-        case 'docs/firm': return send(res, 200, { firm: setFirm(b.firm) });
-        case 'docs/proposal': {
-          let src; try { src = await readSource(b, path.join(ROOTWS, 'docs')); } catch (e) { return send(res, 400, { error: e.message }); }
-          const d = { id: 'd' + Date.now().toString(36), kind: 'proposal', title: src.name, created: new Date().toISOString(), status: 'running', source: src, firm: getFirm() };
-          saveDoc(d); runDoc(d, draftProposal); return send(res, 200, { id: d.id });
-        }
-        case 'docs/writeup': {
-          let job, cand;
-          try { job = await readSource(b.job || {}, path.join(ROOTWS, 'docs')); } catch (e) { return send(res, 400, { error: 'Job order: ' + e.message }); }
-          if (b.cand?.search) { const s2 = loadSearch(b.cand.search); const e = s2?.entities?.find(x => x.id === b.cand.entity); if (!e) return send(res, 400, { error: 'That candidate was not found in your searches.' }); cand = candidateFromSearch(s2, e); }
-          else { try { cand = await readSource(b.cand || {}, path.join(ROOTWS, 'docs')); } catch (e) { return send(res, 400, { error: 'Candidate: ' + e.message }); } }
-          const d = { id: 'd' + Date.now().toString(36), kind: 'writeup', title: 'Candidate write-up', created: new Date().toISOString(), status: 'running', job, cand, firm: getFirm() };
-          saveDoc(d); runDoc(d, draftWriteup); return send(res, 200, { id: d.id });
         }
         case 'outreach/settings': return send(res, 200, OUT.setSettings(b));
         case 'outreach/connect': { try { return send(res, 200, GMAIL.connectUrl(PORT, String(b.email || '').trim())); } catch (e) { return send(res, 400, { error: e.message }); } }
@@ -1040,7 +1020,7 @@ server.requestTimeout = 0;
 initEngine(ROOTWS);
 initBenchmarks(path.join(ROOTWS, 'benchmarks.json'));
 initStore(path.join(ROOTWS, 'searches'));
-initDocs(path.join(ROOTWS, 'docs')); initRadar(path.join(ROOTWS, 'searches')); initMemory(path.join(ROOTWS, 'searches')); initWatch(path.join(ROOTWS, 'searches')); initContacts(path.join(ROOTWS, 'searches')); loadEnv(ROOT);
+initRadar(path.join(ROOTWS, 'searches')); initMemory(path.join(ROOTWS, 'searches')); initWatch(path.join(ROOTWS, 'searches')); initContacts(path.join(ROOTWS, 'searches')); loadEnv(ROOT);
 OUT.initOutreach(path.join(ROOTWS, 'outreach'));
 { const n = OUT.resumeWriting({ model: MODELS.analysis, cwd: path.join(ROOTWS, 'outreach'), load: id => { try { return loadSearch(id); } catch { return null; } } }); if (n) console.log(`Outreach: writing ${n} interrupted draft(s) again`); }
 // replies, bounces and opt-outs: checked every 10 minutes while AION runs

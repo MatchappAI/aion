@@ -17,7 +17,7 @@ const MODES = {
     ph: 'Describe the firm you want to buy, e.g. “founder-owned food and beverage brokers in the Southeast getting emerging brands into Kroger and Publix” or “Amazon and Walmart.com marketplace agencies, 10–60 people”.' },
   client: { label: 'Find brands', sub: 'Consumer brands that need retail or marketplace help, and who decides', noun: 'companies', one: 'company', score: 'Opportunity',
     ph: 'Describe the brands, e.g. “better-for-you snack brands that raised money in the last year and are not yet in Kroger or Target”.' },
-  candidate: { label: 'Find people', sub: 'Account leads, sales and marketplace talent for a firm you own', noun: 'candidates', one: 'candidate', score: 'Match',
+  candidate: { label: 'Find people', sub: 'Account leads, sales and marketplace talent for a firm you own', noun: 'candidates', one: 'candidate', score: 'Match', hidden: true,
     ph: 'Describe the person, e.g. “a retail account manager who has sold into Walmart and Target for natural food brands, based in Arkansas”.' },
 };
 const FILTERS = { candidate: [['location', 'Location'], ['industry', 'Industry'], ['titles', 'Target titles'], ['seniority', 'Seniority'], ['employers', 'Target employers'], ['exclude_employers', 'Exclude employers'], ['years', 'Years of experience'], ['keywords', 'Keywords'], ['exclude', 'Exclude keywords']],
@@ -44,14 +44,14 @@ async function draw() {
   document.body.dataset.firstrun = (IN.list || []).length || hist.length ? '' : '1'; // first run: Start here and the search box come first
   const sum = [[hist.length, 'searches'], [hist.reduce((t, h) => t + (h.raw || 0), 0), 'pages read'], [(NS.people || 0) + (NS.companies || 0) + (NS.targets || 0), 'people and companies found'], [hist.reduce((t, h) => t + (h.contacts || 0), 0), 'verified contacts']];
   P.main.innerHTML = `<div class="ps">
-    ${(IN.list || []).length ? `<div class="pshead"><h1>Owners to contact</h1><p class="lede2">Every firm your searches found, best first. Press Write outreach on a row; the drafts, sends and replies show up in Outreach above.</p></div>
+    ${(IN.list || []).length ? `<div class="pshead"><h1>Owners to contact</h1><p class="lede2">Every firm your searches found, best first. Press Write outreach on a row; the drafts, sends and replies show up in Outreach at the top of this page.</p></div>
     ${intentPanel(IN)}
     <h2 class="h2">Find more</h2>` : `<div class="pshead"><h1>Start here</h1><p class="lede2">Three steps to your first owner conversation. Nothing is sent without your OK.</p></div>
-    <ol class="starthere" data-testid="start-here"><li><b>Find firms.</b> Describe the firms you want to buy below and press Search. It takes 4–8 minutes; every firm found is ranked here, best first.</li><li><b>Connect your Gmail.</b> Under Inboxes and settings (in Outreach, below), connect the inbox you send from and add your mailing address.</li><li><b>Write to owners.</b> Press Write outreach on a firm. AION writes a personal email from what it found about that firm; you read it, edit it and press Send.</li></ol>
+    <ol class="starthere" data-testid="start-here"><li><b>Find firms.</b> Describe the firms you want to buy below and press Search. It takes 4–8 minutes; every firm found is ranked here, best first.</li><li><b>Connect your Gmail.</b> Under Inboxes and settings (in Outreach, at the top of this page), connect the inbox you send from and add your mailing address.</li><li><b>Write to owners.</b> Press Write outreach on a firm. AION writes a personal email from what it found about that firm; you read it, edit it and press Send.</li></ol>
     <h2 class="h2">Find your first firms</h2>`}
-    <div class="psmodes">${Object.entries(MODES).map(([k, m]) => `<button data-mode="${k}" class="${P.mode === k ? 'on' : ''}"><b>${m.label}</b><span>${m.sub}</span></button>`).join('')}</div>
+    <div class="psmodes">${Object.entries(MODES).filter(([, m]) => !m.hidden).map(([k, m]) => `<button data-mode="${k}" class="${P.mode === k ? 'on' : ''}"><b>${m.label}</b><span>${m.sub}</span></button>`).join('')}</div>
     <div class="psform">
-      ${P.mode === 'candidate' ? '' : `<label class="pssub"><span>${P.mode === 'client' ? 'Brands for which kind of firm?' : 'Kind of firm to buy'}</span><select id="ps-sub">${(() => { const cur = P.sub ?? 'ecommerce', opt = ([k, v]) => `<option value="${k}" ${cur === k ? 'selected' : ''}>${esc(v.label)}${k === 'talent' && P.mode === 'client' ? ' (recruiting)' : ''}</option>`, E = Object.entries(SUBSECTORS);
+      ${P.mode === 'candidate' ? '' : `<label class="pssub"><span>${P.mode === 'client' ? 'Brands for which kind of firm?' : 'Kind of firm to buy'}</span><select id="ps-sub">${(() => { const cur = P.sub ?? 'ecommerce', opt = ([k, v]) => `<option value="${k}" ${cur === k ? 'selected' : ''}>${esc(v.label)}</option>`, E = Object.entries(SUBSECTORS);
         return `${P.mode === 'target' ? `<option value="" ${cur === '' ? 'selected' : ''}>Read it from my description</option>` : ''}${E.filter(([, v]) => !v.legacy).map(opt).join('')}`; })()}</select></label>`}
       <textarea id="ps-obj" rows="3" aria-label="What are you looking for?" placeholder="${esc(M.ph)}">${esc(P.draft || '')}</textarea>
       <details class="psf"><summary>Filters</summary><div class="psfg">${FILTERS[P.mode].map(([k, l]) => `<label><span>${l}</span><input data-f="${k}"></label>`).join('')}<label><span>Results to check in depth</span><input data-f="count" type="number" min="6" max="16" value="12"></label></div></details>
@@ -218,7 +218,7 @@ function detail(s, e, M) {
     ${signalsPanel(e)}
     ${s.mode === 'target' ? clientBookPanel(e) : ''}
     ${s.mode === 'target' ? `<div class="dsec"><small>Deal stage</small>${stageSel(e)}${(e.deal?.history || []).length ? `<ul class="dhist">${e.deal.history.slice().reverse().map(h => `<li><b>${esc(stageName(h.stage))}</b> <span class="note">${ago(h.at)}</span></li>`).join('')}</ul>` : '<p class="note">Not contacted yet. Set the stage as the deal moves; each change is dated.</p>'}</div>` : ''}
-    <div class="dsec match">${s.mode === 'target' ? '<span class="note">Save it, then run it through Value Creation once you have its books.</span>' : cand ? `<button class="ghost sm" data-match="client">Find companies hiring for this kind of role</button>` : (e.openRoles || []).filter(r => !/^no /i.test(r)).slice(0, 2).map((r, i) => `<button class="ghost sm" data-match="candidate" data-role="${i}">Find candidates for: ${esc(r.split(/[(,]/)[0].trim().slice(0, 50))}</button>`).join('') || '<span class="note">No open role found to source candidates for.</span>'}${s.mode === 'target' ? '' : '<span class="note">Starts a new search using what this result tells us.</span>'}</div>
+    ${s.mode === 'target' ? '<div class="dsec match"><span class="note">Save it, then run it through Value Creation once you have its books.</span></div>' : ''}
     <div class="dsec"><small>Criteria · how the ${M.score.toLowerCase()} score is worked out</small><table class="crt">${(e.breakdown || []).map(r => `<tr><td>${esc(r.label)} <span class="note">${'●'.repeat(r.weight)}</span>${r.must ? ' <span class="musttag">must-have</span>' : ''}</td><td><span class="st ${ST[r.status][1]}">${ST[r.status][0]}</span></td><td class="note">${esc(r.note || (r.status === 'no_evidence' ? 'Not found in public sources reviewed.' : ''))}${r.url ? ` <a href="${safeUrl(r.url)}" target="_blank" rel="noopener">source</a>` : ''}</td></tr>`).join('')}</table>
       <p class="note">Strong = 1, partial = 0.6, no evidence = 0.3, mismatch = 0, weighted by importance (●). Missing evidence lowers confidence; it isn’t counted as a mismatch. A clear mismatch on a must-have caps the score at 40%.</p></div>
     ${cand ? `<div class="dsec"><small>Career evidence</small><p class="note">Career facts confirmed on a public page, each with its source.</p>${(e.verifiedFacts || []).length ? `<ul class="evl">${e.verifiedFacts.map(f => `<li>${esc(f.text)} <a href="${safeUrl(f.url)}" target="_blank" rel="noopener">${esc(host(f.url))}</a></li>`).join('')}</ul>` : '<p class="note">No verified career facts beyond the search results.</p>'}${(e.priorEmployers || []).length ? `<p class="note">Prior employers mentioned: ${e.priorEmployers.map(esc).join(', ')}</p>` : ''}</div>`
@@ -252,12 +252,7 @@ function wire(s) {
   const close = () => { P.open = null; renderResults(P.data, MODES[P.data.mode]); };
   if ($('#ps-watch')) $('#ps-watch').onclick = () => busy($('#ps-watch'), 'Saving…', async () => { try { await api('search/watch', { id: P.data.watchId || P.data.id, on: !P.data.watch }); drawSearch(); } catch (e) { toast(e.message, 'err'); } });
   P.main.querySelectorAll('[data-open-search]').forEach(x => x.onclick = () => { P.id = x.dataset.openSearch; P.open = null; draw(); });
-  P.main.querySelectorAll('[data-match]').forEach(b => b.onclick = async () => {
-    const e = P.data.entities.find(x => x.id === P.open), cand = P.data.mode === 'candidate', place = short(loc(e.location));
-    const objective = cand ? `Find companies${place ? ` in or near ${place}` : ''} that are hiring for a ${short(e.title) || 'similar'} role or a close equivalent, in industries like ${short(e.employer) || 'this one'}, and may need an outside recruiter.`
-      : `Find candidates for the ${(e.openRoles || [])[+b.dataset.role].split(/[(,]/)[0].trim()} role at ${e.company}${place ? ` in ${place}` : ''}. Look for people now in the same or a similar role at comparable companies in the region.`;
-    try { const { id } = await api('search/start', { mode: cand ? 'client' : 'candidate', objective, filters: { count: 10 }, link: { search: P.data.id, entity: e.id, label: cand ? e.name : e.company } }); P.open = null; P.id = id; draw(); } catch (err) { toast(err.message, 'err'); }
-  });
+
   if ($('#ps-close')) { $('#ps-close').onclick = close; $('#ps-scrim').onclick = ev => { if (ev.target.id === 'ps-scrim') close(); }; }
   document.onkeydown = ev => { if (ev.key === 'Escape' && P.open && $('#ps-close')) close(); };
   if ($('#ps-note')) $('#ps-note').onchange = async ev => { const e = P.data.entities.find(x => x.id === P.open); e.note = ev.target.value; await api('search/decide', { id: P.data.id, entity: e.id, note: e.note }); };
@@ -331,7 +326,7 @@ function pipelinePanel(PL) {
 }
 
 // ---------- radar: data read directly from sources, not web search ----------
-const SRCNOTE = 'domain registration records, saved copies of websites (Internet Archive), Google News headlines, company job boards, federal contract awards and firms’ own client pages';
+const SRCNOTE = 'domain registration records, saved copies of websites (Internet Archive), Google News headlines, company job boards and firms’ own client pages';
 function lastSig(s) { const at = (s.entities || []).map(e => e.radarAt).filter(Boolean).sort().pop(); return at ? `Last read ${ago(at)}.` : 'Not read yet for this search.'; }
 function signalsPanel(e) {
   if (!e.radarAt) return `<div class="dsec"><small>Signals from data sources</small><p class="note">Not read yet. Use “Refresh data signals” above the results to read ${SRCNOTE} for every result.</p></div>`;
@@ -349,9 +344,7 @@ function radarPanel(RD) {
     ${!RD.scanning && RD.lastError ? `<p class="warnline sm" data-testid="radar-error">The last scan stopped: ${esc(RD.lastError.error)}. Try again.</p>` : ''}
     ${sc ? `<p class="note">Last scan: ${esc(sc.region)} · ${ago(sc.at)} · ${sc.headlines} headlines read · <b>${sc.items.length}</b> brands with a sign they will need help</p>
       ${sc.items.length ? `<div class="tblw"><table class="hist"><tr><th>Company</th><th>What happened</th><th class="m-hide">Date</th><th></th></tr>${sc.items.slice(0, P.rdAll ? 25 : 5).map((x, i) => `<tr><td><b>${esc(x.company)}</b>${x.place ? `<br><span class="note">${esc(x.place)}</span>` : ''}</td><td><span class="pill2">${esc(WHAT[x.what] || 'Sign of demand')}</span> ${esc(x.summary)} <a href="${safeUrl(x.url)}" target="_blank" rel="noopener">source</a></td><td class="m-hide nowrap">${esc(x.date)}</td><td class="nowrap"><span class="link" data-rdlook="${i}">look into it</span></td></tr>`).join('')}</table></div>` : '<p class="note">No company in these headlines showed a sign of coming demand. Try a wider region or a longer period.</p>'}` : ''}
-    ${sc?.contracts?.length ? `<p class="note"><b>Federal contract surges in ${esc(sc.region)}</b> · mid-sized companies whose federal awards for making or moving goods jumped in the last 6 months. Some are IT suppliers coded as manufacturing; check before you call.</p>
-      <div class="tblw"><table class="hist"><tr><th>Company</th><th>Federal awards</th><th></th></tr>${sc.contracts.slice(0, P.rdAll ? 15 : 5).map((x, i) => `<tr><td><b>${esc(titleCo(x.name))}</b></td><td>${esc(x.text)}${x.url ? ` <a href="${safeUrl(x.url)}" target="_blank" rel="noopener">source</a>` : ''}</td><td class="nowrap"><span class="link" data-rdfed="${i}">look into it</span></td></tr>`).join('')}</table></div>` : ''}
-    ${sc && (sc.items.length > 5 || (sc.contracts || []).length > 5) ? `<p><span class="link" id="rd-all">${P.rdAll ? 'Show the top 5' : `Show all ${sc.items.length + (sc.contracts || []).length}`}</span></p>` : ''}
+    ${sc && sc.items.length > 5 ? `<p><span class="link" id="rd-all">${P.rdAll ? 'Show the top 5' : `Show all ${sc.items.length}`}</span></p>` : ''}
     ${ev.length ? `<details class="more2"><summary>What changed recently across your results (${ev.length})</summary><ul class="tsig">${ev.map(x => `<li class="${x.direction}"><b>${esc(x.name)}</b> · ${esc(x.sourceName)}: ${esc(x.text)} <span class="note">· found ${day(x.firstSeen)}</span> <a href="${safeUrl(x.url)}" target="_blank" rel="noopener">source</a></li>`).join('')}</ul></details>` : ''}
     <p class="howline"><b>How this works:</b> a brand that raises money, wins a new retailer, hires a sales or ecommerce lead or opens a marketplace store usually hires outside retail or marketplace help within 6–12 months. Read from news headlines; every row links its source. Use it to show an owner the demand AION can bring, or to find clients after we buy.</p></div>`;
 }
@@ -360,9 +353,6 @@ function wireRadar(RD) {
   if ($('#rd-all')) $('#rd-all').onclick = () => { P.rdAll = !P.rdAll; draw(); };
   go.onclick = async () => { P.rdRegion = $('#rd-region').value.trim(); P.rdDays = $('#rd-days').value; try { await api('radar/scan', { region: P.rdRegion, days: +P.rdDays }); draw(); } catch (e) { toast(e.message, 'err'); } };
   if (RD.scanning) { clearTimeout(P.timer); P.timer = setTimeout(() => { if (P.view === 'home') draw(); }, 4000); }
-  P.main.querySelectorAll('[data-rdfed]').forEach(l => l.onclick = async () => { const x = RD.scans[0].contracts[+l.dataset.rdfed];
-    const objective = `Find out whether ${x.name} in ${RD.scans[0].region} is likely to need senior operations, plant, program or supply-chain leaders soon (federal contract awards: ${x.text}), and who makes hiring decisions there.`;
-    try { const { id } = await api('search/start', { mode: 'client', objective, filters: { count: 6 } }); P.view = 'search'; P.id = id; P.data = null; draw(); } catch (e) { toast(e.message, 'err'); } });
   P.main.querySelectorAll('[data-rdlook]').forEach(l => l.onclick = async () => { const x = RD.scans[0].items[+l.dataset.rdlook];
     const objective = `Find out whether the consumer brand ${x.company}${x.place ? ` (${x.place})` : ''} is likely to need outside help getting into retailers or growing on Amazon, Walmart.com or other marketplaces soon (news: ${x.summary}), and who decides (founder, CEO, VP sales, head of ecommerce).`;
     try { const { id } = await api('search/start', { mode: 'client', objective, filters: { count: 6, subsector: 'ecommerce' } }); P.view = 'search'; P.id = id; P.data = null; draw(); } catch (e) { toast(e.message, 'err'); } });

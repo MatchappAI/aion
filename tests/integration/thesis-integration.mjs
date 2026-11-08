@@ -2,7 +2,9 @@
 //   AION_WORKSPACE=/tmp/ws PORT=8799 node server.mjs   then   AION_BASE=http://localhost:8799 node tests/integration/thesis-integration.mjs
 // It switches deals, records and clears diligence answers and saves a firm profile, so never point it at the real app.
 import assert from 'node:assert/strict';
-import { appears } from '../../lib/docs/docs.mjs';
+// word-for-word quote check (kept here after the Documents feature was removed)
+const norm = s => String(s || '').toLowerCase().replace(/[‘’]/g, "'").replace(/[“”]/g, '"').replace(/[–—]/g, '-').replace(/[^a-z0-9$%'".,;:()\/-]+/g, ' ').replace(/\s+/g, ' ').trim();
+const appears = (quote, source) => { const q = norm(quote); return q.length >= 12 && norm(source).includes(q); };
 const BASE = process.env.AION_BASE; if (!BASE || /:8765\b/.test(BASE)) { console.error('Set AION_BASE to the throwaway server (not 8765).'); process.exit(1); }
 const B = BASE.replace(/\/$/, '') + '/api/';
 const call = async (p, b) => { const r = await fetch(B + p, b === undefined ? {} : { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(b) }); const ct = r.headers.get('content-type') || ''; return ct.includes('json') ? r.json() : { ok: r.ok, bytes: (await r.arrayBuffer()).byteLength, type: ct }; };

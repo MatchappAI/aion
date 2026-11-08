@@ -2,7 +2,6 @@ import { mountSearch, leaveSearch } from './search.js';
 import { toast, busy } from './ui.js';
 import { mountSettings, leaveSettings } from './settings.js';
 import { mountHelp } from './help.js';
-import { mountDocs, leaveDocs } from './docs.js';
 import { mountOutreach, leaveOutreach } from './outreach.js';
 import { THESIS, PRICE, marketRange, SUBSECTORS, TOOLKIT, STATUS, DILIGENCE, REVENUE_MODELS, diligenceFor, valueBuckets, hundredDays, revenueMix, bucketOf } from '/thesis.mjs';
 const $ = s => document.querySelector(s);
@@ -66,11 +65,10 @@ function render() {
   document.body.classList.toggle('psmode', ['ps', 'docs', 'settings', 'help'].includes(appMode));
   if (appMode === 'out' || appMode === 'docs') appMode = 'ps'; // Outreach lives in Search & Outreach; Documents was removed
   if (appMode !== 'ps') { leaveOutreach(); delete document.body.dataset.outview; delete document.body.dataset.psview; }
-  if (appMode === 'settings' || appMode === 'help') { leaveSearch(); leaveDocs(); document.body.classList.add('simple'); $('#tabs').innerHTML = ''; return appMode === 'settings' ? mountSettings($('#main')) : mountHelp($('#main')); }
+  if (appMode === 'settings' || appMode === 'help') { leaveSearch(); document.body.classList.add('simple'); $('#tabs').innerHTML = ''; return appMode === 'settings' ? mountSettings($('#main')) : mountHelp($('#main')); }
   leaveSettings();
-  if (appMode === 'ps') { leaveDocs(); document.body.classList.add('simple'); $('#tabs').innerHTML = ''; return mountPS(); }
-  if (appMode === 'docs') { leaveSearch(); document.body.classList.add('simple'); return mountDocs($('#main')); }
-  leaveSearch(); leaveDocs();
+  if (appMode === 'ps') { document.body.classList.add('simple'); $('#tabs').innerHTML = ''; return mountPS(); }
+  leaveSearch();
   document.body.classList.toggle('simple', mode === 'simple'); tabs(); if (mode === 'simple') return simple(); nav(); const f = { upload: pUpload, map: pMap, earnings: pEarnings, ops: pOps, levers: pLevers, plan: pPlan, log: pLog }[page]; f(); }
 
 // ---------- AI jobs ----------
@@ -940,11 +938,6 @@ const VC_NEXT = [
   { group: 'Prove it worked', name: 'Build kit and results tracker', time: 'about 1 day', what: 'For each item in the plan queue: the Claude Code prompt or step-by-step checklist to do it, the starting number from the books, and a monthly check of whether it moved.', steps: ['Software: records the starting number for each item from the books', 'AI: writes the build prompt or checklist, with an owner and a deadline', 'Monthly check-in: compares the new books with the starting number', 'An item counts as done only when the books show it'], measure: 'Planned vs actual profit, item by item', needs: 'Needs: a monthly QuickBooks export' },
   ...VC_AGENTS.map(a => ({ group: 'Prove it worked', name: a.name.replace('AI build: ', '').replace(/^./, c => c.toUpperCase()), time: a.time, what: a.what, steps: a.steps, measure: '', needs: 'Also listed in the plan queue' })),
 ];
-function vcNextHTML() {
-  return `<h2 class="h2">Tools we can build next <span class="h2s">not built yet · realistic build time in Claude Code, including testing on real data</span></h2>
-    <p class="howline"><b>How these would work:</b> each tool does one of the five first actions from the thesis or proves a change worked. It shows every step and source, measures one number from the books, and stops for a person to approve. None of them contacts anyone by itself.</p>
-    ${['The five first actions', 'Prove it worked'].map(g => `<h3 class="agrp">${g}</h3><div class="agents">${VC_NEXT.filter(a => a.group === g).map(a => `<div class="agent"><div class="ah"><b>${a.name}</b><span class="atime">${a.time}</span></div><p>${a.what}</p><ol>${a.steps.map(t => `<li>${esc(t)}</li>`).join('')}</ol>${a.measure ? `<p class="note"><b>Measures:</b> ${a.measure}</p>` : ''}<p class="note">${a.needs}</p></div>`).join('')}</div>`).join('')}`;
-}
 // ---------- AION fit: thesis check, tool fit and why AION (all computed by lib/thesis.mjs from the books and diligence) ----------
 const STB = { pass: ['PASS', 'ok'], watch: ['WATCH', 'mid'], fail: ['FAIL', 'bad'], needs_data: ['NEEDS DATA', 'na'] };
 const LVB = { high: 'ok', medium: 'mid', low: 'na', needs: 'na' };
