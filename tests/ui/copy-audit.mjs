@@ -9,7 +9,7 @@ let id = 0; const pend = {}; sock.onmessage = m => { const d = JSON.parse(m.data
 const cmd = (method, params = {}) => new Promise(r => { const i = ++id; pend[i] = r; sock.send(JSON.stringify({ id: i, method, params })); });
 const ev = async e => { const r = await cmd('Runtime.evaluate', { expression: e, awaitPromise: true, returnByValue: true }); return r.result?.value; };
 await cmd('Emulation.setDeviceMetricsOverride', { width: 1280, height: 900, deviceScaleFactor: 1, mobile: false });
-await cmd('Page.navigate', { url: 'http://localhost:8765/' }); await sleep(2500);
+await cmd('Page.navigate', { url: (process.env.AION_BASE || 'http://localhost:8811') + '/' }); await sleep(2500);
 const JARGON = /\b(EBITDA|MOIC|IRR|LOI|NDA|DSO|TTM|SBA|ARR|RPO|CAGR|add-backs?|normaliz\w+|run-rate|pro forma|multiple|basis points|DSCR|amortiz\w+|accrual|GL|P&L|ATS|RDAP|Wayback|CDX)\b/g;
 const audit = `(() => { const out = []; const vis = el => { const s = getComputedStyle(el); return s.display !== 'none' && s.visibility !== 'hidden' && el.offsetParent !== null; };
   for (const h of document.querySelectorAll('h1,h2,h3,.srch b,.dsec small')) { if (!vis(h)) continue; let n = h.closest('section,.pipe,.panel,.dsec,.netcard,.srcs,.ps,.agent') || h.parentElement; const how = n && [...n.querySelectorAll('.howline,.note,.lede2,.lede,p')].some(p => vis(p) && p.innerText.length > 40);

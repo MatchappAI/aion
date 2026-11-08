@@ -197,9 +197,9 @@ function pEarnings() {
   ${jobBox()}
   <div class="grid4">
     <div class="panel kpi"><small>Sales, last 12 months</small><b>${kfmt(d.pnl.TTM.revenue)}</b></div>
-    <div class="panel kpi"><small>Profit in the books (EBITDA)</small><b>${kfmt(n.reported)}</b><span>${pct(n.reported / d.pnl.TTM.revenue, 1)} of sales</span></div>
+    <div class="panel kpi"><small>Profit in the books (EBITDA)</small><b>${kfmt(n.reported)}</b><span>${pct(n.reported / (d.pnl.TTM.netRevenue ?? d.pnl.TTM.revenue), 1)} of ${d.pnl.TTM.byCat?.rev_passthrough > 0 ? 'sales without pass-through' : 'sales'}</span></div>
     <div class="panel kpi"><small>One-off costs added back</small><b>${kfmt(n.addbacks)}</b><span>${kfmt(n.unaccepted)} more suggested, not ticked</span></div>
-    <div class="panel kpi hi"><small>Real profit (normalized EBITDA)</small><b>${kfmt(n.normalized)}</b><span>${pct(n.normalized / d.pnl.TTM.revenue, 1)} of sales</span></div>
+    <div class="panel kpi hi"><small>Real profit (normalized EBITDA)</small><b>${kfmt(n.normalized)}</b><span>${pct(n.normalized / (d.pnl.TTM.netRevenue ?? d.pnl.TTM.revenue), 1)} of sales</span></div>
   </div>
   <h2>From profit in the books to real profit</h2>
   <p class="howline"><b>How this works:</b> start from profit in the books, add what a new owner won’t pay, then pay whoever runs the firm after closing (the seller if they stay, or a hired manager) a market salary. Change the salary or the number of leaders and everything updates.</p>
@@ -311,7 +311,7 @@ function pLevers() {
   <p class="lede">Each change (a “lever”) is worked out from the books, the team numbers you confirmed, and the guesses on this page, which you can change. Hours that AI frees up are counted once only: for more work, for spending you will really cut, or not at all. An hour saved never counts as cash unless you type in real spending to cut.</p>
   <div class="grid4">
     <div class="panel kpi"><small>Real profit today (normalized EBITDA)</small><b>${kfmt(n.normalized)}</b></div>
-    <div class="panel kpi hi"><small>Extra profit a year, once running</small><b>${kfmt(L.runRate)}</b><span>after AI software and running costs (the “run-rate”)</span></div>
+    <div class="panel kpi hi"><small>Extra profit a year, once running</small><b>${kfmt(L.runRate)}</b><span>once every counted change is in place</span></div>
     <div class="panel kpi"><small>Year 1, after one-time setup</small><b class="${L.year1 < 0 ? 'neg' : ''}">${kfmt(L.year1)}</b><span>year 1 gets ${pct(a.year1_ramp)} of the full gain</span></div>
     <div class="panel kpi"><small>Return on investment (ROI) · pays back in</small><b>${L.roi == null ? '—' : L.roi.toFixed(1) + 'x'}</b><span>${L.paybackMonths == null ? 'never pays back at these numbers' : num(L.paybackMonths, 1) + ' months'}</span></div>
   </div>
@@ -596,7 +596,7 @@ function checksStrip(S, d) {
   if (ex.payroll?.analysis) items.push(near(ex.payroll.analysis.total, wages) ? ['ok', 'Payroll matches the books'] : ['warn', 'Payroll doesn’t match the books']);
   if (ex.payroll?.analysis?.market?.length) items.push(['ok', 'Pay compared to US government data']);
   if (d.rates) items.push(['ok', 'Today’s loan rate (Federal Reserve)']);
-  const m = V.profile?.margin, mine = t.revenue ? d.normalization.normalized / t.revenue : 0, pr = d.peer;
+  const m = V.profile?.margin, mine = (t.netRevenue ?? t.revenue) ? d.normalization.normalized / (t.netRevenue ?? t.revenue) : 0, pr = d.peer;
   if (pr) { const when = pr.date ? new Date(pr.date + 'T12:00').toLocaleDateString(undefined, { month: 'short', year: 'numeric' }) : ''; items.push([mine > pr.ebitda * 1.5 ? 'warn' : mine < pr.ebitda * 0.6 ? 'info' : 'ok', `Profit ${pct(mine)} of sales vs ${pct(pr.ebitda)} for large US companies in ${pr.industry} (${pr.firms} firms, NYU Stern, ${when})${mine > pr.ebitda * 1.5 ? '. Check closely.' : ''}`]); }
   else if (m) items.push(mine > m.high * 1.25 ? ['warn', `Profit ${pct(mine)} of sales: higher than usual (${pct(m.low)}–${pct(m.high)}). Check closely.`] : mine < m.low ? ['info', `Profit ${pct(mine)} of sales: below usual (${pct(m.low)}–${pct(m.high)}), room to improve`] : ['ok', `Profit ${pct(mine)} of sales: normal for this industry`]);
   items.push(['ok', 'AI sorts and flags. Software does all the math.']);
@@ -1091,7 +1091,7 @@ function trendsTab(S, d) {
 }
 function dealMetrics(S, d) {
   const D = d.deal, n = d.normalization, t = d.pnl.TTM; if (!D) return d.unpriceable && d.unpriceableWhy === 'short' ? `<section data-tab="deal" class="panel2"><h2 class="h2">Not priceable yet</h2><p class="lead2">The books cover only <b>${d.monthsCovered} month${d.monthsCovered === 1 ? '' : 's'}</b>. A price is a number of years of profit, so it needs a full 12 months. Ask the seller for the last 12 months (ideally 3 years) and upload them.</p></section>` : d.unpriceable ? `<section data-tab="deal" class="panel2"><h2 class="h2">Not priceable yet</h2><p class="lead2">Real profit is <b>${k$(n.normalized)}</b> a year, so the business loses money. Buyers price a business at a number of years of profit (the “multiple”), so there is no sensible price until it is profitable. The Plan tab shows the changes that would get it there. Or <span class="link" id="price-rev">price it on sales instead</span>.</p></section>` : '';
-  const tiles = [['Sales', k$(t.revenue), 'last 12 months'], ['Real profit (EBITDA)', k$(n.normalized), `${pct(n.normalized / t.revenue)} of sales`], ['Could reach', k$(d.proForma), `+${pct(d.levers.runRate / n.normalized)}`],
+  const tiles = [['Sales', k$(t.revenue), 'last 12 months'], ['Real profit (EBITDA)', k$(n.normalized), `${pct(n.normalized / (t.netRevenue ?? t.revenue))} of ${t.byCat?.rev_passthrough > 0 ? 'sales without pass-through' : 'sales'}`], ['Could reach', k$(d.proForma), `+${pct(d.levers.runRate / n.normalized)}`],
     ['Bank loan at purchase', n.normalized > 0 ? (D.senior / n.normalized).toFixed(1) + '×' : '—', 'years of profit borrowed'], ['Bad-year loan cover', D.downside.minDscr == null ? 'No loan' : D.downside.minDscr.toFixed(1) + '×', 'profit ÷ loan payments; banks want 1.25×'], ['Each $1 becomes', '$' + D.base.net.moic.toFixed(2), 'after fees, 5 years (MOIC)'], ['Yearly return', Math.round((D.base.net.irr || 0) * 100) + '%', 'after fees (IRR)']];
   return `<section data-tab="deal"><p class="howline"><b>How this works:</b> sales and real profit come from the books; “could reach” adds the plan. Loan and return figures come from the deal model below: returns assume the plan works, loan cover assumes a bad year. MOIC = money back per $1 invested; IRR = the same return as a yearly rate.</p><div class="mtiles">${tiles.map(([a, b, c]) => `<div><small>${a}</small><b>${b}</b><span>${c}</span></div>`).join('')}</div></section>`;
 }

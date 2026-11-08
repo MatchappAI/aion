@@ -7,6 +7,7 @@ import { accountSummary } from './lib/gl.mjs';
 import { CATEGORIES, DEFAULT_ASSUMPTIONS, detectSignMode, periods, pnl, matchRows, normalize, quality, dso, levers, cashRelease, rowValue, r2, dealReturns, VEHICLES, monthlySeries, customerFlow, nonOverlappingPeriods } from './lib/model.mjs';
 import { libraryPlan } from './lib/playbooks.mjs';
 import { ecomLevers } from './lib/levers-ecom.mjs';
+import { printPdf } from './lib/printpdf.mjs';
 import { profile, kindOf } from './lib/industry.mjs';
 import { thesisCheck, toolFit, whyAion, SUBSECTORS, kindFor, REVENUE_MODELS } from './lib/thesis.mjs';
 import { extraLevers } from './lib/extras.mjs';
@@ -287,10 +288,7 @@ async function outreachPdf(id, kind) {
   const dir = path.join(ROOTWS, 'outreach', 'pdf'); fs.mkdirSync(dir, { recursive: true });
   const out = path.join(dir, `${String(id).replace(/\W/g, '')}-${String(kind).replace(/\W/g, '')}.pdf`); try { fs.unlinkSync(out); } catch {}
   letterHtml(id, kind); // throws if there is nothing to print
-  await new Promise((ok, bad) => {
-    const c = spawn('/Applications/Google Chrome.app/Contents/MacOS/Google Chrome', ['--headless=new', '--disable-gpu', '--no-pdf-header-footer', '--virtual-time-budget=5000', `--print-to-pdf=${out}`, `http://127.0.0.1:${PORT}/api/outreach/print?id=${encodeURIComponent(id)}&kind=${encodeURIComponent(kind)}`]);
-    c.on('close', () => fs.existsSync(out) ? ok() : bad(new Error('The PDF was not created. Is Google Chrome installed?'))); c.on('error', bad);
-  });
+  await printPdf(`http://127.0.0.1:${PORT}/api/outreach/print?id=${encodeURIComponent(id)}&kind=${encodeURIComponent(kind)}`, out, { budgetMs: 5000 });
   return fs.readFileSync(out);
 }
 // Mac notifications for replies, follow-ups that come due and calls about to start (each once).

@@ -9,7 +9,7 @@ let id = 0; const pend = {}; sock.onmessage = m => { const d = JSON.parse(m.data
 const cmd = (method, params = {}) => new Promise(r => { const i = ++id; pend[i] = r; sock.send(JSON.stringify({ id: i, method, params })); });
 const ev = async e => (await cmd('Runtime.evaluate', { expression: e, awaitPromise: true, returnByValue: true })).result?.value;
 const shot = async (n, max = 3000) => { const h = await ev('document.documentElement.scrollHeight'); await cmd('Emulation.setDeviceMetricsOverride', { width: 1280, height: Math.min(h, max), deviceScaleFactor: 1, mobile: false }); await sleep(300); const r = await cmd('Page.captureScreenshot', { format: 'png' }); fs.writeFileSync(path.join(OUT, n + '.png'), Buffer.from(r.data, 'base64')); await cmd('Emulation.setDeviceMetricsOverride', { width: 1280, height: 1000, deviceScaleFactor: 1, mobile: false }); };
-await cmd('Page.enable'); await cmd('Page.navigate', { url: 'http://localhost:8765/' }); await sleep(2000);
+await cmd('Page.enable'); await cmd('Page.navigate', { url: (process.env.AION_BASE || 'http://localhost:8811') + '/' }); await sleep(2000);
 await ev(`document.querySelector('[data-app="vc"]').click()`); await sleep(1200); await shot('rv-vc');
 await ev(`document.querySelector('[data-app="ps"]').click()`); await sleep(1800); await shot('rv-pshome');
 for (const sid of process.argv.slice(2)) { await ev(`document.querySelector('[data-open="${sid}"]')?.click()`); await sleep(2000); await shot('rv-' + sid, 2600); await ev(`document.querySelector('[data-detail]')?.click()`); await sleep(700); await shot('rv-' + sid + '-d', 1000); await ev(`document.querySelector('#ps-close')?.click()`); await ev(`document.querySelector('#ps-back')?.click()`); await sleep(1500); }

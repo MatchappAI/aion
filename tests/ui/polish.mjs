@@ -10,7 +10,7 @@ const cmd = (method, params = {}) => new Promise(r => { const i = ++id; pend[i] 
 const ev = async e => (await cmd('Runtime.evaluate', { expression: e, awaitPromise: true, returnByValue: true })).result?.value;
 const shot = async (n, w = 1280, max = 6000) => { await cmd('Emulation.setDeviceMetricsOverride', { width: w, height: 900, deviceScaleFactor: 1, mobile: w < 600 }); await sleep(500); const h = await ev('document.documentElement.scrollHeight'); await cmd('Emulation.setDeviceMetricsOverride', { width: w, height: Math.min(h, max), deviceScaleFactor: 1, mobile: w < 600 }); await sleep(400); const r = await cmd('Page.captureScreenshot', { format: 'png' }); fs.writeFileSync(path.join(OUT, n + '.png'), Buffer.from(r.data, 'base64')); const ow = await ev('document.documentElement.scrollWidth'); if (ow > w + 2) console.log(`OVERFLOW ${n}: page ${ow}px wide at ${w}px`); };
 const click = s => ev(`document.querySelector(${JSON.stringify(s)})?.click()`);
-await cmd('Page.enable'); await cmd('Page.navigate', { url: 'http://localhost:8765/' }); await sleep(2000);
+await cmd('Page.enable'); await cmd('Page.navigate', { url: (process.env.AION_BASE || 'http://localhost:8811') + '/' }); await sleep(2000);
 await click('[data-app="vc"]'); await sleep(1200); await shot('vc-empty'); await shot('vc-empty-phone', 390);
 await click('[data-app="ps"]'); await sleep(1800); await shot('ps-home'); await shot('ps-home-phone', 390);
 const sid = process.argv[2]; if (sid) { await click(`[data-open="${sid}"]`); await sleep(2000); await shot('ps-results'); await shot('ps-results-phone', 390); await click('[data-detail]'); await sleep(700); await shot('ps-detail', 1280, 900); }

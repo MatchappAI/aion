@@ -3,7 +3,8 @@
 // AION_WORKSPACE=<that copy> reads the test ledgers from the copy too.
 // Uses the test ledger in workspace/archive/test-files-other-industries, then archives that deal again.
 import { spawn } from 'node:child_process'; import fs from 'node:fs'; import path from 'node:path';
-const ROOT = path.resolve(path.dirname(new URL(import.meta.url).pathname), '../..'), OUT = path.join(ROOT, 'tests/ui/out'), APP = (process.env.AION_BASE || 'http://localhost:8765').replace(/\/$/, ''), B = APP + '/api/';
+const ROOT = path.resolve(path.dirname(new URL(import.meta.url).pathname), '../..'), OUT = path.join(ROOT, 'tests/ui/out'), APP = (process.env.AION_BASE || 'http://localhost:8811').replace(/\/$/, ''), B = APP + '/api/';
+if (/:8765\b/.test(APP)) { console.error('Run this against a server on a workspace copy (see the top of this file), never the real AION on 8765.'); process.exit(1); }
 fs.mkdirSync(OUT, { recursive: true });
 const sleep = ms => new Promise(r => setTimeout(r, ms));
 const call = async (p, b) => (await fetch(B + p, b === undefined ? {} : { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(b) })).json();

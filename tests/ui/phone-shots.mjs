@@ -8,7 +8,7 @@ const cmd = (method, params = {}) => new Promise(r => { const i = ++id; pend[i] 
 const ev = async e => (await cmd('Runtime.evaluate', { expression: e, awaitPromise: true, returnByValue: true })).result?.value;
 const shot = async (n, h = 2400) => { const r = await cmd('Page.captureScreenshot', { format: 'png', clip: { x: 0, y: 0, width: 390, height: h, scale: 1 }, captureBeyondViewport: true }); fs.writeFileSync(OUT + n + '.png', Buffer.from(r.data, 'base64')); const w = await ev('document.documentElement.scrollWidth'); console.log(n, 'width', w); };
 await cmd('Emulation.setDeviceMetricsOverride', { width: 390, height: 844, deviceScaleFactor: 1, mobile: true });
-await cmd('Page.navigate', { url: 'http://localhost:8765/' }); await sleep(2500);
+await cmd('Page.navigate', { url: (process.env.AION_BASE || 'http://localhost:8811') + '/' }); await sleep(2500);
 for (const a of ['ps', 'docs']) { await ev(`document.querySelector('[data-app="${a}"]').click()`); await sleep(2500); await shot('phone-' + a); }
 await ev(`[...document.querySelectorAll('tr[data-doc]')][0]?.click()`); await sleep(2000); await shot('phone-doc');
 await ev(`document.querySelector('[data-app="ps"]').click()`); await sleep(800);

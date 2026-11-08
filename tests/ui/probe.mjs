@@ -7,7 +7,7 @@ let id = 0; const pend = {}; sock.onmessage = m => { const d = JSON.parse(m.data
 const cmd = (method, params = {}) => new Promise(r => { const i = ++id; pend[i] = r; sock.send(JSON.stringify({ id: i, method, params })); });
 const ev = async e => { const r = await cmd('Runtime.evaluate', { expression: e, awaitPromise: true, returnByValue: true }); return r.exceptionDetails ? 'ERR ' + JSON.stringify(r.exceptionDetails).slice(0, 300) : r.result?.value; };
 await cmd('Page.enable'); await cmd('Emulation.setDeviceMetricsOverride', { width: 390, height: 900, deviceScaleFactor: 1, mobile: true });
-await cmd('Page.navigate', { url: 'http://localhost:8765/' }); await sleep(2000);
+await cmd('Page.navigate', { url: (process.env.AION_BASE || 'http://localhost:8811') + '/' }); await sleep(2000);
 await ev(`document.querySelector('[data-app="vc"]').click()`); await sleep(1800);
 for (const w of [1280, 390]) { await cmd('Emulation.setDeviceMetricsOverride', { width: w, height: 900, deviceScaleFactor: 1, mobile: w < 600 }); await sleep(600);
   console.log(w + ': ' + await ev(`[...document.querySelectorAll('img')].map(i => { const r = i.getBoundingClientRect(); return (i.getAttribute('src')||'').split('/').pop() + ' shown ' + Math.round(r.width) + 'x' + Math.round(r.height) + ' ratio ' + (r.width / r.height).toFixed(3) + ' natural ' + (i.naturalWidth / i.naturalHeight).toFixed(3); }).join(' | ')`)); }

@@ -1,7 +1,7 @@
 // Value Creation (deal) routes (moved out of server.mjs with no change in behaviour): the open deal, upload, AI steps,
 // the answers and settings on each step, the Excel and PDF files, and switching deals. The open deal lives in
 // server.mjs; `st` reads and writes it live (S, ROWS, CHECK, CUR and the running AI step).
-import fs from 'node:fs'; import path from 'node:path'; import crypto from 'node:crypto'; import { spawn } from 'node:child_process';
+import fs from 'node:fs'; import path from 'node:path'; import crypto from 'node:crypto'; 
 import { parseGL, accountSummary } from '../lib/gl.mjs';
 import { CATEGORIES, DEFAULT_ASSUMPTIONS, periods, r2 } from '../lib/model.mjs';
 import { profile, kindOf } from '../lib/industry.mjs';
@@ -10,6 +10,7 @@ import { analyzePayroll, analyzeSales } from '../lib/extras.mjs';
 import { buildWorkbook } from '../lib/excel.mjs';
 import { marketPay } from '../lib/benchmarks.mjs';
 import { readLog } from '../lib/claude.mjs';
+import { printPdf } from '../lib/printpdf.mjs';
 import { detect as detectEngines, resolve as resolveEngine, settings as engineSettings, choose as chooseEngine, setKey, test as testEngine, ENGINES, limits as engineLimits } from '../lib/engine.mjs';
 
 export const DEAL_POST = new Set(['engine/choose', 'engine/key', 'engine/test', 'upload', 'ai/classify', 'ai/addbacks', 'ai/ops', 'ai/plan', 'ai/all', 'extra', 'ai/outside', 'checkin', 'industry', 'subsector', 'diligence', 'mask', 'excel', 'pdf', 'answer', 'mapping', 'earnings', 'ops', 'assumptions', 'deals/select', 'deals/new', 'deals/rename', 'reset']);
@@ -122,10 +123,7 @@ export async function dealRoute(req, res, url, p, ctx) {
     case 'pdf': {
       if (!st.CUR || !st.S.plan) return send(res, 400, { error: 'Analyze a company first, then download its 1-page PDF.' });
       const out = path.join(D(), 'summary.pdf'); try { fs.unlinkSync(out); } catch {}
-      await new Promise((ok, bad) => {
-        const c = spawn('/Applications/Google Chrome.app/Contents/MacOS/Google Chrome', ['--headless=new', '--disable-gpu', '--no-pdf-header-footer', '--virtual-time-budget=8000', `--print-to-pdf=${out}`, `http://localhost:${PORT}/summary.html`]);
-        c.on('close', () => fs.existsSync(out) ? ok() : bad(new Error('PDF was not created — is Google Chrome installed?'))); c.on('error', bad);
-      });
+      await printPdf(`http://localhost:${PORT}/summary.html`, out, { budgetMs: 8000, failMsg: 'PDF was not created — is Google Chrome installed?' });
       res.writeHead(200, { 'Content-Type': 'application/pdf', 'Content-Disposition': 'attachment; filename="AION summary.pdf"' });
       return res.end(fs.readFileSync(out));
     }

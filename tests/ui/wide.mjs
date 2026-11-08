@@ -7,7 +7,7 @@ let id = 0; const pend = {}; sock.onmessage = m => { const d = JSON.parse(m.data
 const cmd = (method, params = {}) => new Promise(r => { const i = ++id; pend[i] = r; sock.send(JSON.stringify({ id: i, method, params })); });
 const ev = async e => (await cmd('Runtime.evaluate', { expression: e, awaitPromise: true, returnByValue: true })).result?.value;
 await cmd('Page.enable'); await cmd('Emulation.setDeviceMetricsOverride', { width: 390, height: 900, deviceScaleFactor: 1, mobile: true });
-await cmd('Page.navigate', { url: 'http://localhost:8765/' }); await sleep(2000);
+await cmd('Page.navigate', { url: (process.env.AION_BASE || 'http://localhost:8811') + '/' }); await sleep(2000);
 const find = `[...document.querySelectorAll('body *')].filter(e => { const r = e.getBoundingClientRect(); return r.right > 392 && r.width > 0 && getComputedStyle(e).display !== 'none'; }).filter(e => ![...e.children].some(c => c.getBoundingClientRect().right > 392)).slice(0, 8).map(e => e.tagName + '.' + e.className + ' w=' + Math.round(e.getBoundingClientRect().width) + ' right=' + Math.round(e.getBoundingClientRect().right) + ' :: ' + (e.textContent || '').trim().slice(0, 40)).join('\\n')`;
 await ev(`document.querySelector('[data-app="vc"]').click()`); await sleep(1800); console.log('VC\n' + await ev(find)); console.log(await ev(`(() => { const out = []; const main = document.querySelector('#main'); out.push('main w=' + Math.round(main.getBoundingClientRect().width) + ' sw=' + main.scrollWidth + ' pad=' + getComputedStyle(main).padding);
 const r2 = document.querySelector('.r2'); out.push('r2 w=' + Math.round(r2.getBoundingClientRect().width) + ' display=' + getComputedStyle(r2).display);

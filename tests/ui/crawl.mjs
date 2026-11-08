@@ -6,6 +6,7 @@
 // something, called the app, or showed a message. Anything else is listed as "no visible effect".
 import { spawn } from 'node:child_process'; import fs from 'node:fs'; import path from 'node:path'; import os from 'node:os';
 const BASE = (process.env.AION_BASE || 'http://localhost:8811').replace(/\/$/, '');
+if (/:8765\b/.test(BASE)) { console.error('Run this against a server on a workspace copy (see the top of this file), never the real AION on 8765.'); process.exit(1); }
 const OUTF = process.argv[2];
 const PROF = fs.mkdtempSync(path.join(os.tmpdir(), 'pe-crawl-'));
 const chrome = spawn('/Applications/Google Chrome.app/Contents/MacOS/Google Chrome', ['--headless=new', '--disable-gpu', '--remote-debugging-port=' + (process.env.CDP_PORT || 9353), '--window-size=1366,1000', '--user-data-dir=' + PROF, 'about:blank']);
@@ -28,7 +29,8 @@ ws.onmessage = async m => {
     else send('Fetch.continueRequest', { requestId: d.params.requestId });
   }
 };
-const ev = async expr => (await send('Runtime.evaluate', { expression: expr, awaitPromise: true, returnByValue: true })).result?.value;
+// a page call that never answers (a stuck dialog, a crashed tab) is reported instead of hanging the run
+const ev = async expr => (await Promise.race([send('Runtime.evaluate', { expression: expr, awaitPromise: true, returnByValue: true }), sleep(20000).then(() => { errs.push('TIMEOUT: the page did not answer in 20 s'); return {}; })])).result?.value;
 await send('Runtime.enable'); await send('Log.enable'); await send('Page.enable');
 await send('Fetch.enable', { patterns: [{ urlPattern: BASE + '/api/*' }] });
 
@@ -62,10 +64,13 @@ const LIST = `(() => {
 const SNAP = `(document.querySelector('#main')?.innerText || '') + '|' + (document.querySelector('#toasts')?.innerText || '') + '|' + (document.activeElement?.id || '') + '|' + [...document.querySelectorAll('textarea,input')].map(e => e.value).join('~') + '|' + (document.querySelector('.scrim, #ps-scrim, #modal.on')?.innerText || '') + '|' + document.querySelector('[data-app].on')?.dataset.app + '|' + (document.querySelector('.r2')?.dataset.show || '') + '|' + [...document.querySelectorAll('details[open]')].length + '|' + (document.querySelector('#tabs')?.innerText || '')`;
 
 const report = [];
-for (const [name, go] of SCREENS) {
+const ONLY = process.env.CRAWL_ONLY ? new RegExp(process.env.CRAWL_ONLY) : null; // run some screens only
+for (const [name, go] of SCREENS.filter(([n]) => !ONLY || ONLY.test(n))) {
   await go();
   // the same control repeated on every card (Save, Reject, a link to each source) is tried twice, not on every card
-  const seen = {}, items = (await ev(LIST) || []).filter(x => (seen[x.tag + x.label] = (seen[x.tag + x.label] || 0) + 1) <= 2);
+  // CRAWL_SKIP: labels to leave out (e.g. Replay, checked on its own by tests/ui/replay-probe.mjs)
+  const SKIP = process.env.CRAWL_SKIP ? new RegExp(process.env.CRAWL_SKIP) : null;
+  const seen = {}, items = (await ev(LIST) || []).filter(x => !(SKIP && SKIP.test(x.label))).filter(x => (seen[x.tag + x.label] = (seen[x.tag + x.label] || 0) + 1) <= 2);
   console.log(`\n== ${name}: ${items.length} controls`);
   let dirty = false;
   for (const it of items) {

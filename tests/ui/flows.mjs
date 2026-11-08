@@ -7,6 +7,7 @@
 import { spawn } from 'node:child_process'; import fs from 'node:fs'; import path from 'node:path'; import os from 'node:os';
 import * as XLSX from 'xlsx';
 const APP = (process.env.AION_BASE || 'http://localhost:8812').replace(/\/$/, ''), EMPTY = (process.env.AION_EMPTY_BASE || '').replace(/\/$/, '');
+if (/:8765\b/.test(APP)) { console.error('Run this against a server on a workspace copy (see the top of this file), never the real AION on 8765.'); process.exit(1); }
 const sleep = ms => new Promise(r => setTimeout(r, ms));
 let pass = 0, fail = 0; const ok = (n, c, x = '') => { c ? pass++ : fail++; console.log((c ? 'PASS ' : 'FAIL ') + n + (x ? ' — ' + String(x).slice(0, 220) : '')); };
 const call = async (base, p, b) => { const r = await fetch(`${base}/api/${p}`, b === undefined ? {} : { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(b) }); return { status: r.status, json: await r.json().catch(() => null) }; };

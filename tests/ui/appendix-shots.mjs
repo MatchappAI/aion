@@ -10,7 +10,7 @@ const cmd = (method, params = {}) => new Promise(r => { const i = ++id; pend[i] 
 const ev = async e => (await cmd('Runtime.evaluate', { expression: e, awaitPromise: true, returnByValue: true })).result?.value;
 const shot = async (name, h = 1500) => { await ev('window.scrollTo(0,0)'); await sleep(400); const r = await cmd('Page.captureScreenshot', { format: 'png', clip: { x: 0, y: 0, width: 1280, height: h, scale: 2 }, captureBeyondViewport: true }); fs.writeFileSync(OUT + name + '.png', Buffer.from(r.data, 'base64')); console.log('saved', name); };
 await cmd('Emulation.setDeviceMetricsOverride', { width: 1280, height: 1000, deviceScaleFactor: 2, mobile: false });
-await cmd('Page.navigate', { url: 'http://localhost:8765/' }); await sleep(2500);
+await cmd('Page.navigate', { url: (process.env.AION_BASE || 'http://localhost:8811') + '/' }); await sleep(2500);
 // 1. Value Creation on GEE Group's audited numbers
 await ev(`document.querySelector('[data-app="vc"]').click()`); await sleep(2000);
 await ev(`[...document.querySelectorAll('.tabs button, #tabs button, #tabs a')].find(b => /GEE/.test(b.innerText))?.click()`); await sleep(2500);
