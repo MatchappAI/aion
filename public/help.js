@@ -18,15 +18,17 @@ export function mountHelp(main) {
     <p class="lede2">AION buys US ecommerce consulting firms (retail placement, marketplace agencies, strategy and analytics) that make about $500K–$5M a year in profit. Use it to find owners, write to them, and turn a firm’s books into a plan. Everything stays on this computer.</p>
     <div class="helpgrid">
       <section class="panel"><h3>1. Find owners <span class="note">Search &amp; Outreach</span></h3><ol>
-        <li><b>Owners to contact</b> lists every firm your searches found, best first. Confirmed firms (US, owner-run, about 5–150 people) come first.</li>
-        <li>Each row shows <b>why now</b> (public signs the owner may sell, each with a source) and the <b>offer</b>.</li>
+        <li><b>Owners to contact</b> lists only strong fits: a clear, sourced sign from the last 18 months that the owner wants to sell (said so, retirement, succession, the founder stepping back or having died) or asked for an investor. Seller intent reads <b>Confirmed</b>, <b>Documented transition</b> or <b>Speculative</b>; it is never a made-up probability.</li>
+        <li>Each row shows the evidence with its source and date, fit and rough size, and the one <b>next step</b>. <b>Leads to research</b> below have supporting signs only; listed or broker-represented firms sit apart under <b>Marketed</b>.</li>
+        <li>Open a firm and press <b>Research the founder and firm</b> for a sourced profile; ideas are marked as ideas.</li>
         <li>The offer is always a buyout: a <b>full buyout</b> by default, or a <b>majority stake</b> when the owner is clearly still building and would keep running it. A <b>partnership</b> appears only when the firm says it wants a partner or investor.</li>
         <li>To find more, use <b>Find more</b>: describe what you want in a sentence and press Search (4–8 minutes).</li>
-        <li>Firms that don’t fit (too big, too small, owned by a bigger company, already listed for sale) are set aside with the reason.</li></ol><button class="ghost sm" data-go="ps">Open Search &amp; Outreach</button></section>
+        <li>Firms that don’t fit (too big, too small, owned by a bigger company) are set aside with the reason. <b>Firms that fit together</b> and <b>Who is consolidating</b> sit below the list.</li></ol><button class="ghost sm" data-go="ps">Open Search &amp; Outreach</button></section>
       <section class="panel"><h3>2. Write to them <span class="note">about a minute per firm</span></h3><ol>
         <li>Once: open <b>Inboxes and settings</b>, connect your Gmail and add your mailing address.</li>
         <li>Press <b>Write outreach</b> on a firm. AION writes a first email, two follow-ups, a letter, call notes and a discreet note for their shared inbox, only from facts it found.</li>
-        <li>Read it, edit it, press <b>Send…</b>. Nothing ever goes out without your OK.</li>
+        <li>Each draft shows its kind (A–E: said they want to sell, exploring succession, no interest known, asked for a partner, marketed), a quality check by a second reader, and the facts it used. Low-confidence drafts are marked, never padded with invented details.</li>
+        <li>Read it, edit it, press <b>Send…</b>, or pick a time and press <b>Schedule…</b> (follow-ups too; a reply cancels them). Nothing ever goes out without your OK.</li>
         <li>A note about selling only goes to the owner, never to a shared inbox like info@. Press <b>Find the owner’s email</b>: AION reads their website, asks Hunter.io (free key in Settings), then suggests a likely address in the firm’s own format. You choose whether to use it; if it bounces, AION offers the next one. Or mail the letter.</li>
         <li>Replies are checked every 10 minutes. AION suggests open times from your calendar and sends the invite when you pick one.</li>
         <li>After a good call: NDA, books request, then a letter of intent (LOI). Have a lawyer review the NDA and LOI.</li></ol><button class="ghost sm" data-go="ps">Open Search &amp; Outreach</button></section>

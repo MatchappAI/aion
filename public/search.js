@@ -445,7 +445,9 @@ function strategyPanel(ST) {
 function intentPanel(IN) {
   const C = IN.counts || {}, f = ['all', 'new', 'full', 'majority', 'partner'].includes(P.inF) ? P.inF : 'all', scope = P.inScope && (P.inScope === 'box' || SEGS.some(([k]) => k === P.inScope)) ? P.inScope : 'box';
   const inScope = x => x.niche && (scope === 'box' || x.segment === scope);
-  const NICHE = (IN.list || []).filter(x => x.niche), ALL = NICHE.filter(x => x.strongFit || x.outreach), WEAK = NICHE.filter(x => !x.strongFit && !x.outreach), confirmed = ALL.length;
+  const NICHE = (IN.list || []).filter(x => x.niche), ALL = NICHE.filter(x => x.strongFit || x.outreach), WEAK0 = NICHE.filter(x => !x.strongFit && !x.outreach), confirmed = ALL.length;
+  // the best leads to research are shown openly; the fold holds the rest, so no firm is listed twice
+  const LEADS = WEAK0.filter(x => x.scores?.intent?.category === 'speculative' && (!P.inScope || P.inScope === 'box' || x.segment === P.inScope)).slice(0, 10), leadIds = new Set(LEADS.map(x => `${x.search}|${x.entity}`)), WEAK = WEAK0.filter(x => !leadIds.has(`${x.search}|${x.entity}`));
   const test = (x, k) => k === 'all' ? true : k === 'new' ? !x.outreach : offerOf(x) === k;
   const L = ALL.filter(x => inScope(x) && test(x, f)), n = P.inAll ? L.length : 15, sc = IN.scanning;
   const cnt = k => ALL.filter(x => inScope(x) && test(x, k)).length;
@@ -462,6 +464,7 @@ function intentPanel(IN) {
       ${L.length ? `<div class="tblw"><table class="hist intent"><tr><th class="num">#</th><th>Firm</th><th>Why contact them</th><th>Fit · size</th><th>Next step</th><th>Outreach</th></tr>${L.slice(0, n).map(x => oppRow(x)).join('')}</table></div>
         ${L.length > 15 ? `<p><span class="link" id="in-all">${P.inAll ? 'Show the top 15' : `Show all ${L.length}`}</span></p>` : ''}`
       : `<p class="note" data-testid="no-strong">${ALL.length ? 'No firms in this view. Pick another segment or filter.' : NICHE.length ? 'No strong fits yet. Press Refresh signs to read every firm again, run another search, or open “not strong yet” below to see what each firm is missing.' : 'Run a “Find firms to buy” search below; each firm shows up here.'}</p>`}
+      ${(() => { const R = LEADS; return R.length ? `<h3 class="h3s" data-testid="leads">Leads to research · ${R.length}</h3><p class="note">Supporting signs only (long tenure, a quiet website, a partner gone): research leads, not evidence they want to sell. The next step says what to look for.</p><div class="tblw"><table class="hist intent">${R.map(x => oppRow(x)).join('')}</table></div>` : ''; })()}
       ${(IN.marketed || []).length ? `<details class="inout" data-testid="marketed"><summary>${IN.marketed.length} marketed (listed for sale or with a broker)</summary><p class="note">Confirmed interest, but other buyers can see them too. Off-market owners above come first.</p><div class="tblw"><table class="hist intent">${IN.marketed.map(x => oppRow(x)).join('')}</table></div></details>` : ''}
       ${WEAK.length ? `<details class="inout" data-testid="not-strong"><summary>${WEAK.length} not strong yet</summary>${(() => { const W = WEAK.filter(x => scope === 'box' || x.segment === scope), G = new Map();
         for (const x of W) { const r = (x.strength?.missing || ['Not strong yet'])[0].replace(/\s*\(.*$|:.*$/, ''); if (!G.has(r)) G.set(r, []); G.get(r).push(x); }
