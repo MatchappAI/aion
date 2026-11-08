@@ -580,7 +580,7 @@ async function runAll(j) {
     else {
     if (d.rates) detail(`Loan rate today: ${(d.deal.rate * 100).toFixed(2)}% (prime ${(d.rates.prime * 100).toFixed(2)}% from the Federal Reserve, ${d.rates.date})`);
     detail(`Tested a price of ${d.deal.multiple}× ${d.deal.basis === 'revenue' ? 'revenue' : 'profit'} (${$k(d.deal.price)}): ${d.deal.senior + d.deal.seller > 0 ? `bank lends ${$k(d.deal.senior)}, seller carries ${$k(d.deal.seller)}, ` : 'no loan, '}investors put in ${$k(d.deal.equity)}`);
-    if (d.deal.downside.minDscr != null) detail(`Bad-year test (profit 15% lower): profit still covers loan payments ${d.deal.downside.minDscr.toFixed(1)}×`);
+    if (d.deal.downside.minDscr != null) detail(`Bad-year test (profit ${Math.round(d.deal.downsideDrop * 100)}% lower): profit still covers loan payments ${d.deal.downside.minDscr.toFixed(1)}×`);
     tick(`Offer price: ${$k(d.deal.price)}.${d.deal.base.net.moic != null ? ` Each $1 invested could become $${d.deal.base.net.moic.toFixed(2)}.` : ''}`);
     }
     set(5, 'Done'); tick('Done'); S.runLog = j.log; S.runDetail = j.detail; persist();
@@ -887,9 +887,9 @@ const server = http.createServer(async (req, res) => {
               if (!it.dealId) return send(res, 400, { error: 'Open their books in Value Creation first (from the attachment in their email, or upload them), then write the LOI.' });
               if (busy()) return send(res, 409, { error: 'An analysis is still running. Try again when it finishes.' });
               // read that deal's numbers, then always put the deal you had open back, even if reading fails
-              const was = CUR; let d; try { loadDeal(it.dealId); d = derive(); } finally { loadDeal(was); }
+              const was = CUR; let d, deferred = 0; try { loadDeal(it.dealId); d = derive(); deferred = Math.max(0, +S.diligence?.deferred_revenue?.value || 0); } finally { loadDeal(was); }
               if (!d.deal) return send(res, 400, { error: 'That company’s books haven’t been analyzed yet (or it can’t be priced). Open it in Value Creation and press Analyze.' });
-              const numbers = { fees: d.deal.fees || 0, ebitda: d.normalization.normalized, price: d.deal.price, multiple: d.deal.multiple, basis: d.deal.basis, senior: d.deal.senior, seller: d.deal.seller, equity: d.deal.equity, revenue: d.pnl?.TTM?.revenue || 0, stake: d.deal.stake ?? 1, rollover: d.deal.rollover || 0, wcPeg: d.wc?.peg ?? null };
+              const numbers = { fees: d.deal.fees || 0, ebitda: d.normalization.normalized, price: d.deal.price, multiple: d.deal.multiple, basis: d.deal.basis, senior: d.deal.senior, seller: d.deal.seller, equity: d.deal.equity, revenue: d.pnl?.TTM?.revenue || 0, stake: d.deal.stake ?? 1, rollover: d.deal.rollover || 0, wcPeg: d.wc?.peg != null ? d.wc.peg - deferred : null, deferred };
               // whole thousands, with costs = sources − price, so every figure in the letter adds up exactly
               const k = v => Math.round((+v || 0) / 1000) * 1000;
               for (const f of ['ebitda', 'price', 'senior', 'seller', 'equity', 'revenue']) numbers[f] = k(numbers[f]);
@@ -931,7 +931,7 @@ const server = http.createServer(async (req, res) => {
         }
         case 'search/watch': { const s2 = loadSearch(b.id); if (!s2) return send(res, 404, { error: 'Search not found.' }); setWatch(s2, !!b.on, 7); return send(res, 200, { ok: true }); }
         case 'search/watchrun': { const w = watches().find(x => x.id === b.id); if (!w) return send(res, 404, { error: 'Not watched.' }); if (Object.keys(SRUN).length >= 2) return send(res, 409, { error: 'Two searches are already running (see Search history below). Each takes about 4–8 minutes; try again when either finishes.' }); const last = loadSearch(w.lastSearch); watchStarted(w); const s2 = startSearch({ mode: w.mode, objective: w.objective, filters: w.filters, from: last.id, queries: last.queries, watchId: w.id }); return send(res, 200, { id: s2.id }); }
-        case 'industry': { const name = String(b.name || '').trim().slice(0, 60); if (!name) return send(res, 400, { error: 'Type the kind of business, e.g. civil engineering firm.' }); const kind = kindOf(name); S.industry = { name, kind, subsector: kind === 'staffing' ? 'talent' : detectSubsector(name), byUser: true }; persist(); return send(res, 200, view()); }
+        case 'industry': { const name = String(b.name || '').trim().slice(0, 60); if (!name) return send(res, 400, { error: 'Type the kind of business, e.g. civil engineering firm.' }); const kind = kindOf(name); S.industry = { name, kind, subsector: detectSubsector(name) || (kind === 'staffing' ? 'talent' : null), byUser: true }; persist(); return send(res, 200, view()); }
         case 'subsector': {
           // the user's choice of subsector; kind follows it so the playbook wording matches. Revenue and delivery notes are kept.
           if (!CUR || !S.industry) return send(res, 400, { error: 'Analyze a company first.' });
@@ -1008,6 +1008,8 @@ const server = http.createServer(async (req, res) => {
             else if (k === 'vehicle') { if (['holdco', 'fund', 'sponsor', 'search', 'sba'].includes(v)) S.assumptions.vehicle = v; }
             else if (k === 'stake') { const x = +v; if (x >= 0.5 && x <= 1) S.assumptions.stake = x; }
             else if (k === 'price_basis') { if (['ebitda', 'revenue'].includes(v)) S.assumptions.price_basis = v; }
+            else if (k === 'deal_form') { if (['asset', 'stock', 'f_reorg'].includes(v)) S.assumptions.deal_form = v; }
+            else if (k === 'fee_rate') { const x = +v; if (x >= 0 && x <= 0.3) S.assumptions.fee_rate = x; }
             else if (k in DEFAULT_ASSUMPTIONS) S.assumptions[k] = +v || 0;
           }
           if (b.reset) S.assumptions = structuredClone(DEFAULT_ASSUMPTIONS);

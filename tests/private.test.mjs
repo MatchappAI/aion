@@ -11,7 +11,7 @@ const run = env => JSON.parse(execFileSync(process.execPath, ['--input-type=modu
 test('no private file: neutral example values, nothing of AION’s own playbook', () => {
   const r = run({ AION_PRIVATE_CONFIG: path.join(os.tmpdir(), 'aion-none.json'), AION_NO_PRIVATE: '' });
   assert.equal(r.price.custom, false); assert.equal(r.entry, r.price.target); assert.equal(r.cap, r.price.cap);
-  assert.match(r.loi, /\[\[to agree\]\]/); assert.doesNotMatch(r.loi, /earnout/);
+  assert.match(r.loi, /\[\[to agree\]\]/); assert.doesNotMatch(r.loi, /paid only as an earnout/);
 });
 
 test('a private file sets the price guide, LOI terms and pitch wording everywhere', () => {

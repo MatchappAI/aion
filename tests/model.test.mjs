@@ -1,5 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import { PRICE } from '../lib/thesis.mjs';
 import { rowValue, pnl, normalize, levers, cashRelease, dso, periods, dealReturns, DEFAULT_ASSUMPTIONS } from '../lib/model.mjs';
 
 const near = (a, b, msg) => assert.ok(Math.abs(a - b) < 0.01, `${msg}: ${a} vs ${b}`);
@@ -92,10 +93,35 @@ test('levers: no demand means freed capacity earns nothing', () => {
 });
 
 test('deal returns: sources equal uses, improvements raise returns, downside lowest', () => {
-  const r = dealReturns(754705, 136746, { ...DEFAULT_ASSUMPTIONS, entry_multiple: 4.0, implementation: 40000, senior_multiple: 2.25 }, 3456000); // math check at a fixed 4.0× price
+  const r = dealReturns(754705, 136746, { ...DEFAULT_ASSUMPTIONS, entry_multiple: 4.0, implementation: 40000, senior_multiple: 2.25, fee_rate: 0.05 }, 3456000); // math check at a fixed 4.0× price
   near(r.senior + r.seller + r.equity, r.price + r.fees, 'sources = uses');
+  near(r.seller, 0.16 * r.price, 'the seller note is a share of the price, not of price plus fees');
   assert.ok(r.base.moic > r.none.moic && r.none.moic > r.downside.moic);
-  assert.ok(Math.abs(r.base.moic - 4.34) < 0.05 && Math.abs(r.none.moic - 3.31) < 0.05, `matches thesis: ${r.base.moic} / ${r.none.moic}`);
+  assert.ok(Math.abs(r.base.moic - 4.22) < 0.05 && Math.abs(r.none.moic - 3.23) < 0.05, `model math check: ${r.base.moic} / ${r.none.moic}`);
+});
+
+test('deal costs default to 10% of the price; the bad case also values the firm at a lower multiple', () => {
+  const a = { ...DEFAULT_ASSUMPTIONS, entry_multiple: 4 };
+  const r = dealReturns(800000, 0, a, 4e6);
+  near(r.fees, 0.10 * r.price, 'fees 10%');
+  const same = dealReturns(800000, 0, { ...a, downside_exit_cut: 0 }, 4e6);
+  assert.ok(r.downside.moic < same.downside.moic, 'a lower exit multiple makes the bad case worse');
+  assert.equal(r.downside.minDscr, same.downside.minDscr); // loan cover depends on profit, not on the exit value
+});
+
+test('a revenue-based price is held to the price cap on real profit (holding company)', () => {
+  const r = dealReturns(400000, 0, { ...DEFAULT_ASSUMPTIONS, price_basis: 'revenue', revenue_multiple: 2.5 }, 2e6);
+  assert.equal(r.capped, true); near(r.price, PRICE.cap * 400000, 'capped at the price cap'); assert.equal(r.ebitdaMultiple, PRICE.cap);
+  const fund = dealReturns(400000, 0, { ...DEFAULT_ASSUMPTIONS, price_basis: 'revenue', revenue_multiple: 2.5, vehicle: 'fund' }, 2e6);
+  assert.equal(fund.capped, false); near(fund.price, 5e6, 'other vehicles are shown at the revenue price');
+});
+
+test('tax: buying shares (stock) gives no write-off of the price, so less cash than an asset deal', () => {
+  const a = { ...DEFAULT_ASSUMPTIONS, entry_multiple: 4 };
+  const asset = dealReturns(800000, 0, a, 4e6), stock = dealReturns(800000, 0, { ...a, deal_form: 'stock' }, 4e6), f = dealReturns(800000, 0, { ...a, deal_form: 'f_reorg', stake: 0.7 }, 4e6);
+  assert.ok(stock.none.cash[2] < asset.none.cash[2]);
+  assert.ok(f.none.cash[2] < asset.none.cash[2] && f.none.cash[2] > stock.none.cash[2]); // step-up on the 70% bought
+  assert.equal(stock.dealForm, 'stock');
 });
 
 test('majority stake: investors put in and receive their share; the owner rolls the rest; returns per $1 unchanged', () => {

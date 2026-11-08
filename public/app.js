@@ -4,7 +4,7 @@ import { mountSettings, leaveSettings } from './settings.js';
 import { mountHelp } from './help.js';
 import { mountDocs, leaveDocs } from './docs.js';
 import { mountOutreach, leaveOutreach } from './outreach.js';
-import { THESIS, PRICE, SUBSECTORS, TOOLKIT, STATUS, DILIGENCE, REVENUE_MODELS, diligenceFor, valueBuckets, hundredDays, revenueMix, bucketOf } from '/thesis.mjs';
+import { THESIS, PRICE, marketRange, SUBSECTORS, TOOLKIT, STATUS, DILIGENCE, REVENUE_MODELS, diligenceFor, valueBuckets, hundredDays, revenueMix, bucketOf } from '/thesis.mjs';
 const $ = s => document.querySelector(s);
 const esc = v => String(v ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 // links that come from web pages: only web, email and phone addresses become clickable
@@ -180,10 +180,10 @@ function pnlTable(d) {
   const used = Object.keys(C).filter(k => !['bs', 'below'].includes(C[k].group) && per.some(p => d.pnl[p.key].byCat[k]));
   const below = Object.keys(C).filter(k => C[k].group === 'below' && per.some(p => d.pnl[p.key].byCat[k]));
   let h = `<table><tr><th></th>${per.map(p => `<th class="num">${p.key}${p.partial ? '*' : ''}</th>`).join('')}</tr>`;
-  for (const g of [['revenue', 'Revenue'], ['direct', 'Direct (producer comp & contractors)'], ['opex', 'Operating expenses']]) {
+  for (const g of [['revenue', 'Revenue'], ['direct', 'Direct costs (the client team, contractors, pass-through costs)'], ['opex', 'Operating expenses']]) {
     used.filter(k => C[k].group === g[0]).forEach(k => h += line(C[k].label, x => x.byCat[k], '', k));
     h += line(g[1] + ' total', x => g[0] === 'revenue' ? x.revenue : g[0] === 'direct' ? x.direct : x.opex, 'sub');
-    if (g[0] === 'direct') h += line('Contribution after producer comp', x => x.contribution, 'sub');
+    if (g[0] === 'direct') h += line('Gross profit after direct costs', x => x.contribution, 'sub');
   }
   h += line('Profit in the books (EBITDA: before interest, tax and depreciation)', x => x.ebitda, 'tot');
   below.forEach(k => h += line(C[k].label, x => x.byCat[k], '', k));
@@ -290,14 +290,15 @@ function pOps() {
 function opsLabel(k, l) {
   const P = V.profile || {}; if (P.kind === 'staffing') return l;
   const W = P.workflows || {}, w = P.worker || 'person', J = P.job || 'job';
+  if (P.opsLabels?.[k]) return P.opsLabels[k];
   return { producers: `${cap(P.workers || 'front-line staff')} who do the paid work (full-time equivalents)`, placements_per_year: `Completed ${P.jobs || 'jobs'} (last 12 months)`, avg_fee: `Average sale per ${J} ($)`, hours_per_search: `Hours per completed ${J}`, loaded_cost_producer: `Full cost per ${w}, pay plus benefits and taxes ($/yr)`,
     'hours.research': `Hours / ${w} / week · ${(W.research || 'research').toLowerCase()}`, 'hours.sourcing': `Hours / ${w} / week · ${(W.sourcing || 'scheduling').toLowerCase()}`, 'hours.outreach': `Hours / ${w} / week · ${(W.outreach || 'follow-up').toLowerCase()}`, 'hours.crm': `Hours / ${w} / week · ${(W.crm || 'records').toLowerCase()}`, 'hours.reporting': `Hours / ${w} / week · ${(W.reporting || 'reporting').toLowerCase()}` }[k] || l;
 }
 // ---------- 5 levers ----------
 const AS = [
   ['pricing_uplift', 'Price rise on fees (all service sales)', 'pct'], ['writeoff_reduction', 'Fewer unpaid invoices written off', 'pct'],
-  ['demand_searches', 'Extra searches a year you can actually win', 'n'], ['completion_rate', 'Share of searches that finish and get paid', 'pct'],
-  ['growth_share', 'Freed hours used for more searches', 'pct'], ['avoided_share', 'Freed hours used to cut spending', 'pct'],
+  ['demand_searches', 'Extra client accounts (or jobs) a year you can actually win', 'n'], ['completion_rate', 'Share of new accounts (or jobs) that stay and get paid', 'pct'],
+  ['growth_share', 'Freed hours used to serve more clients', 'pct'], ['avoided_share', 'Freed hours used to cut spending', 'pct'],
   ['realizable_spend', 'Spending you will actually cut ($ a year)', '$'], ['software_per_user_month', 'AI software per user per month ($)', '$'],
   ['implementation', 'One-time AI setup ($)', '$'], ['ongoing_ops', 'Running the AI each year ($)', '$'],
   ['year1_ramp', 'Year 1: share of the full yearly gain you get', 'pct'], ['dso_reduction_days', 'Days faster customers pay (one-time cash)', 'n'],
@@ -323,7 +324,7 @@ function pLevers() {
     <tr><td><b>2 · Same as how many people</b><div class="note">hours saved ÷ ${a.weeks_per_year * 40} hours per full-time person. This is time, not cash.</div></td><td class="num">${num(six.capacityFte, 2)} people</td></tr>
     <tr><td><b>3 · What the freed hours are used for</b><div class="note">More searches ${num(six.allocation.growthHours)} h · cut spending ${num(six.allocation.avoidedHours)} h · not used ${num(six.allocation.unallocatedHours)} h ${six.allocation.overAllocated ? '<span class="neg">— your shares add up to over 100%, so “cut spending” was lowered</span>' : ''}</div></td><td class="num">${pct(a.growth_share)} / ${pct(Math.min(a.avoided_share, 1 - a.growth_share))} / ${pct(Math.max(0, 1 - a.growth_share - a.avoided_share))}</td></tr>
     <tr><td><b>4 · Cash actually saved</b><div class="note">the smaller of: value of hours used to cut spending ${money(six.avoidedTheoretical)}, or spending you said you will cut ${money(a.realizable_spend)}</div></td><td class="num">${money(six.cashSavings)}</td></tr>
-    <tr><td><b>5 · Extra sales (based on your guesses)</b><div class="note">Freed hours could support ${num(six.capacitySearches, 1)} extra searches; the most you said you can win is ${num(a.demand_searches, 1)} → ${num(six.extraSearches, 1)} × ${pct(a.completion_rate)} finish × ${money(S.ops.avg_fee)} = ${money(six.aiRevenue)}${six.demandLimited ? ' <b>(limited by how much work you can win)</b>' : ''} · from prices ${money(L.nonAI.pricingRevenue)}. Profit counts AI sales after ${pct(six.variableCostRate)} for commissions and contractors.</div></td><td class="num">${money(six.incrementalRevenue)}</td></tr>
+    <tr><td><b>5 · Extra sales (based on your guesses)</b><div class="note">Freed hours could support ${num(six.capacitySearches, 1)} extra ${V.profile?.jobs || 'jobs'}; the most you said you can win is ${num(a.demand_searches, 1)} → ${num(six.extraSearches, 1)} × ${pct(a.completion_rate)} stay and pay × ${money(S.ops.avg_fee)} = ${money(six.aiRevenue)}${six.demandLimited ? ' <b>(limited by how much work you can win)</b>' : ''} · from prices ${money(L.nonAI.pricingRevenue)}. Profit counts AI sales after ${pct(six.variableCostRate)} for commissions and contractors.</div></td><td class="num">${money(six.incrementalRevenue)}</td></tr>
     <tr class="tot"><td><b>6 · Extra profit a year (EBITDA)</b><div class="note">non-AI changes ${money(L.nonAI.total)} + AI ${money(L.ai)} − software ${money(six.costs.software)} − running costs ${money(six.costs.ongoing)} · setup ${money(six.costs.implementation)} is paid once, in year 1</div></td><td class="num">${money(L.runRate)}</td></tr>
   </table>
   ${d.cashRelease != null ? `<p class="note">One-time cash from getting paid faster (not profit): ${money(d.cashRelease)} if customers pay ${a.dso_reduction_days} days sooner than today’s ${num(d.dso)} days.</p>` : '<p class="note">Cash from getting paid faster not worked out: the books have no “money owed by customers” account.</p>'}</div>
@@ -438,7 +439,7 @@ function stageBody(i) {
     items.push(`AI costs → <b>−${k$(L.six.costs.software + L.six.costs.ongoing)}</b> · total <b>+${k$(L.runRate)}</b> a year`);
   }
   if (i === 4 && S.plan) {
-    if (d.deal) items.push(`Price ${k$(d.deal.price)} · bad year (profit −15%): ${d.deal.downside.moic.toFixed(1)}× money back, loan still paid`);
+    if (d.deal) items.push(`Price ${k$(d.deal.price)} · bad year (profit −${Math.round((d.deal.downsideDrop ?? 0.15) * 100)}%, lower value): ${d.deal.downside.moic.toFixed(1)}× money back, loan still paid`);
     items.push(`${(S.plan.levers || []).length} step-by-step plans, each with a human check${(S.plan.levers || []).some(l => l.prompts?.length) ? ' and AI instructions' : ''}`);
   }
   return items;
@@ -554,9 +555,9 @@ function simple() {
       <div class="veh">${Object.entries(V.vehicles || {}).map(([k, v]) => `<button class="${D.vehicle === k ? 'on' : ''}" data-veh="${k}"><b>${esc(v.label)}</b><span>${esc(v.sub)}</span></button>`).join('')}</div>
       ${D.sba ? '' : `<div class="veh stake">${[[1, 'Full buyout', 'AION buys all of it'], [0.7, 'Majority stake', 'AION buys 70%, the owner keeps 30%']].map(([k, l, t]) => `<button class="${Math.abs((D.stake ?? 1) - k) < 0.01 ? 'on' : ''}" data-stake="${k}"><b>${l}</b><span>${t}</span></button>`).join('')}</div>`}
       <p>Buy ${(D.stake ?? 1) < 1 ? `<b>${Math.round(D.stake * 100)}%</b> of the company, valued at` : 'it for'} <b>${k$(D.price)}</b> (${D.multiple} years of profit). Paid with a <b>${k$(D.senior)}</b> bank loan, <b>${k$(D.seller)}</b> paid to the seller over the next few years (a seller note), ${(D.stake ?? 1) < 1 ? `<b>${k$(D.rollover)}</b> the owner keeps in the company (their ${Math.round((1 - D.stake) * 100)}%), ` : ''}and <b>${k$(D.investorEquity ?? D.equity)}</b> from ${D.sba ? 'the buyer' : 'investors'}. The seller gets about <b>${k$(D.sellerCashAtClose ?? (D.price - D.seller))}</b> in cash at closing. After 5 years, each $1 ${D.sba ? 'the buyer puts' : 'investors put'} in becomes:</p>
-      <div class="dbars">${dbar('if the actions work', D.base, 'up')}${dbar('if nothing changes', D.none, 'flat')}${dbar('if profit falls 15%', D.downside, 'down')}</div>
+      <div class="dbars">${dbar('if the actions work', D.base, 'up')}${dbar('if nothing changes', D.none, 'flat')}${dbar(`if profit falls ${Math.round((D.downsideDrop ?? 0.15) * 100)}% and the firm is valued ${Math.round((D.downsideExitCut ?? 0) * 100)}% lower`, D.downside, 'down')}</div>
       <p class="dnote">${vehNote(D)}</p>
-      <p class="dnext"><b>Offer about ${k$(D.price)}</b> once an accountant confirms the profit. ${(S.assumptions.vehicle || 'holdco') === 'holdco' ? `<b>Walk away above ${k$(n.normalized * PRICE.cap)}</b> (${PRICE.cap} years of profit, AION’s limit). Anything more is paid only as an earnout: later, and only if profit holds.` : `<b>Walk away above ${k$(n.normalized * 5)}</b> (5 years of profit, the top of the usual range for a business this size).`}</p>
+      <p class="dnext"><b>Offer about ${k$(D.price)}</b> once an accountant confirms the profit. ${(S.assumptions.vehicle || 'holdco') === 'holdco' ? `<b>Walk away above ${k$(n.normalized * PRICE.cap)}</b> (${PRICE.cap} years of profit, AION’s limit). Anything more is paid only as an earnout: later, and only if profit holds.${marketRange(n.normalized) ? ` <span class="note">${esc(marketRange(n.normalized).note)}</span>` : ''}` : `<b>Walk away above ${k$(n.normalized * 5)}</b> (5 years of profit, the top of the usual range for a business this size).`}</p>
       </section>` : ''}
 
     ${dealExtras(S, d)}
@@ -568,7 +569,7 @@ function simple() {
       ${rest.length ? `<h3>Smaller changes</h3><ul class="found">${rest.map(x => `<li>${esc(x.title)} <b>${x.pending ? 'up to ' : ''}+${k$(x.value)}</b>${x.pending ? ' <span class="note">not counted until the seller confirms it (question above)</span>' : ''}</li>`).join('')}</ul>` : ''}
       <h3>AI time savings</h3><p>Listed in the plan as builds, but not counted in profit: the hours they would save aren’t in the books. Have the team track their hours for a month and they can be sized.</p>
       <h3>How each number was worked out</h3>${howBlock(S, d)}
-      <div class="assume">Change the guesses: prices <input type="number" data-a="pricing_uplift" data-p="1" value="${+(S.assumptions.pricing_uplift * 100).toFixed(1)}" step="0.5">% higher on new work · <input type="number" data-a="demand_searches" value="${S.assumptions.demand_searches}" step="1"> extra jobs won a year · $<input type="number" data-a="implementation" value="${S.assumptions.implementation}" step="5000"> one-time AI setup${D ? ` · pay <input type="number" class="mult" data-a="entry_multiple" value="${D.multiple}" step="0.25" min="1"> years of profit, borrow <input type="number" class="mult" data-a="senior_multiple" value="${S.assumptions.senior_multiple}" step="0.25" min="0"> years of profit from the bank` : ''}. Everything updates.</div>
+      <div class="assume">Change the guesses: prices <input type="number" data-a="pricing_uplift" data-p="1" value="${+(S.assumptions.pricing_uplift * 100).toFixed(1)}" step="0.5">% higher on new work · <input type="number" data-a="demand_searches" value="${S.assumptions.demand_searches}" step="1"> extra jobs won a year · $<input type="number" data-a="implementation" value="${S.assumptions.implementation}" step="5000"> one-time AI setup${D ? ` · pay <input type="number" class="mult" data-a="entry_multiple" value="${D.multiple}" step="0.25" min="1"> years of profit, borrow <input type="number" class="mult" data-a="senior_multiple" value="${S.assumptions.senior_multiple}" step="0.25" min="0"> years of profit from the bank · deal costs <input type="number" data-a="fee_rate" data-p="1" value="${+((S.assumptions.fee_rate ?? 0.1) * 100).toFixed(1)}" step="1" min="0" max="30">% of the price (quality-of-earnings review, legal, lender; usually 8–12%) · bought as <select data-a="deal_form">${[['asset', 'assets (price written off for tax)'], ['stock', 'shares (no tax write-off)'], ['f_reorg', 'F-reorganization (write-off on the share bought)']].map(([k, l]) => `<option value="${k}" ${(S.assumptions.deal_form || 'asset') === k ? 'selected' : ''}>${l}</option>`).join('')}</select>${D.capped ? ` <span class="note">The revenue-based price was held to ${PRICE.cap} years of profit, AION’s limit.</span>` : ''}` : ''}. Everything updates.</div>
       ${(S.runDetail || log).length ? `<details class="more2"><summary>Every step AION took, in order (${(S.runDetail?.length ? S.runDetail : log).length})</summary><ul class="loglist">${(S.runDetail?.length ? S.runDetail : log).map(e => `<li>${esc(e.text)}<span>${e.t.toFixed(1)}s</span></li>`).join('')}</ul></details>` : ''}
       <div class="row foot2"><span class="link" id="math">Check every number, step by step</span><span class="link" id="log">What the AI was sent</span><span class="link" id="rerun">Run the AI again</span><span class="link" id="again">Close this deal</span></div>
     </section>
@@ -860,7 +861,7 @@ function howBlock(S, d) {
   if (L.nonAI.vendors) li.push(`<li>Tool and vendor cuts → <b>+${k$(L.nonAI.vendors)}</b></li>`);
   const pw = L.workflows.filter(w => w.who !== 'admin'), H = pw.reduce((s, w) => s + w.hoursPerWeek, 0), ps = pw.reduce((s, w) => s + w.hoursSaved, 0), as = L.six.timeSaved - ps;
   const P = o.producers && H ? ps / (o.producers * H * (a.weeks_per_year || 48)) : 0;
-  li.push(`<li>AI saves ≈${hrs(L.six.timeSaved)} hours a year <span class="note">(${num(o.producers)} ${esc(V.profile?.workers || 'staff')} × ${num(H)} hours a week × ${pct(P)}, estimate)</span> — room for ${num(L.six.capacitySearches, 0)} more ${esc(V.profile?.jobs || 'jobs')}. We count only ${num(L.six.extraSearches, 0)}: × ${pct(a.completion_rate)} finish × ${money(o.avg_fee)}, minus variable costs → <b>+${k$(L.growth)}</b></li>`);
+  li.push(`<li>AI saves ≈${hrs(L.six.timeSaved)} hours a year <span class="note">(${num(o.producers)} ${esc(V.profile?.workers || 'staff')} × ${num(H)} hours a week × ${pct(P)}, estimate)</span> — room for ${num(L.six.capacitySearches, 0)} more ${esc(V.profile?.jobs || 'jobs')}. We count only ${num(L.six.extraSearches, 0)}: × ${pct(a.completion_rate)} stay and pay × ${money(o.avg_fee)}, minus variable costs → <b>+${k$(L.growth)}</b></li>`);
   if (L.six.cashSavings) li.push(`<li>Spending you will actually cut → <b>+${k$(L.six.cashSavings)}</b></li>`);
   if (L.aiSkipped) { li.splice(li.findIndex(x => x.startsWith('<li>AI saves')), 1); li.push(`<li>AI tools left out: they would save ${k$(L.ai)} but cost ${k$(L.six.costs.software + L.six.costs.ongoing)} a year</li>`); }
   else li.push(`<li>AI software and running costs → <b>−${k$(L.six.costs.software + L.six.costs.ongoing)}</b></li>`);
@@ -891,7 +892,7 @@ function nextSteps(S, d, checks) {
 }
 
 function growTable(S, d) {
-  const L = d.levers, A = S.assumptions, rows = [['Raise fees on new work', L.nonAI.pricing, `ledger fees × your ${+(A.pricing_uplift * 100).toFixed(1)}% assumption`], ['Fewer unpaid invoices', L.nonAI.writeoffs, 'ledger write-offs'], ['Cut overlapping tools', L.nonAI.vendors, 'ledger tool spend, you confirmed'], ['AI frees recruiters for more searches', L.growth, `assumption: ${A.demand_searches} extra searches won a year`], ['Spending actually cut', L.six.cashSavings, 'your input'], ['AI software and running costs', -(L.six.costs.software + L.six.costs.ongoing), 'cost estimate']].filter(r => Math.round(r[1]));
+  const L = d.levers, A = S.assumptions, rows = [['Raise fees on new work', L.nonAI.pricing, `ledger fees × your ${+(A.pricing_uplift * 100).toFixed(1)}% assumption`], ['Fewer unpaid invoices', L.nonAI.writeoffs, 'ledger write-offs'], ['Cut overlapping tools', L.nonAI.vendors, 'ledger tool spend, you confirmed'], [`AI frees ${V.profile?.workers || 'the team'} to serve more ${V.profile?.jobs || 'clients'}`, L.growth, `assumption: ${A.demand_searches} extra ${V.profile?.jobs || 'jobs'} won a year`], ['Spending actually cut', L.six.cashSavings, 'your input'], ['AI software and running costs', -(L.six.costs.software + L.six.costs.ongoing), 'cost estimate']].filter(r => Math.round(r[1]));
   return `<table class="grow"><tr><th>Change</th><th>Based on</th><th class="num">More profit a year</th></tr>${rows.map(r => `<tr><td>${r[0]}</td><td class="note">${r[2]}</td><td class="num ${r[1] < 0 ? 'neg' : 'pos'}">${r[1] < 0 ? '−' : '+'}${kfmt(Math.abs(r[1]))}</td></tr>`).join('')}<tr class="tot"><td>Total</td><td></td><td class="num">+${kfmt(L.runRate)}</td></tr></table>${d.cashRelease ? `<p class="note">Plus about ${kfmt(d.cashRelease)} of cash, once, from getting paid faster.</p>` : ''}`;
 }
 
@@ -991,7 +992,7 @@ function wireFit() {
   const save = async k => { const v = document.querySelector(`[data-dq="${k}"]`)?.value ?? '', note = document.querySelector(`[data-dn="${k}"]`)?.value || ''; try { V = await api('diligence', { key: k, value: v, note }); render(); } catch (err) { showError(err.message); } };
   document.querySelectorAll('[data-dq]').forEach(x => x.onchange = () => save(x.dataset.dq));
   document.querySelectorAll('[data-dn]').forEach(x => x.onchange = () => { if (document.querySelector(`[data-dq="${x.dataset.dn}"]`)?.value !== '') save(x.dataset.dn); });
-  document.querySelectorAll('[data-psgo]').forEach(b => b.onclick = () => { try { localStorage.setItem('aion.psPrefill', JSON.stringify({ mode: 'client', subsector: V.profile?.subsector || 'talent', objective: b.dataset.psgo })); } catch {} document.querySelector('[data-app="ps"]')?.click(); });
+  document.querySelectorAll('[data-psgo]').forEach(b => b.onclick = () => { try { localStorage.setItem('aion.psPrefill', JSON.stringify({ mode: 'client', subsector: V.profile?.subsector || 'ecommerce', objective: b.dataset.psgo })); } catch {} document.querySelector('[data-app="ps"]')?.click(); });
 }
 // ---------- the plan in five parts: base + commercial + operational + AI productivity + M&A / adjacency ----------
 function bucketsHTML(S, d, acts) {
