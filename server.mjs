@@ -312,13 +312,15 @@ function ownerList() {
   const R = rankAll(ss, { warm: e => warm('target', e), contacted: (s2, e) => !!outOf(s2, e), niche: false });
   const find = x => { const s2 = ss.find(y => y.id === x.search); return [s2, s2?.entities.find(y => y.id === x.entity)]; };
   const slim = x => { const [s2, e] = find(x), o = s2 && e ? outOf(s2, e) : null;
-    return { search: x.search, entity: x.entity, rank: x.rank, name: x.name, website: x.website, place: x.place, industry: x.industry, fit: x.fit, fitRecounted: !!x.fitRecounted, niche: x.niche, focus: x.focus, segment: x.segment, segmentLabel: x.segmentLabel, rankScore: x.score, parts: x.parts, size: x.size, offer: x.offer, offerWhy: x.offerWhy, email: x.email || '', box: x.box, kinds: x.kinds, approach: x.approach, approachText: APPROACH[x.approach], owner: x.owner, emails: x.emails, phone: x.phone, warmIntro: x.warmIntro, contacted: !!o, why: x.why, intent: x.intent, strongFit: !!x.strongFit, strength: x.strength,
+    return { search: x.search, entity: x.entity, rank: x.rank, name: x.name, website: x.website, place: x.place, industry: x.industry, fit: x.fit, fitRecounted: !!x.fitRecounted, niche: x.niche, focus: x.focus, segment: x.segment, segmentLabel: x.segmentLabel, rankScore: x.score, parts: x.parts, size: x.size, offer: x.offer, offerWhy: x.offerWhy, email: x.email || '', box: x.box, kinds: x.kinds, approach: x.approach, approachText: APPROACH[x.approach], owner: x.owner, emails: x.emails, phone: x.phone, warmIntro: x.warmIntro, contacted: !!o, why: x.why, intent: x.intent, strongFit: !!x.strongFit || o?.replied?.kind === 'interested', strength: x.strength, marketed: !!x.marketed, segmentTier: ['retail_placement', 'marketplace', 'strategy'].includes(x.segment) ? 1 : 2,
+      scores: o?.replied?.kind === 'interested' ? { ...x.scores, intent: { ...x.scores.intent, label: 'Confirmed', category: 'confirmed', explicit: true, evidence: [{ label: 'Replied interested', text: `Replied to your email (${String(o.replied.at || '').slice(0, 10)})`, url: '', date: String(o.replied.at || '').slice(0, 7) }, ...x.scores.intent.evidence] } } : x.scores,
       outreach: o ? { id: o.id, phase: o.phase, status: o.status, sentAt: o.sentAt, sender: o.sender, to: o.to } : null, decision: e?.decision || '',
       deal: s2 && e ? dealOf(s2, e)?.stage || '' : '',
+      clients: (e?.clientBook?.clients || []).map(c => c.company || c.name || c).filter(Boolean).slice(0, 30), researched: e?.founderProfile?.at || null, firstSeen: e?.firstSeen || s2?.created || null,
       signals: x.signals.filter(y => y.path).map(y => ({ key: y.key, label: y.label, path: y.path, text: unent(y.text), url: y.url, date: y.date, direction: y.direction, confidence: y.confidence, source: y.source })).sort((a, b) => (CLUE_ORDER[a.key] ?? 5) - (CLUE_ORDER[b.key] ?? 5)) }; };
   // one list, one numbering: every firm is a buyout (full or majority); a partnership only when the firm asked for one
-  const list = R.ranked.map(slim); let n = 0; for (const x of list) { x.track = x.offer === 'partner' ? 'partner' : 'buy'; if (x.niche) x.nicheRank = ++n; }
-  return { R, list, ss };
+  const list = R.ranked.map(slim), marketed = R.listed.map(slim); let n = 0; for (const x of list) { x.track = x.offer === 'partner' ? 'partner' : 'buy'; if (x.niche) x.nicheRank = ++n; }
+  return { R, list, marketed, ss };
 }
 // What to write to next. `ready` = strong fits only (confirmed buy box, named owner, a strong recent sign), best first, not yet
 // in outreach. `saved` = everything you saved or marked priority yourself (firms, brands, people) that has no outreach yet.
@@ -724,6 +726,8 @@ OUT.initOutreach(path.join(ROOTWS, 'outreach'));
 { const n = OUT.resumeWriting({ model: MODELS.analysis, cwd: path.join(ROOTWS, 'outreach'), load: id => { try { return loadSearch(id); } catch { return null; } } }); if (n) console.log(`Outreach: writing ${n} interrupted draft(s) again`); }
 // replies, bounces and opt-outs: checked every 10 minutes while AION runs
 setInterval(outreachTick, 10 * 60_000).unref(); setTimeout(outreachTick, 20_000).unref();
+// scheduled sends: checked every minute (replies are synced first, so a reply cancels a due follow-up)
+setInterval(async () => { try { if (OUT.hasDue?.()) { if (GMAIL.accounts().length) await OUT.syncReplies(); await OUT.runScheduled(); } } catch {} }, 60_000).unref();
 // first start: build the network from searches already on disk
 if (!memStats().people && !memStats().companies) for (const h of listSearches()) { const s2 = loadSearch(h.id); if (s2?.entities) ingest(s2); }
 server.on('error', e => { console.error(e.code === 'EADDRINUSE' ? `Port ${PORT} is already in use: AION may already be running. Close it, or set PORT to another number.` : `The local server could not start: ${e.message}`); process.exit(1); });

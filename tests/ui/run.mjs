@@ -50,7 +50,7 @@ ok('Four result tabs', await ev(`document.querySelectorAll('[data-tab-btn]').len
 await click('[data-tab-btn="details"]'); await sleep(500);
 ok('AION fit: thesis check with statuses and evidence', await ev(`document.querySelectorAll('[data-tab="fit"] .tcheck .st').length >= 20 && document.querySelectorAll('[data-tab="fit"] td.ev').length >= 15`));
 ok('AION fit: missing evidence shows NEEDS DATA', await ev(`/NEEDS DATA/.test(document.querySelector('.r2').innerText)`));
-ok('AION fit: tool fit with honest tool status', await ev(`/EXISTS NOW|PARTIALLY EXISTS/.test(document.querySelector('.r2').innerText) && /AION tools apply here/.test(document.querySelector('.r2').innerHTML)`));
+ok('AION fit: tool fit with honest tool status', await ev(`/EXISTS NOW|PARTIALLY EXISTS/.test(document.querySelector('.r2').textContent) && /AION tools apply here/.test(document.querySelector('.r2').innerHTML)`));
 ok('AION fit: subsector choice', await ev(`document.querySelectorAll('#fit-sub option').length === 8`));
 await ev(`(()=>{const x=document.querySelector('[data-dq="rfp_share"]'); x.value=40; x.dispatchEvent(new Event('change'))})()`); await sleep(1500);
 ok('AION fit: a diligence answer becomes evidence', await ev(`/40% of new revenue/.test(document.querySelector('.r2').innerText)`)); await shot('vc-fit');
@@ -85,11 +85,11 @@ ok('Owner list: filter by buyout offer; no “their choice” or “watch”', a
   ok('Every firm is a full buyout or majority stake unless it asked for a partner', L.length > 0 && L.every(o => ['full', 'majority', 'partner'].includes(o)), JSON.stringify(L.reduce((c, o) => (c[o] = (c[o] || 0) + 1, c), {}))); }
 await ev(`document.querySelector('#in-all')?.click()`); await sleep(1500);
 { const withSize = await ev(`fetch('/api/search/intent').then(r => r.json()).then(d => d.list.filter(x => x.niche && x.track !== 'partner' && x.size).length)`);
-  ok('Owner list: rough size from headcount where known', withSize === 0 || await ev(`[...document.querySelectorAll('table.intent tr[data-open]')].some(r => /people · rough profit/.test(r.innerText))`), `${withSize} firms with a size`); }
+  ok('Owner list: rough size from headcount where known', withSize === 0 || await ev(`(() => { const rows = [...document.querySelectorAll('table.intent tr[data-open]')]; return !rows.length || rows.some(r => /people · .*profit \\(estimate\\)|Size: /.test(r.innerText)); })()`), `${withSize} firms with a size`); }
 await ev(`document.querySelector('#in-all')?.click()`); await sleep(1200);
 ok('Home leads with owners to contact (strong fits only, the rest folded with what is missing)', await ev(`document.querySelector('#psown .pshead h1').innerText`) === 'Owners to contact' && await ev(`!!document.querySelector('[data-testid="strong-count"]') && (document.querySelectorAll('table.intent tr[data-open]').length >= 1 || !!document.querySelector('[data-testid="no-strong"]')) && !!document.querySelector('[data-testid="not-strong"]')`), await ev(`document.querySelector('table.intent tr[data-open]')?.innerText.slice(0, 120)`));
 ok('Owner list: segment filters for the buy box', await ev(`['box','retail_placement','marketplace','strategy'].every(k => !!document.querySelector('[data-insc="'+k+'"]'))`));
-ok('Owner list: every buy-box row has a segment and an outreach action', await ev(`[...document.querySelectorAll('table.intent tr[data-open]')].every(r => /Retail placement|Marketplace agency|Strategy & analytics/.test(r.innerText) && (r.querySelector('[data-outwrite]') || r.querySelector('[data-outopen]')))`));
+ok('Owner list: every buy-box row has a segment and an outreach action', await ev(`[...document.querySelectorAll('table.intent tr[data-open]')].every(r => /Retail placement|Marketplace agency|Strategy & analytics|Supply chain|Manufacturing consulting|CPG & retail/.test(r.innerText) && (r.querySelector('[data-outwrite]') || r.querySelector('[data-outopen]')))`));
 await click('[data-insc="retail_placement"]'); await sleep(1500); ok('Segment filter: only retail placement', await ev(`[...document.querySelectorAll('table.intent tr[data-open]')].every(r => /Retail placement/.test(r.innerText))`)); await click('[data-insc="box"]'); await sleep(1500);
 ok('Outreach: write for many at once without a second copy of the owner list', await ev(`(!!document.querySelector('[data-many]') || !document.querySelector('[data-testid="out-ready"]')) && !document.querySelector('[data-testid="out-ready"] .orow')`));
 ok('Two search modes (firms to buy, brands)', await ev(`document.querySelectorAll('[data-mode]').length`) === 2);

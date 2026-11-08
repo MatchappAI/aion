@@ -41,7 +41,7 @@ await cmd('Page.enable'); await cmd('Runtime.enable'); await cmd('Fetch.enable',
 const st = (await call(APP, 'outreach/state')).json;
 const items = (st.board || []).map(b => b.id ? b : null).filter(Boolean);
 const all = await Promise.all(items.map(async b => (await call(APP, `outreach/item?id=${b.id}`)).json));
-const pick = all.find(it => it && it.phase === 'review' && it.drafts?.email?.body && /@/.test(it.to || '') && !it.messages?.length);
+const pick = all.find(it => it && it.phase === 'review' && it.drafts?.email?.body && /@/.test(it.to || '') && !it.messages?.length && !it.addr?.block); // an address AION may send this pitch to
 ok('Outreach: a drafted, unsent outreach exists to test with', !!pick, pick ? pick.phase : 'none');
 if (pick) {
   await call(APP, 'outreach/connect', { email: pick.sender }); // fake Gmail: connects without Google

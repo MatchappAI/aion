@@ -232,10 +232,14 @@ test('a conversation keeps going: answer → they pick an offered time → AION 
   assert.equal(await OUT.syncReplies(), 0); // the same reply is never counted twice
 });
 
-test('outreach refuses firms already listed for sale (proprietary only)', async () => {
+test('a firm already listed for sale gets a marketed (type E) note, written as a prepared buyer', async () => {
   const e4 = { ...e, id: 'e41', company: 'Listed Co', website: 'https://listedco.com', listed: true };
   s.entities.push(e4); MEM.ingest(s);
-  await assert.rejects(OUT.createDraft({ s, e: e4, model: 'x', cwd: dir, engineFn: fakeAI }), /listed for sale/);
+  let prompt = '';
+  const it = await OUT.createDraft({ s, e: e4, model: 'x', cwd: dir, engineFn: async a => { if (/Goal:/.test(a.prompt)) prompt = a.prompt; return fakeAI(a); } });
+  assert.equal(it.type, 'E'); await wait(() => OUT.get(it.id).phase !== 'writing');
+  assert.match(prompt, /Marketed \(listed or broker\)/);
+  assert.ok(OUT.get(it.id).qc, 'the quality check result is kept (null scores when the critic answer cannot be read)');
 });
 
 test('a failed draft can be written again, with a different offer, and drafts cut off by a restart start again', async () => {
@@ -246,12 +250,12 @@ test('a failed draft can be written again, with a different offer, and drafts cu
   assert.equal(OUT.get(it.id).phase, 'failed');
   // pressing Write outreach again on a failed one rewrites it instead of refusing
   let prompt = '';
-  const again = await OUT.createDraft({ s, e: e3, model: 'x', cwd: dir, engineFn: async a => { prompt = a.prompt; return fakeAI(a); } });
+  const again = await OUT.createDraft({ s, e: e3, model: 'x', cwd: dir, engineFn: async a => { if (/Goal:/.test(a.prompt)) prompt = a.prompt; return fakeAI(a); } });
   assert.equal(again.id, it.id);
   await wait(() => OUT.get(it.id).phase !== 'writing');
   assert.equal(OUT.get(it.id).phase, 'review');
   // switch the offer: every draft rewritten for a majority stake
-  OUT.rewrite(it.id, { s, pitch: 'majority', model: 'x', cwd: dir, engineFn: async a => { prompt = a.prompt; return fakeAI(a); } });
+  OUT.rewrite(it.id, { s, pitch: 'majority', model: 'x', cwd: dir, engineFn: async a => { if (/Goal:/.test(a.prompt)) prompt = a.prompt; return fakeAI(a); } });
   await wait(() => OUT.get(it.id).phase !== 'writing');
   assert.equal(OUT.get(it.id).pitch, 'majority'); assert.match(prompt, /majority stake/); assert.match(prompt, /Tailored to the offer/);
   // a draft left in "writing" (AION stopped mid-way) is picked up again
@@ -398,4 +402,34 @@ test('the daily send limit counts your local day, not the UTC day', () => {
   // 9 pm Eastern on Nov 3 is already Nov 4 in UTC
   assert.equal(OUT.localDay('2026-11-04T02:00:00Z', 'America/New_York'), '2026-11-03');
   assert.equal(OUT.localDay('2026-11-04T06:00:00Z', 'America/New_York'), '2026-11-04');
+});
+
+test('scheduled sends: approved now, sent when due; a follow-up waits for the first email, is cancelled by a reply, and an edit after approval holds it', async () => {
+  const e5 = { ...e, id: 'e5', company: 'Later Firm', website: 'https://laterfirm.com', contactInfo: [{ kind: 'email', value: 'owner@laterfirm.com', verified: true }] };
+  s.entities.push(e5); MEM.ingest(s);
+  const it = await OUT.createDraft({ s, e: e5, model: 'x', cwd: dir, engineFn: fakeAI });
+  await wait(() => OUT.get(it.id).phase !== 'writing');
+  const soon = new Date(Date.now() + 5 * 60_000).toISOString(), later = new Date(Date.now() + 3 * 864e5).toISOString();
+  assert.throws(() => OUT.schedule(it.id, 'email', soon), /confirmation/);
+  assert.match(OUT.scheduleContent(it.id, 'followup1', later).problems.join(), /first email/);
+  assert.match(OUT.scheduleContent(it.id, 'email', new Date(Date.now() - 1000).toISOString()).problems.join(), /future/);
+  OUT.schedule(it.id, 'email', soon, { confirmed: true });
+  assert.equal(OUT.scheduleContent(it.id, 'followup1', later).ok, true, 'a follow-up may be scheduled after a scheduled first email');
+  OUT.schedule(it.id, 'followup1', later, { confirmed: true });
+  assert.equal(await OUT.runScheduled(new Date()), 0, 'nothing is due yet');
+  assert.equal(await OUT.runScheduled(new Date(Date.now() + 10 * 60_000)), 1, 'the first email goes when due');
+  assert.equal(OUT.get(it.id).messages.filter(m => m.kind === 'email').length, 1);
+  // they reply before the follow-up: it is cancelled, never sent
+  OUT.get(it.id).replied = { at: new Date().toISOString(), kind: 'reply', text: 'Thanks' };
+  assert.equal(await OUT.runScheduled(new Date(Date.now() + 4 * 864e5)), 0);
+  assert.ok(!OUT.get(it.id).scheduled.followup1); assert.ok(OUT.get(it.id).log.some(l => /cancelled: they replied/.test(l.text)));
+  // an edit after approval holds the send
+  const e6 = { ...e, id: 'e6', company: 'Edited Firm', website: 'https://editedfirm.com', contactInfo: [{ kind: 'email', value: 'owner@editedfirm.com', verified: true }] };
+  s.entities.push(e6); MEM.ingest(s);
+  const it6 = await OUT.createDraft({ s, e: e6, model: 'x', cwd: dir, engineFn: fakeAI });
+  await wait(() => OUT.get(it6.id).phase !== 'writing');
+  OUT.schedule(it6.id, 'email', soon, { confirmed: true });
+  OUT.editItem(it6.id, { kind: 'email', body: 'A different body written after approving.' });
+  assert.equal(await OUT.runScheduled(new Date(Date.now() + 10 * 60_000)), 0);
+  assert.match(OUT.get(it6.id).scheduled.email.held, /Edited after you approved/);
 });

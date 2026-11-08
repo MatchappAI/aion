@@ -2,7 +2,7 @@
 // one-time confirm code, sends, replies, documents and the LOI. server.mjs passes in what these routes use.
 import path from 'node:path';
 
-export const OUTREACH_POST = new Set(['outreach/settings', 'outreach/connect', 'outreach/disconnect', 'outreach/create', 'outreach/rewrite', 'outreach/edit', 'outreach/confirm', 'outreach/send', 'outreach/done', 'outreach/stage', 'outreach/sync', 'outreach/answer', 'outreach/answer-send', 'outreach/book', 'outreach/find-email', 'outreach/doc', 'outreach/doc-edit', 'outreach/doc-send', 'outreach/link-deal', 'outreach/batch', 'outreach/mock-reply', 'outreach/finish', 'outreach/delete']);
+export const OUTREACH_POST = new Set(['outreach/settings', 'outreach/connect', 'outreach/disconnect', 'outreach/create', 'outreach/rewrite', 'outreach/edit', 'outreach/confirm', 'outreach/send', 'outreach/done', 'outreach/stage', 'outreach/sync', 'outreach/answer', 'outreach/answer-send', 'outreach/book', 'outreach/find-email', 'outreach/doc', 'outreach/doc-edit', 'outreach/doc-send', 'outreach/link-deal', 'outreach/batch', 'outreach/mock-reply', 'outreach/finish', 'outreach/delete', 'outreach/schedule', 'outreach/unschedule']);
 
 /** Handles an /api/outreach/... request. Returns true when it answered, false when the server should carry on. */
 export async function outreachRoute(req, res, url, p, ctx) {
@@ -48,9 +48,13 @@ export async function outreachRoute(req, res, url, p, ctx) {
         case 'outreach/rewrite': { try { const it = OUT.get(b.id); const s2 = SRUN[it.search] || loadSearch(it.search); OUT.rewrite(b.id, { s: s2, pitch: b.pitch, model: MODELS.analysis, cwd: path.join(ROOTWS, 'outreach') }); return send(res, 200, { id: b.id }); } catch (e) { return send(res, 400, { error: e.message }); } }
         case 'outreach/edit': { try { return send(res, 200, OUT.editItem(b.id, b)); } catch (e) { return send(res, 400, { error: e.message }); } }
         // the preview: exactly what will be sent, plus a one-time code the send must bring back (nothing sends without it)
-        case 'outreach/confirm': { try { const action = ['step', 'answer', 'doc', 'invite'].includes(b.action) ? b.action : 'step', kind = String(b.kind || ''), c = OUT.sendContent(b.id, action, kind, { start: b.start, note: b.note });
+        case 'outreach/confirm': { try { if (b.action === 'schedule') { const kind = String(b.kind || ''), c = OUT.scheduleContent(b.id, kind, b.at); return send(res, 200, { ...c, token: c.ok ? CONFIRM.issue(`schedule:${b.id}:${kind}:${c.at}`, c) : null }); }
+          const action = ['step', 'answer', 'doc', 'invite'].includes(b.action) ? b.action : 'step', kind = String(b.kind || ''), c = OUT.sendContent(b.id, action, kind, { start: b.start, note: b.note });
           return send(res, 200, { ...c, token: c.ok ? CONFIRM.issue(`${action}:${b.id}:${kind}`, c) : null }); } catch (e) { return send(res, 400, { error: e.message }); } }
         case 'outreach/send': { try { if (!b.saveOnly) CONFIRM.take(b.token, `step:${b.id}:${b.kind}`, OUT.sendContent(b.id, 'step', String(b.kind || ''))); return send(res, 200, await OUT.sendStep(b.id, b.kind, { confirmed: b.confirmed === true, saveOnly: !!b.saveOnly })); } catch (e) { return send(res, 400, { error: e.message }); } }
+        // schedule = the same preview and one-time code as Send, then AION sends it at that time (you can cancel until then)
+        case 'outreach/schedule': { try { const kind = String(b.kind || ''), at = new Date(b.at).toISOString(); CONFIRM.take(b.token, `schedule:${b.id}:${kind}:${at}`, OUT.scheduleContent(b.id, kind, at)); return send(res, 200, OUT.schedule(b.id, kind, at, { confirmed: true }).scheduled); } catch (e) { return send(res, 400, { error: e.message }); } }
+        case 'outreach/unschedule': { try { return send(res, 200, OUT.unschedule(b.id, String(b.kind || '')).scheduled || {}); } catch (e) { return send(res, 400, { error: e.message }); } }
         case 'outreach/done': { try { return send(res, 200, OUT.markDone(b.id, b.kind, b.note)); } catch (e) { return send(res, 400, { error: e.message }); } }
         case 'outreach/stage': { try { return send(res, 200, OUT.setDealStage(b.id, b.stage, b.note)); } catch (e) { return send(res, 400, { error: e.message }); } }
         case 'outreach/sync': { try { return send(res, 200, { changed: await OUT.syncReplies() }); } catch (e) { return send(res, 400, { error: e.message }); } }

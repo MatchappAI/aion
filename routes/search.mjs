@@ -10,6 +10,21 @@ import { brandScan, scans as radarScans, recentEvents, intentScan } from '../lib
 import { addSignals, checkMore } from '../lib/search/pipeline.mjs';
 import { watches, setWatch, started as watchStarted, watchOf } from '../lib/search/watch.mjs';
 import { MODELS } from '../lib/claude.mjs';
+import { researchFirm, profileTiming } from '../lib/search/founder.mjs';
+import { matchFirms, consolidation } from '../lib/search/matcher.mjs';
+import { ownerOf } from '../lib/search/rank.mjs';
+// founder research: one firm at a time per request, at most two running at once; progress lives here
+const RESEARCH = {};
+export async function researchOne(searchId, entityId, cwd) {
+  const k = `${searchId}|${entityId}`; if (RESEARCH[k]?.running) return RESEARCH[k];
+  if (Object.values(RESEARCH).filter(x => x.running).length >= 2) throw new Error('Two research runs are going already. Try again in a few minutes.');
+  const s2 = loadSearch(searchId), e = s2?.entities?.find(x => x.id === entityId); if (!e) throw new Error('Result not found.');
+  RESEARCH[k] = { running: true, started: new Date().toISOString(), name: e.company };
+  researchFirm(e, { owner: ownerOf(e), model: MODELS.analysis, cwd })
+    .then(p => { const s3 = loadSearch(searchId), e3 = s3.entities.find(x => x.id === entityId); e3.founderProfile = p; const keep = (e3.timing?.signals || []).filter(x => x.source !== 'research').map(x => ({ ...x, signal: x.key })); e3.timing = timing([...keep, ...profileTiming(p, e3.company)]); saveSearchMerged(s3); RESEARCH[k] = { running: false, done: p.at, name: e.company, count: p.count }; })
+    .catch(err => { RESEARCH[k] = { running: false, error: err.message, name: e.company }; });
+  return RESEARCH[k];
+}
 
 let INTENT = null, LAST_INTENT = null; // the deal-intent scan: progress while it runs, and when it last finished
 const SIG = {}; // searches whose data signals are being refreshed
@@ -18,7 +33,7 @@ let SCAN = null; // the brand radar scan running now
 // and saves it whole, so two at once would undo each other's results
 const jobOn = (SRUN, id) => SRUN[id] ? 'This search is still running.' : SIG[id] ? 'This search is already being updated.' : INTENT?.ids?.has(id) ? 'The deal-intent scan is reading this search’s firms. Try again when it finishes.' : null;
 
-export const SEARCH_POST = new Set(['search/start', 'search/contacts', 'search/archive', 'search/signals', 'search/more', 'search/intent-scan', 'radar/scan', 'finders/key', 'search/stage', 'search/decide', 'search/watch', 'search/watchrun']);
+export const SEARCH_POST = new Set(['search/start', 'search/contacts', 'search/archive', 'search/signals', 'search/more', 'search/intent-scan', 'radar/scan', 'finders/key', 'search/stage', 'search/decide', 'search/watch', 'search/watchrun', 'search/research']);
 
 /** Handles a search request. Returns true when it answered, false when the server should carry on. */
 export async function searchRoute(req, res, url, p, ctx) {
@@ -40,11 +55,15 @@ export async function searchRoute(req, res, url, p, ctx) {
       const list = out.sort((a, b) => (b.priority - a.priority) || (TR[b.badge] - TR[a.badge]) || b.fit - a.fit).filter(x => { const k = x.mode + '|' + x.name.toLowerCase(); if (seen.has(k)) return false; seen.add(k); return true; });
       return send(res, 200, { list: list.slice(0, 10), total: list.length });
     }
+    if (req.method === 'GET' && p === 'search/research') return send(res, 200, RESEARCH);
+    // strategy views from data already found: firms that complete each other, and who is consolidating the market
+    if (req.method === 'GET' && p === 'search/strategy') { const { R, list } = ownerList(); const outside = R.outside.map(x => ({ name: x.name, place: x.place, segmentLabel: x.segmentLabel, why: x.box.reasons.join('; '), search: x.search, entity: x.entity }));
+      return send(res, 200, { pairs: matchFirms(list), market: consolidation(list, outside, recentEvents(3650).filter(x => x.mode === 'target')) }); }
     if (req.method === 'GET' && p === 'search/intent') {
       // owner ranking: every firm to buy across all searches, ranked by deal intent (majority sale or growth partnership),
       // breadth of signals, fit and reachability. Proprietary only: firms already listed on a marketplace are set aside.
-      const { R, list } = ownerList();
-      return send(res, 200, { scanning: INTENT, lastScan: LAST_INTENT, lastError: JOB_ERR.intent || JOB_ERR.signals || null, list, listed: R.listed.map(x => ({ name: x.name, place: x.place, website: x.website })), outside: R.outside.filter(x => x.niche).map(x => ({ search: x.search, entity: x.entity, name: x.name, place: x.place, focus: x.focus, segmentLabel: x.segmentLabel, why: x.box.reasons.join('; ') })), counts: { strong: list.filter(x => x.niche && x.strongFit).length, outside: R.outside.filter(x => x.niche).length, outsideFocus: R.outside.filter(x => x.focus).length, inBox: list.filter(x => x.box.status === 'in').length, all: list.length, high: list.filter(x => x.intent.high).length, sale: list.filter(x => x.intent.sale.level === 'high').length, partner: list.filter(x => x.intent.partner.level === 'high').length, niche: list.filter(x => x.niche).length, focus: list.filter(x => x.focus).length, listed: R.listed.length, segments: Object.fromEntries(['retail_placement', 'marketplace', 'strategy'].map(k => [k, list.filter(x => x.niche && x.segment === k).length])), inOutreach: list.filter(x => x.niche && x.outreach).length } });
+      const { R, list, marketed } = ownerList();
+      return send(res, 200, { marketed, scanning: INTENT, lastScan: LAST_INTENT, lastError: JOB_ERR.intent || JOB_ERR.signals || null, list, listed: R.listed.map(x => ({ name: x.name, place: x.place, website: x.website })), outside: R.outside.filter(x => x.niche).map(x => ({ search: x.search, entity: x.entity, name: x.name, place: x.place, focus: x.focus, segmentLabel: x.segmentLabel, why: x.box.reasons.join('; ') })), counts: { strong: list.filter(x => x.niche && x.strongFit).length, outside: R.outside.filter(x => x.niche).length, outsideFocus: R.outside.filter(x => x.focus).length, inBox: list.filter(x => x.box.status === 'in').length, all: list.length, high: list.filter(x => x.intent.high).length, sale: list.filter(x => x.intent.sale.level === 'high').length, partner: list.filter(x => x.intent.partner.level === 'high').length, niche: list.filter(x => x.niche).length, focus: list.filter(x => x.focus).length, listed: R.listed.length, segments: Object.fromEntries(['retail_placement', 'marketplace', 'strategy'].map(k => [k, list.filter(x => x.niche && x.segment === k).length])), inOutreach: list.filter(x => x.niche && x.outreach).length } });
     }
     if (req.method === 'GET' && p === 'search/radar') return send(res, 200, { events: recentEvents(), scans: radarScans(), scanning: SCAN, lastError: JOB_ERR.radar || null });
     if (req.method === 'GET' && p === 'search/pipeline') return send(res, 200, { stages: DEAL_STAGES, deals: pipeline() });
@@ -113,6 +132,7 @@ export async function searchRoute(req, res, url, p, ctx) {
       const d = setStage(s2, e, b.stage || null, b.note || ''); if (!d) return send(res, 400, { error: 'Deal stages are for acquisition targets.' });
       return send(res, 200, { deal: d });
     }
+    case 'search/research': { try { return send(res, 200, await researchOne(b.search, b.entity, path.join(ROOTWS, 'searches'))); } catch (e) { return send(res, 400, { error: e.message }); } }
     case 'search/decide': {
       const s2 = SRUN[b.id] || loadSearch(b.id); if (!s2) return send(res, 404, { error: 'Search not found.' });
       const e = (s2.entities || []).find(x => x.id === b.entity); if (!e) return send(res, 404, { error: 'Result not found.' });
