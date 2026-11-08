@@ -24,13 +24,13 @@ async function draw() {
       <div class="row"><b>${esc(x.label)}</b>${act === x.id ? '<span class="pill2 done">In use</span>' : x.ready ? '<span class="pill2">Ready</span>' : ''}<div class="spacer"></div>
         ${x.ready ? `<button class="ghost sm" data-test="${x.id}">Test</button>` : ''}${x.ready && act !== x.id ? `<button class="sm" data-use="${x.id}">Use this</button>` : ''}</div>
       <p class="note">${esc(x.detail)} · ${esc(x.billing)}</p>${E.limits?.[x.id] ? `<p class="callout warn">Hit its usage limit, so the next ready AI is used for now: ${esc(E.limits[x.id].message)}</p>` : ''}<p class="note">${esc(HOW[x.id])}</p>
-      ${x.kind === 'api' ? `<div class="row"><input type="password" autocomplete="off" spellcheck="false" id="key-${x.id}" placeholder="${x.id === 'anthropic' ? 'sk-ant-…' : 'sk-…'}"><button class="sm" data-key="${x.id}">Save key</button>${x.ready ? `<button class="ghost sm" data-rmkey="${x.id}">Remove</button>` : ''}</div>` : ''}
+      ${x.kind === 'api' ? `<div class="row"><input type="password" autocomplete="off" spellcheck="false" id="key-${x.id}" aria-label="${x.id === 'anthropic' ? 'Anthropic' : 'OpenAI'} API key" placeholder="${x.id === 'anthropic' ? 'sk-ant-…' : 'sk-…'}"><button class="sm" data-key="${x.id}">Save key</button>${x.ready ? `<button class="ghost sm" data-rmkey="${x.id}">Remove</button>` : ''}</div>` : ''}
       <p class="note" id="msg-${x.id}">${esc(S.msg[x.id] || '')}</p></div>`).join('')}</div>
     <p class="note">${choice === 'auto' ? 'Automatic: the first ready option above is used.' : `Pinned to ${esc(E.list.find(x => x.id === choice)?.label || choice)}. <span class="link" id="eng-auto">Go back to automatic</span>`} Keys stay on this computer (workspace/keys.json, readable only by your user) and are sent only to the company that issued them.</p>
     <h2 class="h2">Finding owners’ emails <span class="h2s">free</span></h2>
     <div class="eng ${S.fd?.hunter ? 'ready' : ''}"><div class="row"><b>Hunter.io</b>${S.fd?.hunter ? '<span class="pill2 done">Connected</span>' : ''}</div>
       <p class="note">AION first reads each firm’s own website. When it shows only a shared inbox (info@), Hunter.io finds the owner’s own address. The free plan gives 25 lookups and 50 checks a month, no card: sign up at hunter.io, then copy your key from API in your account.</p>
-      <div class="row"><input type="password" autocomplete="off" spellcheck="false" id="key-hunter" placeholder="Hunter.io API key"><button class="sm" id="save-hunter">Save key</button>${S.fd?.hunter ? '<button class="ghost sm" id="rm-hunter">Remove</button>' : ''}</div>
+      <div class="row"><input type="password" autocomplete="off" spellcheck="false" id="key-hunter" aria-label="Hunter.io API key" placeholder="Hunter.io API key"><button class="sm" id="save-hunter">Save key</button>${S.fd?.hunter ? '<button class="ghost sm" id="rm-hunter">Remove</button>' : ''}</div>
       <p class="note" id="msg-hunter">${esc(S.msg.hunter || '')}</p></div>
   </div>`;
   wire();

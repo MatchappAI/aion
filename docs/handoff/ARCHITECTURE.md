@@ -4,7 +4,9 @@ One Node 22 process (`server.mjs`) serves the page (`public/`) and a JSON API on
 
 | Path | Role |
 |---|---|
-| `server.mjs` | Routes, Value Creation state and jobs, exports, Search and Outreach endpoints |
+| `server.mjs` | Host/Origin/JSON checks, the open deal and its AI jobs, static files; hands each request to a route module |
+| `routes/search.mjs`, `routes/outreach.mjs`, `routes/deal.mjs` | The Search, Outreach and Value Creation endpoints |
+| `lib/levers-ecom.mjs` | Ecommerce consulting profit levers, from the books only |
 | `lib/engine.mjs` | AI engines: Claude Code → Codex → Anthropic key → OpenAI key; detection, usage-limit fallback (1 hour), keys in `workspace/keys.json` (0600) |
 | `lib/claude.mjs` | One prompt → JSON, logged to the deal's run log; answers cached in `workspace/cache/` |
 | `lib/pages.mjs` | Opens web pages (public addresses only, redirects checked); PDF text |

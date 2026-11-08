@@ -2,10 +2,10 @@
 const TROUBLE = [
   ['A step says no AI is ready', 'Open Settings. Log in to Claude Code in a terminal (run <code>claude</code>) or Codex (<code>codex login</code>), or save an Anthropic or OpenAI key, then press Test.'],
   ['“Usage limit” or “rate limit”', 'Your plan ran out for now; the message says when it resets. AION skips that AI for an hour and uses the next ready one, so add a second option in Settings to keep working.'],
-  ['An analysis or search stopped part way', 'Nothing is lost. Click Analyze or Try again. The run log (“What the AI was sent”) and the step list under each search show exactly what failed.'],
+  ['An analysis or search stopped part way', 'Nothing is lost. Click Analyze or Try again. The Run log (in Value Creation’s side menu) and the step list under each search show exactly what failed.'],
   ['A search shows “Partly complete”', 'Some web searches didn’t finish; results come only from those that did. Run it again later for full coverage.'],
   ['A search finds nothing', 'Widen the region or add adjacent niches, or start from an example. Results that fail a must-have are kept but scored 40% or less.'],
-  ['The books upload looks wrong', 'Use QuickBooks → Reports → General Ledger, 24–36 months, all accounts, exported to Excel. For PDFs (a CIM), open “Questions & checks” to see what was read; full years and a trailing-12-month column are never added together.'],
+  ['The books upload looks wrong', 'Use QuickBooks → Reports → General Ledger, 24–36 months, all accounts, exported to Excel. For PDFs (such as a seller’s information pack), open “Questions & checks” to see what was read; full years and a trailing-12-month column are never added together.'],
   ['The PDF or Excel download doesn’t appear', 'Wait for “Building…” to finish; a message in the corner confirms it or says what went wrong. The 1-page PDF needs Google Chrome installed.'],
   ['Outreach says a sender isn’t connected', 'Open Search &amp; Outreach › Inboxes and settings and press Connect, then sign in as that Gmail account in the browser tab. If Google says the app isn’t verified or the account isn’t allowed, add that address as a test user on the Google app’s consent screen, then try again.'],
   ['An outreach draft says “Check before sending”', 'A number or name in the draft isn’t in what AION found about that firm. Fix or remove it, or confirm it yourself before sending.'],
@@ -25,7 +25,7 @@ export function mountHelp(main) {
         <li>Firms that don’t fit (too big, too small, owned by a bigger company, already listed for sale) are set aside with the reason.</li></ol><button class="ghost sm" data-go="ps">Open Search &amp; Outreach</button></section>
       <section class="panel"><h3>2. Write to them <span class="note">about a minute per firm</span></h3><ol>
         <li>Once: open <b>Inboxes and settings</b>, connect your Gmail and add your mailing address.</li>
-        <li>Press <b>Write outreach</b> on a firm. AION writes a first email, two follow-ups, a letter, call notes and a contact-form message, only from facts it found.</li>
+        <li>Press <b>Write outreach</b> on a firm. AION writes a first email, two follow-ups, a letter, call notes and a discreet note for their shared inbox, only from facts it found.</li>
         <li>Read it, edit it, press <b>Send…</b>. Nothing ever goes out without your OK.</li>
         <li>A note about selling only goes to the owner, never to a shared inbox like info@. Press <b>Find the owner’s email</b>: AION reads their website, asks Hunter.io (free key in Settings), then suggests a likely address in the firm’s own format. You choose whether to use it; if it bounces, AION offers the next one. Or mail the letter.</li>
         <li>Replies are checked every 10 minutes. AION suggests open times from your calendar and sends the invite when you pick one.</li>

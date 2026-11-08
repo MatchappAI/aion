@@ -57,7 +57,8 @@ export async function searchRoute(req, res, url, p, ctx) {
   const b = await body(req);
   switch (p) {
     case 'search/start': {
-      const mode = ['client', 'target'].includes(b.mode) ? b.mode : 'candidate', objective = String(b.objective || '').trim().slice(0, 1500);
+      const mode = ['client', 'target'].includes(b.mode) ? b.mode : null, objective = String(b.objective || '').trim().slice(0, 1500);
+      if (!mode) return send(res, 400, { error: 'Choose what to search for: firms to buy, or brands.' });
       if (objective.length < 12) return send(res, 400, { error: 'Describe what you are looking for in a sentence or two.' });
       if (Object.keys(SRUN).length >= 2) return send(res, 409, { error: 'Two searches are already running (see Search history below). Each takes about 4–8 minutes; start this one when either finishes.' });
       const s2 = startSearch({ mode, objective, filters: b.filters, from: b.from, queries: b.queries, criteria: b.criteria, link: b.link });

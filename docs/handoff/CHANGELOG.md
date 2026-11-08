@@ -1,5 +1,15 @@
 # Changelog
 
+## November 8, 2026 (second pass)
+- Sends: one send per preview (a second preview's code stops working once the email goes); only listed email and document kinds; invites, replies and documents re-check opt-outs, closed outreach and today's limit; all sends run one at a time; a sent email is recorded even if Gmail's follow-up look-up fails.
+- Replies: "not interested now, maybe in a few years" is a not-now; "don't email me" and "please stop" are opt-outs; out-of-office answers don't stop follow-ups; bounces come only from the mail system.
+- Searches: one background job per search at a time; Update signals keeps Save/Reject decisions made meanwhile.
+- Maths: pass-through ad spend left out of margins, growth, client shares and revenue prices; working capital only from real balances; no AI set-up cost while AI isn't counted; add-backs never double count; under 12 months of books is not priced; part-year payroll files and retainer lines are not counted as savings.
+- New ecommerce levers (Value Creation › Plan): pass-through shortfall (counted, from the books), repeat project clients to move to retainers, delivery cost per dollar of fees, largest-client profit at risk.
+- Wording: search criteria, AI prompts, toolkit, tool fit and the 1-page PDF are ecommerce throughout; candidate search closed; step numbers match the four steps.
+- Screens: each Search & Outreach list loads on its own and says if it couldn't; failed actions show a message; keyboard access for every clickable item; wide tables scroll on a phone.
+- Code: search and Value Creation routes moved to `routes/` (route tests first); unused code removed.
+
 ## November 8, 2026
 - Replies are read from the owner's new words only: a "yes" that quotes AION's "reply no thanks" footer is no longer an opt-out. Opt-outs also block the firm's domain.
 - Real profit always takes off a market salary for whoever runs the firm after closing (a seller who stays is paid too).

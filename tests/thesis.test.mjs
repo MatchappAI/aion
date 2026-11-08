@@ -144,10 +144,10 @@ test('tool fit: evidence-driven; NEEDS DATA without answers', () => {
   S.diligence = { rfp_share: { value: 0.35, at: '2026-10-07' }, proposal_process: { value: 'manual', at: '2026-10-07' }, lead_source: { value: 'founder', at: '2026-10-07' }, deliverables: { value: 20, at: '2026-10-07' }, deliverable_hours: { value: 4, at: '2026-10-07' }, hiring_bottleneck: { value: 'no', at: '2026-10-07' } };
   const fit = Object.fromEntries(toolFit({ S, d: deal(), profile: profile(S) }).map(f => [f.key, f]));
   assert.equal(fit.rfp.level, 'high'); assert.match(fit.rfp.reason, /35% of new revenue/);
-  assert.match(fit.rfp.play, /flag unsupported claims/);
+  assert.match(fit.rfp.play, /flag claims with no source/);
   assert.equal(fit.docs.level, 'high');
   assert.equal(fit.search_customers.level, 'high'); assert.match(fit.search_customers.objective, /industrial operators/);
-  assert.equal(fit.candidates.level, 'low');
+  assert.equal(fit.candidates, undefined, 'candidate sourcing is shown only for the older staffing deals');
   // the talent firm keeps candidate sourcing as core delivery
   assert.equal(toolFit({ S: { file: {}, industry: { name: 'executive search firm', kind: 'staffing' } }, d: deal(), profile: profile({ industry: { kind: 'staffing' } }) }).find(f => f.key === 'candidates').level, 'high');
 });
@@ -177,7 +177,7 @@ test('100-day plan: understand, then commercial/operating, then 1–3 AI pilots'
   assert.ok(H.phases[1].items.some(x => /Raise prices/.test(x.text)));
   assert.ok(!H.phases[0].items.concat(H.phases[1].items).some(x => /^Pilot/.test(x.text)), 'no AI pilots before day 61');
   const pilots = H.phases[2].items.filter(x => /^Pilot/.test(x.text));
-  assert.ok(pilots.length >= 1 && pilots.length <= 3); assert.match(pilots[0].text, /Proposal copilot/);
+  assert.ok(pilots.length >= 1 && pilots.length <= 3); assert.match(pilots[0].text, /Proposal and deck copilot/);
   assert.match(H.philosophy, /augments the account teams first/);
   const W = whyAion({ S, d, profile: PR, check, fit });
   assert.match(W.verdict, /1 AION module/);

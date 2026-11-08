@@ -1,9 +1,9 @@
 import { mountSearch, leaveSearch } from './search.js';
-import { toast, busy } from './ui.js';
+import { toast, busy, keyboardAccess } from './ui.js';
 import { mountSettings, leaveSettings } from './settings.js';
 import { mountHelp } from './help.js';
 import { mountOutreach, leaveOutreach } from './outreach.js';
-import { THESIS, PRICE, marketRange, SUBSECTORS, TOOLKIT, STATUS, DILIGENCE, REVENUE_MODELS, diligenceFor, valueBuckets, hundredDays, revenueMix, bucketOf } from '/thesis.mjs';
+import { THESIS, PRICE, marketRange, SUBSECTORS, TOOLKIT, STATUS, DILIGENCE, REVENUE_MODELS, diligenceFor, valueBuckets, hundredDays, revenueMix } from '/thesis.mjs';
 const $ = s => document.querySelector(s);
 const esc = v => String(v ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 // links that come from web pages: only web, email and phone addresses become clickable
@@ -13,7 +13,7 @@ const kfmt = v => v == null || isNaN(v) ? '—' : (v < 0 ? '−' : '') + '$' + (
 const pct = (v, d = 0) => v == null || isNaN(v) ? '—' : (v * 100).toFixed(d) + '%';
 const num = (v, d = 0) => v == null || isNaN(v) ? '—' : (+v).toLocaleString(undefined, { maximumFractionDigits: d });
 
-let V = null, page = 'upload', running = null, mode = 'simple', replay = null, showAll = false, tab = 'overview', appMode = (() => { try { return localStorage.getItem('aion.app') || 'ps'; } catch { return 'ps'; } })();
+let V = null, page = 'upload', running = null, mode = 'simple', replay = null, tab = 'overview', appMode = (() => { try { return localStorage.getItem('aion.app') || 'ps'; } catch { return 'ps'; } })();
 const api = async (p, b) => {
   const r = await fetch('/api/' + p, b === undefined ? {} : { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(b) });
   const j = await r.json(); if (!r.ok || (j.error && !p.startsWith('job/'))) throw new Error(j.error || 'Request failed'); return j;
@@ -89,7 +89,7 @@ async function runJob(endpoint, label, model, after) {
 let AI_NAME = 'Claude Code';
 fetch('/api/engine').then(r => r.json()).then(e => { AI_NAME = e.list?.find(x => x.id === e.active)?.label || 'your AI'; }).catch(() => {});
 const jobBox = () => running ? `<div class="job"><div class="spin"></div><div><b>${esc(running.label)}</b> — running in ${esc(AI_NAME)} (${esc(running.model)}) · <span id="jobt">0s</span><div class="note">The exact prompt is recorded in the Run log.</div></div></div>` : '';
-function showError(msg) { const m = $('#main'); m.insertAdjacentHTML('afterbegin', `<div class="callout err" role="alert" style="margin-bottom:14px">${esc(msg)}</div>`); toast(msg, 'err'); }
+function showError(msg) { const m = $('#main'); m.querySelectorAll(':scope > .callout.err.lasterr').forEach(x => x.remove()); m.insertAdjacentHTML('afterbegin', `<div class="callout err lasterr" role="alert" style="margin-bottom:14px">${esc(msg)}</div>`); toast(msg, 'err'); }
 
 function rowsModal(title, q) {
   api('rows?' + new URLSearchParams(q)).then(r => {
@@ -151,7 +151,7 @@ function pMap() {
   const opts = sel => Object.entries(C).map(([k, v]) => `<option value="${k}" ${k === sel ? 'selected' : ''}>${esc(v.label)}</option>`).join('');
   const ttmLike = a => a.total;
   const revCheck = S.accounts.filter(a => C[S.mapping?.[a.account]]?.group === 'revenue').reduce((s, a) => s + a.total, 0);
-  $('#main').innerHTML = `<h1>Step 2 · Check how each account is sorted</h1>
+  $('#main').innerHTML = `<h1>Step 2 · Real profit: check how each account is sorted</h1>
   <p class="lede">AI suggested a category for every account (sales, staff pay, rent and so on). You have the final say: change any you disagree with. Nothing after this step runs until you confirm.</p>
   ${jobBox()}
   ${!S.mapping ? `<div class="callout warn">Accounts not sorted yet. <span class="link" id="cl">Sort them with AI</span></div>` : `
@@ -192,7 +192,7 @@ function pnlTable(d) {
 function pEarnings() {
   const S = V.state, d = V.derived, n = d.normalization, q = d.quality;
   const ab = S.addbacks || [], vd = S.vendors || [], fl = S.flags || [];
-  $('#main').innerHTML = `<h1>Step 3 · Profit in the books → real profit</h1>
+  $('#main').innerHTML = `<h1>Step 2 · Real profit: profit in the books → real profit</h1>
   <p class="lede">Software adds up profit from the accounts you sorted: profit before interest, tax and depreciation (EBITDA). Then it works out <b>real profit</b> (“normalized EBITDA”): it adds back the owner’s pay and one-off costs a new owner won’t have (“add-backs”), and takes off the salary of a manager hired to replace the owner. AI suggests add-backs; each amount is the sum of the real payments it points to, and none counts until you tick it.</p>
   ${jobBox()}
   <div class="grid4">
@@ -235,7 +235,7 @@ function pEarnings() {
   : `<p class="note">PDF statements show totals only. The customer, invoice and payment-speed view needs a General Ledger with every payment.</p>`}
 
   <h2>Profit and loss by year</h2><div class="panel">${pnlTable(d)}</div>
-  <div class="row" style="margin-top:16px"><button class="ok" id="conf">${S.normConfirmed ? 'Real profit confirmed ✓ — continue' : 'Confirm real profit and continue →'}</button><span class="note">Next: the team and workload, which drive the AI time savings.</span></div>`;
+  <div class="row" style="margin-top:16px"><button class="ok" id="conf">${S.normConfirmed ? 'Real profit confirmed ✓ — continue' : 'Confirm real profit and continue →'}</button><span class="note">Next: the team and workload, then price and returns.</span></div>`;
 
   const post = async b => { V = await api('earnings', { ...b, confirm: false }); render(); };
   $('#mc').onchange = e => post({ owner: { marketComp: e.target.value } });
@@ -268,13 +268,13 @@ const OPS = [
 const getOp = (o, k) => k.startsWith('hours.') ? o?.hours?.[k.slice(6)] : o?.[k];
 function pOps() {
   const S = V.state; const ai = S.opsAI?.inputs || {};
-  $('#main').innerHTML = `<h1>Step 4 · Team and workload</h1>
+  $('#main').innerHTML = `<h1>Step 3 · Price & returns: team and workload</h1>
   <p class="lede">The books show money, not hours. AI works out what it can from pay, contractor and invoice patterns, and marks the rest as estimates. Check and correct every number: they decide how much time AI could save and what that is worth.</p>
   ${jobBox()}
   ${!S.opsAI ? `<div class="panel row"><span class="note">Sends 12-month totals by category, sales statistics, and the people and contractors paid, with their totals and how often they were paid (names included).</span><div class="spacer"></div><button id="inf">Estimate the team from the books with AI</button></div>` : `
-  <table><tr><th>What</th><th class="num">Number</th><th>Where it came from</th><th>Why the AI thinks so</th><th class="num">How sure</th></tr>
+  <div class="tblw"><table><tr><th>What</th><th class="num">Number</th><th>Where it came from</th><th>Why the AI thinks so</th><th class="num">How sure</th></tr>
   ${OPS.map(([k, l]) => [k, opsLabel(k, l)]).map(([k, l]) => { const a = ai[k] || {}; const est = /estimate/i.test(a.basis || ''); return `<tr><td>${esc(l)}</td><td class="num"><input type="number" data-op="${k}" value="${getOp(S.ops, k) ?? 0}" step="any"></td><td><span class="badge ${est ? 'est' : 'gl'}">${esc(a.basis || 'manual')}</span></td><td class="note">${esc(a.evidence || '')}</td><td class="num">${a.confidence != null ? pct(a.confidence) : '—'}</td></tr>`; }).join('')}
-  </table>
+  </table></div>
   ${S.opsAI.caveats?.length ? `<div class="callout warn" style="margin-top:12px">${S.opsAI.caveats.map(esc).join('<br>')}</div>` : ''}
   <div class="row" style="margin-top:16px"><button class="ok" id="conf">${S.opsConfirmed ? 'Team confirmed ✓ — continue' : 'Confirm the team and see ways to raise profit →'}</button><button class="ghost" id="inf">Estimate again with AI</button><span class="note">“Estimate” = not in the books; correct it if you know better.</span></div>`}`;
   document.querySelectorAll('[data-op]').forEach(i => i.onchange = async () => {
@@ -307,7 +307,7 @@ function pLevers() {
   const bridge = [
     ['Real profit', n.normalized, 'abs'], ['Prices', L.nonAI.pricing], ['Write-offs', L.nonAI.writeoffs], ['Suppliers', L.nonAI.vendors],
     ['AI: more work', L.growth], ['AI: cost cut', six.cashSavings], ['AI software', -six.costs.software], ['Running AI', -six.costs.ongoing], ['With changes', d.proForma, 'end']];
-  $('#main').innerHTML = `<h1>Step 5 · Ways to raise profit, and what they return</h1>
+  $('#main').innerHTML = `<h1>Step 3 · Price & returns: ways to raise profit</h1>
   <p class="lede">Each change (a “lever”) is worked out from the books, the team numbers you confirmed, and the guesses on this page, which you can change. Hours that AI frees up are counted once only: for more work, for spending you will really cut, or not at all. An hour saved never counts as cash unless you type in real spending to cut.</p>
   <div class="grid4">
     <div class="panel kpi"><small>Real profit today (normalized EBITDA)</small><b>${kfmt(n.normalized)}</b></div>
@@ -318,23 +318,23 @@ function pLevers() {
   <div class="panel" style="margin-top:14px">${waterfall(bridge)}</div>
 
   <h2>How the extra profit is worked out, line by line</h2>
-  <div class="panel"><table>
+  <div class="panel"><div class="tblw"><table>
     <tr><td><b>1 · Hours AI saves</b><div class="note">people × hours a week × ${a.weeks_per_year} weeks × % saved, added up for each task</div></td><td class="num">${num(six.timeSaved)} hrs a year</td></tr>
     <tr><td><b>2 · Same as how many people</b><div class="note">hours saved ÷ ${a.weeks_per_year * 40} hours per full-time person. This is time, not cash.</div></td><td class="num">${num(six.capacityFte, 2)} people</td></tr>
-    <tr><td><b>3 · What the freed hours are used for</b><div class="note">More searches ${num(six.allocation.growthHours)} h · cut spending ${num(six.allocation.avoidedHours)} h · not used ${num(six.allocation.unallocatedHours)} h ${six.allocation.overAllocated ? '<span class="neg">— your shares add up to over 100%, so “cut spending” was lowered</span>' : ''}</div></td><td class="num">${pct(a.growth_share)} / ${pct(Math.min(a.avoided_share, 1 - a.growth_share))} / ${pct(Math.max(0, 1 - a.growth_share - a.avoided_share))}</td></tr>
+    <tr><td><b>3 · What the freed hours are used for</b><div class="note">More ${esc(V.profile?.jobs || 'client work')} ${num(six.allocation.growthHours)} h · cut spending ${num(six.allocation.avoidedHours)} h · not used ${num(six.allocation.unallocatedHours)} h ${six.allocation.overAllocated ? '<span class="neg">— your shares add up to over 100%, so “cut spending” was lowered</span>' : ''}</div></td><td class="num">${pct(a.growth_share)} / ${pct(Math.min(a.avoided_share, 1 - a.growth_share))} / ${pct(Math.max(0, 1 - a.growth_share - a.avoided_share))}</td></tr>
     <tr><td><b>4 · Cash actually saved</b><div class="note">the smaller of: value of hours used to cut spending ${money(six.avoidedTheoretical)}, or spending you said you will cut ${money(a.realizable_spend)}</div></td><td class="num">${money(six.cashSavings)}</td></tr>
     <tr><td><b>5 · Extra sales (based on your guesses)</b><div class="note">Freed hours could support ${num(six.capacitySearches, 1)} extra ${V.profile?.jobs || 'jobs'}; the most you said you can win is ${num(a.demand_searches, 1)} → ${num(six.extraSearches, 1)} × ${pct(a.completion_rate)} stay and pay × ${money(S.ops.avg_fee)} = ${money(six.aiRevenue)}${six.demandLimited ? ' <b>(limited by how much work you can win)</b>' : ''} · from prices ${money(L.nonAI.pricingRevenue)}. Profit counts AI sales after ${pct(six.variableCostRate)} for commissions and contractors.</div></td><td class="num">${money(six.incrementalRevenue)}</td></tr>
     <tr class="tot"><td><b>6 · Extra profit a year (EBITDA)</b><div class="note">non-AI changes ${money(L.nonAI.total)} + AI ${money(L.ai)} − software ${money(six.costs.software)} − running costs ${money(six.costs.ongoing)} · setup ${money(six.costs.implementation)} is paid once, in year 1</div></td><td class="num">${money(L.runRate)}</td></tr>
-  </table>
+  </table></div>
   ${d.cashRelease != null ? `<p class="note">One-time cash from getting paid faster (not profit): ${money(d.cashRelease)} if customers pay ${a.dso_reduction_days} days sooner than today’s ${num(d.dso)} days.</p>` : '<p class="note">Cash from getting paid faster not worked out: the books have no “money owed by customers” account.</p>'}</div>
 
   <div class="grid2">
-  <div><h2>Tasks AI could speed up</h2><div class="panel"><table><tr><th>Task</th><th class="num">People</th><th class="num">Hours a week</th><th class="num">% saved</th><th class="num">Hours saved a year</th></tr>
+  <div><h2>Tasks AI could speed up</h2><div class="panel"><div class="tblw"><table><tr><th>Task</th><th class="num">People</th><th class="num">Hours a week</th><th class="num">% saved</th><th class="num">Hours saved a year</th></tr>
     ${L.workflows.map(w => `<tr><td>${esc(w.label)}</td><td class="num">${num(w.people, 1)}</td><td class="num">${num(w.hoursPerWeek, 1)}</td><td class="num"><input type="number" data-wf="${w.key}" value="${Math.round(w.saved * 100)}" min="0" max="100" style="width:60px"></td><td class="num">${num(w.hoursSaved)}</td></tr>`).join('')}
-  </table><p class="note">% saved is a guess (<span class="badge ass">your guess</span>); people and hours come from the team numbers you confirmed.</p></div></div>
-  <div><h2>Your guesses <span class="badge ass">change any</span></h2><div class="panel"><table>
+  </table></div><p class="note">% saved is a guess (<span class="badge ass">your guess</span>); people and hours come from the team numbers you confirmed.</p></div></div>
+  <div><h2>Your guesses <span class="badge ass">change any</span></h2><div class="panel"><div class="tblw"><table>
     ${AS.map(([k, l, t]) => `<tr><td>${esc(l)}</td><td class="num"><input type="number" data-as="${k}" data-t="${t}" value="${t === 'pct' ? +(a[k] * 100).toFixed(2) : a[k]}" step="any">${t === 'pct' ? ' %' : ''}</td></tr>`).join('')}
-  </table><div class="row" style="margin-top:8px"><span class="link" id="rs">Put the guesses back to the defaults</span></div></div></div>
+  </table></div><div class="row" style="margin-top:8px"><span class="link" id="rs">Put the guesses back to the defaults</span></div></div></div>
   </div>
   <div class="row" style="margin-top:18px"><button id="toPlan">Next: the step-by-step plan →</button></div>`;
   document.querySelectorAll('[data-as]').forEach(i => i.onchange = async () => { const v = i.dataset.t === 'pct' ? i.value / 100 : i.value; V = await api('assumptions', { assumptions: { [i.dataset.as]: v } }); render(); });
@@ -360,7 +360,7 @@ function waterfall(items) {
 function pPlan() {
   const S = V.state, P = S.plan;
   const stale = P && S.planInputsHash && S.planInputsHash !== JSON.stringify([S.ops, S.assumptions, S.owner, (S.addbacks || []).map(a => a.accepted), (S.vendors || []).map(v => [v.accepted, v.pct])]);
-  $('#main').innerHTML = `<h1>Step 6 · The step-by-step plan</h1>
+  $('#main').innerHTML = `<h1>Step 4 · Questions: the plan and what to ask the seller</h1>
   <p class="lede">AI (${esc(V.models.analysis)}) writes the plan from the numbers you confirmed; it cannot change them. Each AI change comes with the exact instructions (“prompts”) to run in Claude Code at the company. Nothing sends a message or changes another system without a person approving it.</p>
   ${jobBox()}
   ${!P ? `<div class="panel row"><span class="note">Sends the confirmed profit numbers, team numbers, your guesses, the results of each change and the risks found. No individual payments.</span><div class="spacer"></div><button id="gen">Write the plan with AI</button></div>` : `
@@ -389,7 +389,10 @@ async function pLog() {
     ${e.error ? `<div class="callout err">${esc(e.error)}</div>` : ''}<p class="note">Prompt</p><pre class="prompt">${esc(e.prompt)}</pre><p class="note">Response</p><pre class="prompt">${esc(e.response)}</pre></details>`).join('') : '<p class="empty">No AI calls yet.</p>'}`;
 }
 
-refresh().then(() => { const st = V.derived.stage; page = st === 'levers' ? 'levers' : st; mode = 'simple'; render(); if (DL.busyJob) pollAll(DL.busyJob); }).catch(e => { $('#main').innerHTML = `<div class="callout err">Server not reachable: ${esc(e.message)}. Start it with <code>npm start</code> in demo/.</div>`; });
+keyboardAccess();
+// any action that fails without its own message still tells the person (a lost note, a setting that didn't save)
+window.addEventListener('unhandledrejection', e => { const m = e.reason?.message || String(e.reason || ''); if (m) toast(`That didn’t work: ${m}`, 'err'); });
+Promise.all([api('state'), api('deals')]).then(([v, dl]) => { V = v; DL = dl; const st = V.derived.stage; page = st === 'levers' ? 'levers' : st; mode = 'simple'; render(); if (DL.busyJob) pollAll(DL.busyJob); }).catch(e => { $('#main').innerHTML = `<div class="callout err">Server not reachable: ${esc(e.message)}. Start it with <code>npm start</code> in demo/.</div>`; });
 
 
 // =====================================================================
@@ -397,52 +400,10 @@ refresh().then(() => { const st = V.derived.stage; page = st === 'levers' ? 'lev
 // =====================================================================
 const STAGES = ['Reading every payment', 'Working out today’s profit', 'Finding costs a new owner won’t pay', 'Finding ways to earn more', 'Checking if the price makes sense'];
 const STAGE_WHY = ['We use the company’s own records, not the seller’s summary.', 'AI sorts the payments. Software does the math.', 'Like the owner’s car, or one-time projects.', 'Every dollar is traced back to a real payment.', 'So you know the deal works before you pay.'];
-const evLine = r => `<div class="ev">${esc(r.date)} · ${esc(r.account)}${r.name ? ' · ' + esc(r.name) : ''}${r.memo ? ' · ' + esc(r.memo) : ''} · <b>${money(Math.abs(r.amount))}</b></div>`;
 const k$ = v => kfmt(v);
 const cap = t => String(t || '').charAt(0).toUpperCase() + String(t || '').slice(1);
 const hrs = v => (Math.round((v || 0) / 50) * 50).toLocaleString();
 
-function stageBody(i) {
-  const S = V.state, d = V.derived;
-  const items = [];
-  if (i === 0) {
-    const rows = (S.accounts || []).reduce((a, x) => a + x.count, 0);
-    const net = (S.accounts || []).reduce((a, x) => a + x.total, 0);
-    items.push(`${num(rows)} payments · ${num(S.accounts?.length)} accounts · ${esc(S.range?.start)} to ${esc(S.range?.end)}`);
-    if (S.file?.kind === 'gl') items.push(Math.abs(net) < 1 ? 'Money in and out match to the cent — nothing missing' : `Books are off by ${money(net)} — some accounts may be missing`);
-    if (d.evidence?.sample?.length) items.push(`Sample lines: ${d.evidence.sample.slice(0, 2).map(r => `${esc(r.date)} ${esc(r.account)} ${money(Math.abs(r.amount))}`).join(' · ')}`);
-    (d.limits || []).forEach(x => items.push(`<span class="note">⚠ ${esc(x)}</span>`));
-  }
-  if (i === 1) {
-    const groups = {};
-    for (const a of S.accounts || []) {
-      const c = S.mapping?.[a.account], cat = V.categories[c]; if (!cat || cat.group === 'bs' || c === 'exclude') continue;
-      const ai = S.mappingAI?.[a.account];
-      (groups[cat.label] ??= []).push(esc(a.account) + (ai && ai.confidence < 0.7 ? ` <span class="conf lo">(${pct(ai.confidence)} sure — confirm)</span>` : ''));
-    }
-    for (const [label, accts] of Object.entries(groups)) items.push(`<b>${esc(label)}:</b> ${accts.join(', ')}`);
-  }
-  if (i === 2 && d.normalization) {
-    const n = d.normalization, t = d.pnl.TTM;
-    items.push(`Software adds it up: ${k$(t.revenue)} in − ${k$(d.evidence?.costsTotal ?? t.revenue - n.reported)} out = <b>${k$(n.reported)}</b> profit`);
-    (S.addbacks || []).forEach(a => { const r = (d.evidence?.addbacks?.[a.id] || [])[0]; items.push(`One-off cost: ${esc(a.label)} <b>${k$(a.amount)}</b>${r ? ` <span class="note">· ledger ${esc(r.date)}</span>` : ''}`); });
-    (S.flags || []).forEach(f => items.push(`Risk: ${esc(f.title)}`));
-    const o = S.ops; if (o) items.push(`Team: ${num(o.producers)} ${esc(V.profile?.workers || 'staff')}, ${num(o.placements_per_year)} ${esc(V.profile?.jobs || 'jobs')} a year, ${money(o.avg_fee)} average per ${esc(V.profile?.job || 'job')}`);
-  }
-  if (i === 3 && d.levers) {
-    const L = d.levers, a = S.assumptions;
-    items.push(`Fees ${+(a.pricing_uplift * 100).toFixed(1)}% higher, minus commission → <b>+${k$(L.nonAI.pricing)}</b>`);
-    if (L.nonAI.writeoffs) items.push(`${pct(a.writeoff_reduction)} fewer write-offs → <b>+${k$(L.nonAI.writeoffs)}</b>`);
-    if (L.nonAI.vendors) items.push(`Tool cuts → <b>+${k$(L.nonAI.vendors)}</b>`);
-    items.push(`AI saves ≈${hrs(L.six.timeSaved)} hours; we count only ${num(L.six.extraSearches, 0)} extra searches won → <b>+${k$(L.growth)}</b>`);
-    items.push(`AI costs → <b>−${k$(L.six.costs.software + L.six.costs.ongoing)}</b> · total <b>+${k$(L.runRate)}</b> a year`);
-  }
-  if (i === 4 && S.plan) {
-    if (d.deal) items.push(`Price ${k$(d.deal.price)} · bad year (profit −${Math.round((d.deal.downsideDrop ?? 0.15) * 100)}%, lower value): ${d.deal.downside.moic.toFixed(1)}× money back, loan still paid`);
-    items.push(`${(S.plan.levers || []).length} step-by-step plans, each with a human check${(S.plan.levers || []).some(l => l.prompts?.length) ? ' and AI instructions' : ''}`);
-  }
-  return items;
-}
 
 function doneLine(i) {
   const S = V.state, d = V.derived;
@@ -473,7 +434,7 @@ function simple() {
     return;
   }
   if (!S.file) {
-    main.innerHTML = `<div class="sw center"><p class="kicker">For ETA buyers, independent sponsors, PE firms and business owners · EBITDA improvement and value creation</p><h1>See a company’s real profit, and how to grow it.</h1><p class="lede">EBITDA (profit before interest, tax and depreciation) is a company’s yearly profit from running the business, the number buyers price it on. This tool finds what it really is and how to raise it. For anyone buying, owning or investing in a business, in any industry. Answers in about a minute from a ledger, a few minutes from a PDF.</p>
+    main.innerHTML = `<div class="sw center"><p class="kicker">For AION and its investors · ecommerce consulting firms: real profit, price and how to grow it</p><h1>See a company’s real profit, and how to grow it.</h1><p class="lede">EBITDA (profit before interest, tax and depreciation) is a company’s yearly profit from running the business, the number buyers price it on. This tool finds what it really is and how to raise it. For anyone buying, owning or investing in a business, in any industry. Answers in about a minute from a ledger, a few minutes from a PDF.</p>
       <div class="why3"><div><b>The problem</b><span>The profit a seller reports often includes the owner’s own pay and personal costs, so it can look better or worse than it really is.</span></div>
         <div><b>Why it matters</b><span>Small firms usually sell for about 3–5 years of profit (the “multiple”). So every $1 of yearly profit found or added makes the company worth about $3–5 more.</span></div>
         <div><b>What this does</b><span>It reads the company’s own records, works out the real profit, finds the 3 changes most likely to raise it, and checks whether the price makes sense.</span></div></div>
@@ -595,7 +556,7 @@ function simple() {
   document.querySelectorAll('[data-build]').forEach(b => b.onclick = () => { const x = acts.find(y => y.id === b.dataset.build); openBuild({ ...x, basisText: basisOf(x, d, S) }); });
   wireGrow(); wireFit();
   { const QR = queueRows(S, d, acts); document.querySelectorAll('tr.qrow').forEach(r => r.onclick = () => { const x = QR[+r.dataset.q]; openBuild({ ...x, basisText: x.priced ? basisOf(x, d, S) : '' }); }); }
-  $('#ind').onclick = async () => { const nm = prompt('What kind of business is this? (e.g. civil engineering firm, fire inspection company, supply chain consultancy, executive search firm)', V.profile?.name || ''); if (!nm || nm.trim() === V.profile?.name) return; try { V = await api('industry', { name: nm }); startAll(); } catch (e) { showError(e.message); } };
+  $('#ind').onclick = async () => { const nm = prompt('What kind of business is this? (e.g. retail placement firm, Amazon marketplace agency, ecommerce analytics consultancy)', V.profile?.name || ''); if (!nm || nm.trim() === V.profile?.name) return; try { V = await api('industry', { name: nm }); startAll(); } catch (e) { showError(e.message); } };
   document.querySelectorAll('[data-tab-btn]').forEach(b => b.onclick = () => { tab = b.dataset.tabBtn; main.querySelector('.r2').dataset.show = tab; document.querySelectorAll('[data-tab-btn]').forEach(x => x.classList.toggle('on', x === b)); window.scrollTo({ top: 0 }); });
   document.querySelectorAll('[data-go-tab]').forEach(b => b.onclick = () => main.querySelector(`[data-tab-btn="${b.dataset.goTab}"]`)?.click());
   if ($('#xls')) $('#xls').onclick = () => busy($('#xls'), 'Building…', async () => { try { const r = await fetch('/api/excel', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' }); if (!r.ok) throw new Error((await r.json()).error); const url = URL.createObjectURL(await r.blob()); const a = document.createElement('a'); a.href = url; a.download = `AION ${S.name || 'analysis'}.xlsx`; a.click(); } catch (e) { showError(e.message); } });
@@ -642,12 +603,6 @@ function checksStrip(S, d) {
   const ok = items.filter(x => x[0] === 'ok'), look = items.filter(x => x[0] !== 'ok');
   return `${look.length ? `<ul class="checksr">${look.map(([c, t]) => `<li class="${c}">${c === 'warn' ? '⚠' : '•'} ${esc(t)}</li>`).join('')}</ul>` : ''}
     <details class="checksum"><summary>✓ ${ok.length} checks passed${look.length ? ` · ${look.length} to look at` : ''}</summary><ul class="checksr">${ok.map(([, t]) => `<li class="ok">✓ ${esc(t)}</li>`).join('')}</ul></details>`;
-}
-function realityCheck(n, d) {
-  const m = V.profile?.margin, rev = d.pnl.TTM.revenue; if (!m || !rev) return '';
-  const mine = n.normalized / rev, name = esc(V.profile.name), range = `${pct(m.low)}–${pct(m.high)}`;
-  const [cls, msg] = mine > m.high * 1.25 ? ['warn', `Higher than usual for a ${name} (usually ${range}). Check the books carefully.`] : mine < m.low ? ['low', `Lower than usual for a ${name} (usually ${range}). There may be room to improve.`] : ['ok', `Normal for a ${name} (usually ${range}).`];
-  return `<p class="reality ${cls}">Real profit is <b>${pct(mine)}</b> of sales. ${msg} <span>(AI estimate)</span></p>`;
 }
 function sharper(S, d) {
   const ex = S.extra || {}, t = d.pnl.TTM, PRf = V.profile || {};
@@ -875,7 +830,6 @@ function howBlock(S, d) {
 }
 
 const MAIN_Q = c => /^owner_acct:|^owner_leaving$|^addbacks$/.test(c.key);
-const yr = m => Math.round((Math.pow(Math.max(m, 0.01), 1 / 5) - 1) * 100);
 function nextSteps(S, d, checks) {
   const ask = new Set();
   const txt = (S.flags || []).map(f => f.title + ' ' + f.detail).join(' ').toLowerCase();
@@ -893,10 +847,6 @@ function nextSteps(S, d, checks) {
   return steps.length ? `<h3>What to do next</h3><ol class="next">${steps.map(x => `<li>${x}</li>`).join('')}</ol>` : '';
 }
 
-function growTable(S, d) {
-  const L = d.levers, A = S.assumptions, rows = [['Raise fees on new work', L.nonAI.pricing, `ledger fees × your ${+(A.pricing_uplift * 100).toFixed(1)}% assumption`], ['Fewer unpaid invoices', L.nonAI.writeoffs, 'ledger write-offs'], ['Cut overlapping tools', L.nonAI.vendors, 'ledger tool spend, you confirmed'], [`AI frees ${V.profile?.workers || 'the team'} to serve more ${V.profile?.jobs || 'clients'}`, L.growth, `assumption: ${A.demand_searches} extra ${V.profile?.jobs || 'jobs'} won a year`], ['Spending actually cut', L.six.cashSavings, 'your input'], ['AI software and running costs', -(L.six.costs.software + L.six.costs.ongoing), 'cost estimate']].filter(r => Math.round(r[1]));
-  return `<table class="grow"><tr><th>Change</th><th>Based on</th><th class="num">More profit a year</th></tr>${rows.map(r => `<tr><td>${r[0]}</td><td class="note">${r[2]}</td><td class="num ${r[1] < 0 ? 'neg' : 'pos'}">${r[1] < 0 ? '−' : '+'}${kfmt(Math.abs(r[1]))}</td></tr>`).join('')}<tr class="tot"><td>Total</td><td></td><td class="num">+${kfmt(L.runRate)}</td></tr></table>${d.cashRelease ? `<p class="note">Plus about ${kfmt(d.cashRelease)} of cash, once, from getting paid faster.</p>` : ''}`;
-}
 
 
 // ---------- tabs: plan, trends, deal, run it ----------
@@ -905,7 +855,7 @@ const EFFORT = { pricing: [2, 5000], billing: [2, 3000], vendors: [3, 2000], dis
 const BUILD_WEIGHT = { none: 1, reuse: 1.5, new: 2.5 };
 const buildOf = id => ['pricing', 'retention', 'cash', 'discounts'].includes(id) || String(id).startsWith('ecom_') ? 'none' : String(id).startsWith('ind') ? 'new' : 'reuse';
 function effortOf(x, d) { const ind = (d.industryLevers || []).find(y => y.id === x.id); const [w, c] = ind ? [ind.weeks || 4, ind.cost || 0] : x.id === 'ai' ? [8, d.levers.six.costs.implementation] : EFFORT[x.id] || [3, 3000]; return { weeks: w, cost: c, build: ind?.build || buildOf(x.id) }; }
-const easeScore = (x, d) => { if (x.pending || !(x.value > 0)) return -1; const e = effortOf(x, d); return x.value / (e.weeks * BUILD_WEIGHT[e.build]); };
+const easeScore = (x, d) => { if (x.pending || !(x.value > 0)) return -1; const e = effortOf(x, d); return x.value / (e.weeks * (BUILD_WEIGHT[e.build] || 1)); };
 const mon = m => new Date(m + '-15').toLocaleDateString(undefined, { month: 'short' });
 function bars(series, keys, opts = {}) {
   if (!series?.length) return '';
@@ -931,16 +881,6 @@ const BUILD = { none: ['No build', 'a process or pricing change', 0], reuse: ['R
 const VC_AGENTS = [
   { id: 'agent_operator', name: 'AI build: monthly operator', time: '1–2 days', weeks: 1.5, what: 'Turns each month’s books into a to-do list for every manager and a progress report on each lever in this queue.', steps: ['Owner: upload the month’s QuickBooks export in Run it', 'AI: compares it with the plan and with the usual month, and checks progress on each lever', 'AI: drafts a to-do list per manager and a short investor note', 'Owner: approves before anything is shared'] },
   { id: 'agent_diligence', name: 'AI build: diligence document checker', time: '2–3 days', weeks: 2.5, what: 'Reads a seller’s contracts, client lists, payroll and leases and checks them against the books before an offer.', steps: ['Buyer: upload the seller’s documents as PDFs or spreadsheets', 'AI: reads each document and pulls out clients, staff, fees, leases and terms', 'Software: cross-checks them with the ledger (clients billed with no contract, staff paid but not on payroll, leases missing from costs)', 'AI: lists every mismatch with the page and line it came from', 'Buyer: reviews the list and asks the seller'] },
-];
-// Tools to build next for value creation: the thesis's five first actions, plus the build kit and the two queue builds
-const VC_NEXT = [
-  { group: 'The five first actions', name: '1. Day-one billing', time: 'about 1 day', what: 'Turns each signed engagement letter, contract or statement of work into a billing schedule and flags any payment late by a day.', steps: ['Owner: uploads signed engagement letters or contracts (PDF)', 'AI: reads the fees, billing dates and terms in each one', 'Software: builds the billing schedule and checks bank deposits every week', 'Owner: gets a list of late payments to chase'], measure: 'Days to collect; work done but not yet billed', needs: 'Needs: signed letters or contracts and a bank or QuickBooks export' },
-  { group: 'The five first actions', name: '2. Price and fee checker', time: 'about half a day', what: 'Compares every new price or fee with the firm’s standard rates and its own past prices, and flags any discount that needs approval.', steps: ['Software: reads past prices from the books', 'Owner: sets one standard rate card', 'Software: flags each new price below the rate card for approval'], measure: 'Average price per project, engagement or search', needs: 'Needs: the books and new proposals or engagement letters' },
-  { group: 'The five first actions', name: '3. Knowledge first', time: 'about 2 days', what: 'Before new work, finds the firm’s own past brand work, line-review decks and proposals that fit, with the reason for each. Reuses Proprietary Search matching.', steps: ['Owner: exports past proposals, project files or the candidate database', 'Software: matches each record against the new request', 'AI: writes the reason for each match, with its source', 'The expert decides what to reuse'], measure: 'Days to first draft or first shortlist', needs: 'Needs: a project, proposal or candidate export' },
-  { group: 'The five first actions', name: '4. Top-20 client watch', time: 'about 1 day', what: 'Watches the firm’s top 20 clients every week for new retailers, marketplace launches, leadership changes and new needs. Reuses Proprietary Search watchlists.', steps: ['Software: takes the top 20 clients from the books', 'Search: re-runs every week and flags only what is new', 'Owner: gets a short list for the monthly client check-in'], measure: 'Repeat-client rate; revenue per client', needs: 'Needs: the books (client names)' },
-  { group: 'The five first actions', name: '5. Expert research and proposal assistant', time: 'about 1 day', what: 'Builds research notes, long lists and first drafts (proposals, reports, outreach) so experts keep the judgment work: diagnosis, sign-off, client calls.', steps: ['Expert: describes the request in one sentence', 'Search and Documents: build the research and the first draft with sources', 'AI: flags anything not backed by a source', 'Expert: edits and signs'], measure: 'Proposals or deliverables per person per month', needs: 'Needs: nothing new; reuses Proprietary Search and Documents' },
-  { group: 'Prove it worked', name: 'Build kit and results tracker', time: 'about 1 day', what: 'For each item in the plan queue: the Claude Code prompt or step-by-step checklist to do it, the starting number from the books, and a monthly check of whether it moved.', steps: ['Software: records the starting number for each item from the books', 'AI: writes the build prompt or checklist, with an owner and a deadline', 'Monthly check-in: compares the new books with the starting number', 'An item counts as done only when the books show it'], measure: 'Planned vs actual profit, item by item', needs: 'Needs: a monthly QuickBooks export' },
-  ...VC_AGENTS.map(a => ({ group: 'Prove it worked', name: a.name.replace('AI build: ', '').replace(/^./, c => c.toUpperCase()), time: a.time, what: a.what, steps: a.steps, measure: '', needs: 'Also listed in the plan queue' })),
 ];
 // ---------- AION fit: thesis check, tool fit and why AION (all computed by lib/thesis.mjs from the books and diligence) ----------
 const STB = { pass: ['PASS', 'ok'], watch: ['WATCH', 'mid'], fail: ['FAIL', 'bad'], needs_data: ['NEEDS DATA', 'na'] };
@@ -982,8 +922,8 @@ function fitTab(S, d) {
   <section data-tab="fit"><details class="more2" ${open > dq.length / 2 ? 'open' : ''}><summary>Answers from the seller (diligence) · ${dq.length - open} of ${dq.length} recorded</summary>
     <p class="note">What only a conversation with the seller or their files can show. Type the answer and where it came from. Each answer is dated and shown as “From diligence” wherever it is used.</p>
     <div class="tblw"><table class="tcheck dq">${dq.map(k => dilRow(k, S.diligence?.[k])).join('')}</table></div></details></section>
-  <section data-tab="fit"><details class="more2"><summary>The AION toolkit · ${Object.values(TOOLKIT).filter(t => t.status === 'now').length} exist now, ${Object.values(TOOLKIT).filter(t => t.status === 'partial').length} partly</summary>
-    <div class="tblw"><table class="tcheck"><tr><th>Tool</th><th>Status</th><th>Purpose</th><th>What exists today</th></tr>${Object.values(TOOLKIT).map(t => `<tr><td><b>${esc(t.name)}</b></td><td><span class="st ${t.status === 'now' ? 'ok' : t.status === 'partial' ? 'mid' : 'na'}">${STATUS[t.status]}</span></td><td class="note">${esc(t.purpose)}</td><td class="ev">${esc(t.detail)}</td></tr>`).join('')}</table></div></details></section>`;
+  <section data-tab="fit"><details class="more2"><summary>The AION toolkit · ${Object.values(TOOLKIT).filter(t => t !== TOOLKIT.candidates || V.profile?.kind === 'staffing').filter(t => t.status === 'now').length} exist now, ${Object.values(TOOLKIT).filter(t => t !== TOOLKIT.candidates || V.profile?.kind === 'staffing').filter(t => t.status === 'partial').length} partly</summary>
+    <div class="tblw"><table class="tcheck"><tr><th>Tool</th><th>Status</th><th>Purpose</th><th>What exists today</th></tr>${Object.values(TOOLKIT).filter(t => t !== TOOLKIT.candidates || V.profile?.kind === 'staffing').map(t => `<tr><td><b>${esc(t.name)}</b></td><td><span class="st ${t.status === 'now' ? 'ok' : t.status === 'partial' ? 'mid' : 'na'}">${STATUS[t.status]}</span></td><td class="note">${esc(t.purpose)}</td><td class="ev">${esc(t.detail)}</td></tr>`).join('')}</table></div></details></section>`;
 }
 function wireFit() {
   if ($('#fit-sub')) $('#fit-sub').onchange = async e => { try { V = await api('subsector', { subsector: e.target.value }); render(); } catch (err) { showError(err.message); } };
@@ -1059,7 +999,7 @@ function planTab(S, d, acts, pick) {
 ${priced.length ? `<div class="qsum"><div><small>Realistic profit added, year 1</small><b>+${k$(Q.year1)}</b><span>phased in as each lever goes live</span></div><div><small>Realistic profit added a year, once all are live</small><b>+${k$(Q.runRate)}</b><span>cut for how sure each number is · full plan +${k$(priced.reduce((t, x) => t + x.value, 0))}</span></div><div><small>All changes live by</small><b>week ${Q.allLive}</b><span>${LANES} worked on at a time</span></div></div><div class="panel"><div class="legend"><span><i class="k2"></i>Year 1</span><span><i class="k3"></i>Year 2</span><span>profit added each month, at a yearly pace</span></div>${queueChart(Q)}</div>` : ''}
 <p class="howline"><b>How this works:</b> each change is sized only from the books, an uploaded file, or half the gap to similar companies. They run easiest first, two at a time; each takes about 3 months to show fully in profit. “Realistic” = the full value cut by how sure the number is (see the note under the table). <b>What to do:</b> click a row for step-by-step instructions.</p>
     ${(() => { const head = `<tr><th>#</th><th>Change</th><th>Build needed</th><th class="num">Weeks (start–live)</th><th class="num">Realistic profit a year</th><th>Based on</th></tr>`;
-      const row = (x, i) => `<tr class="${x.priced ? '' : 'unpriced'} qrow" data-q="${i}"><td>${i + 1}</td><td><span class="atag ${x.area === 'AI' ? 'ai' : x.area === 'Industry' ? 'ind' : ''}">${x.area}</span> <b>${esc(x.title)}</b><div class="how">${esc(x.priced ? basisOf(x, d, S) : x.note || '')}</div><span class="link sm">Step-by-step instructions →</span></td><td><span class="bld ${x.build}">${BUILD[x.build][0]}</span><div class="how">${x.weeks} wk</div></td><td class="num nowrap">${x.priced ? `${x.start}–${x.live}` : '—'}</td><td class="num ${x.priced ? 'pos' : ''}">${x.priced ? '+' + k$(x.real) : '—'}${x.priced ? `<div class="how">of +${k$(x.value)}</div>` : ''}</td><td>${x.priced ? `<i class="sure ${/^From|Confirmed/.test(x.sure) ? 'hi' : 'mid'}"></i>${esc(x.sure)}` : '<span class="note">—</span>'}</td></tr>`;
+      const row = (x, i) => `<tr class="${x.priced ? '' : 'unpriced'} qrow" data-q="${i}"><td>${i + 1}</td><td><span class="atag ${x.area === 'AI' ? 'ai' : x.area === 'Industry' ? 'ind' : ''}">${x.area}</span> <b>${esc(x.title)}</b><div class="how">${esc(x.priced ? basisOf(x, d, S) : x.note || '')}</div><span class="link sm">Step-by-step instructions →</span></td><td><span class="bld ${x.build}">${(BUILD[x.build] || BUILD.none)[0]}</span><div class="how">${x.weeks} wk</div></td><td class="num nowrap">${x.priced ? `${x.start}–${x.live}` : '—'}</td><td class="num ${x.priced ? 'pos' : ''}">${x.priced ? '+' + k$(x.real) : '—'}${x.priced ? `<div class="how">of +${k$(x.value)}</div>` : ''}</td><td>${x.priced ? `<i class="sure ${/^From|Confirmed/.test(x.sure) ? 'hi' : 'mid'}"></i>${esc(x.sure)}` : '<span class="note">—</span>'}</td></tr>`;
       const more = rows.map((x, i) => [x, i]).filter(([x]) => !x.priced);
       return `<div class="tblw"><table class="queue">${head}${rows.map((x, i) => x.priced ? row(x, i) : '').join('')}<tr class="tot"><td></td><td>Total</td><td></td><td class="num">${Q.allLive ? 'all live by week ' + Q.allLive : ''}</td><td class="num">+${k$(Q.runRate)}</td><td></td></tr></table></div>
       ${more.length ? `<details class="more2"><summary>${more.length} more ideas worth doing · not counted in profit</summary><p class="note">Each has instructions, but no number from the books yet: AI builds need tracked hours, others protect revenue or need data the seller hasn’t given.</p><div class="tblw"><table class="queue">${head}${more.map(([x, i]) => row(x, i)).join('')}</table></div></details>` : ''}`; })()}
@@ -1187,7 +1127,7 @@ function runTab(S, d) {
     <p class="howline"><b>How this works:</b> the latest month in your file, compared with the usual month before the plan and with the plan’s target. The coloured edge on each box: green = on track, amber = watch, red = behind.</p>
     <p class="lead2">${L ? `${mon(L.m)}: profit <b>${k$(L.profit)}</b>, ${onT ? '<b class="pos">on track</b> for the plan' : aboveU ? 'above the usual month but <b>below the plan’s target</b>' : '<b class="neg">below the usual month</b>'}.` : ''}${C.overlapOnly ? ' <span class="note">These months overlap the original books, so this compares like with like.</span>' : ''}</p>
     <div class="panel"><div class="legend"><span><i class="k2"></i>Profit</span><span><i class="tl"></i>Plan target</span></div>${bars(C.months, [{ k: 'profit', cls: 'b2', label: 'Profit' }], { line: { v: C.target, label: 'target' }, h: 130 })}</div>
-    <div class="trk">${tr.map(([a, b, c, st]) => `<div class="${st}"><small>${a}</small><b>${b ?? '—'}</b><span>${c}</span></div>`).join('')}</div>
+    <div class="trk">${tr.map(([a, b, c, st]) => `<div class="${st}"><small>${a}</small><b>${b ?? '—'}</b><span>${c}</span><span class="sr">${{ ok: 'On track', bad: 'Behind plan' }[st] || 'Not measured yet'}</span></div>`).join('')}</div>
     <h2 class="h2" style="margin-top:22px">Early warnings</h2>${warn.length ? `<p class="note">What to do: ask the manager about each one this month.</p><ul class="found">${warn.map(w => `<li><span class="sev medium">check</span> ${w}</li>`).join('')}</ul>` : '<p class="note">✓ Nothing unusual this month.</p>'}
     <div style="margin-top:16px">${drop.replace('Add this month’s books', 'Replace with newer books')}</div></section>`;
 }
