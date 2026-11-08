@@ -9,7 +9,7 @@ Use a real company's books if you have them. If you use the test files, say so: 
 3. **Biggest unknown:** click Yes, then No. The chart redraws.
 4. **Easiest wins:** open one. It has a ready-to-use plan and AI prompt.
 5. **Make the plan sharper:** drop in the payroll and sales reports. New bars appear in a second.
-5b. **AION fit:** show the thesis check (every row has its evidence; NEEDS DATA where there is none), then record one diligence answer (for example the share of new revenue from RFPs) and watch the tool fit change. Say: the edge is a repeatable operating system plus our own tools, validated deal by deal.
+5b. **Questions & checks:** show the thesis check (every row has its evidence; NEEDS DATA where there is none), then record one diligence answer (for example the share of new revenue from RFPs) and watch the tool fit change. Say: the edge is a repeatable operating system plus our own tools, validated deal by deal.
 6. **What it would take:** on the Plan tab, click 3×. Change growth or add-ons and the year it is reached moves. Say it is a what-if, not counted.
 7. **Good deal for investors:** click Holding company, then PE fund. The returns change with the type of owner.
 

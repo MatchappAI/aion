@@ -7,4 +7,6 @@
 5. **1-page PDF needs Google Chrome** in /Applications.
 6. **Mac only as packaged** (`Start AION.command`); on other systems run `npm start`.
 7. **Single user, single computer**; copy `workspace/` to move or back up.
-8. The **Plan tab's "What we could build next"** list and the Search page's agents list describe tools not built yet. They are labelled "not built yet" on purpose for investor demos.
+8. The **market reference line** (what firms this size often sell for) is general market knowledge, not checked against recent deals; it never sets the price.
+9. **SBA** numbers are an illustration only; check the current SBA rules before relying on them.
+10. Sending from a personal @gmail.com address is less credible and riskier for deliverability than an AION domain with SPF, DKIM and DMARC.

@@ -1,6 +1,6 @@
 # START HERE — AION (local)
 
-Your acquisition and value-creation system: find firms to buy, clients and people; turn a seller's books into real EBITDA and a plan; draft RFP answers and candidate write-ups.
+AION's tool for buying founder-owned ecommerce consulting firms (retail placement, marketplace agencies, ecommerce strategy and analytics), buyout first: find owners before a sale is marketed, write to them with your OK on every send, and turn a seller's books into real profit, a price and the questions to ask.
 
 **Open it:** double-click `Start AION.command` (or `npm start`), then use http://localhost:8765. In the app, **Help** explains every tool and **Settings** picks the AI (Claude Code first; Codex or an API key as backups).
 

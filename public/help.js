@@ -33,7 +33,7 @@ export function mountHelp(main) {
       <section class="panel"><h3>3. Check a firm’s numbers <span class="note">Value Creation</span></h3><ol>
         <li>Drop in the books: a QuickBooks General Ledger works best; a Profit and Loss or a PDF also works.</li>
         <li>AION shows the firm’s real yearly profit and the changes that would raise it, easiest first.</li>
-        <li>The tabs show the fit with what AION buys, the plan, trends, the price and returns, and open questions.</li>
+        <li>Four tabs: Real profit, Price &amp; returns, Plan, and Questions &amp; checks (the fit with what AION buys and what to ask the seller).</li>
         <li>Download a 1-page PDF or Excel file.</li></ol><button class="ghost sm" data-go="vc">Open Value Creation</button></section>
       <section class="panel"><h3>Settings: which AI</h3><ul>
         <li>AION uses Claude Code first. If it runs out, the next option you set up takes over.</li>

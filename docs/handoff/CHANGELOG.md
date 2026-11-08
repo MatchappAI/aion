@@ -1,5 +1,14 @@
 # Changelog
 
+## November 8, 2026
+- Replies are read from the owner's new words only: a "yes" that quotes AION's "reply no thanks" footer is no longer an opt-out. Opt-outs also block the firm's domain.
+- Real profit always takes off a market salary for whoever runs the firm after closing (a seller who stays is paid too).
+- Every send needs a one-time confirm code from its preview; one send at a time; replies and documents can't go twice; the same firm is never drafted twice across searches; guessed addresses are labelled and never chosen for you.
+- Safe saving with backups for every data file; background scans keep decisions made meanwhile; background errors are shown.
+- Price guide, LOI terms and offer wording moved to the private settings file; public repo history scrubbed.
+- Value Creation: four steps and four tabs; ecommerce wording, pass-through ad spend, new seller questions, deal form for tax, 10% deal costs, harsher bad case, market reference line, revenue prices held to the price cap.
+- Search & Outreach is the first tab. Removed: Documents, the federal contract radar, people search.
+
 ## November 6, 2026 (buy box v4.0: ecommerce consulting)
 - Thesis v4.0 in `lib/thesis.mjs`: US ecommerce consulting firms, $500K–$5M EBITDA, three segments in priority order (retail placement, marketplace agencies, ecommerce strategy & analytics); DTC growth agencies, 3PL / operations advisory, recruiters and software companies excluded. v3.0 subsectors kept as `legacy`.
 - `segmentOf()` classifies each firm from its industry label first (ignores "not a …" phrases); used by Search, the owner list, Outreach and the docs.

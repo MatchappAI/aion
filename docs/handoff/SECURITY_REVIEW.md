@@ -1,4 +1,4 @@
-# Security and privacy review (October 24–25, 2026)
+# Security and privacy review (October 24–25, 2026; updated November 8, 2026)
 
 Single-user app on 127.0.0.1. Findings and status:
 
@@ -13,5 +13,9 @@ Single-user app on 127.0.0.1. Findings and status:
 | 7 | Info | Dependencies | `npm audit`: 0 vulnerabilities. |
 | 8 | Low | The data-signals User-Agent includes the founder's own email (`lib/search/radar.mjs`). | **Kept by choice** in this personal copy (polite crawler contact). Removed in the partner editions. |
 | 9 | Low | Uploaded books stay readable in `workspace/`. | Accepted; it's inside your user folder. Delete a deal folder to remove it for good. |
+| 10 | High | Gmail tokens: the token file was briefly world-readable when first written, and checkpoint archives holding it were world-readable. | **Fixed (Nov 8):** token file written owner-only (0600) from the first byte; checkpoint folders and archives set to owner-only. |
+| 11 | High | The public repo showed the price ceiling, LOI playbook, offer wording, real target names and partner names. | **Fixed (Nov 8):** moved to the git-ignored `private/config.json`; placeholder names in tests; history rewritten. Old copies may remain in forks, GitHub pull-request refs and caches. |
+| 12 | Medium | AI helper programs inherited the whole environment (Google client secret, API keys) and the user's MCP servers and settings. | **Fixed (Nov 8):** minimal environment, `--strict-mcp-config` with no servers, project settings only; Codex ignores the user config. |
+| 13 | Medium | Any local process could call the send route with `confirmed: true`. | **Fixed (Nov 8):** every send needs a one-time code from the preview, tied to the exact from/to/subject/text. |
 
-**What leaves the computer:** prompts to the chosen AI (account names and totals; names masked by default), public web pages during searches, public data (Fed prime rate, BLS wages, NYU Stern margins, USAspending, Internet Archive, Google News).
+**What leaves the computer:** prompts to the chosen AI (account names and totals; names masked by default), public web pages during searches, public data (Fed prime rate, BLS wages, NYU Stern margins, Internet Archive, Google News).
