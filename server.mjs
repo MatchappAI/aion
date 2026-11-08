@@ -1,6 +1,7 @@
 import { fileURLToPath } from 'node:url';
 import http from 'node:http';
 import fs from 'node:fs';
+import { readJson, writeJson } from './lib/fsafe.mjs';
 import path from 'node:path';
 import { parseGL, accountSummary } from './lib/gl.mjs';
 import { CATEGORIES, DEFAULT_ASSUMPTIONS, detectSignMode, periods, pnl, matchRows, normalize, quality, dso, levers, cashRelease, rowValue, r2, dealReturns, VEHICLES, monthlySeries, customerFlow, nonOverlappingPeriods } from './lib/model.mjs';
@@ -9,8 +10,9 @@ import { profile, kindOf } from './lib/industry.mjs';
 import { thesisCheck, toolFit, whyAion, SUBSECTORS, DILIGENCE, detectSubsector, kindFor, REVENUE_MODELS } from './lib/thesis.mjs';
 import { analyzePayroll, analyzeSales, extraLevers } from './lib/extras.mjs';
 import { buildWorkbook } from './lib/excel.mjs';
-import { initStore, saveSearch, loadSearch, listSearches, archiveSearch } from './lib/search/store.mjs';
+import { initStore, saveSearch, loadSearch, listSearches, archiveSearch, saveSearchMerged } from './lib/search/store.mjs';
 import * as OUT from './lib/outreach/outreach.mjs';
+import * as CONFIRM from './lib/outreach/confirm.mjs';
 import * as GMAIL from './lib/outreach/gmail.mjs';
 import { runSearch, checkMore } from './lib/search/pipeline.mjs';
 import { initMemory, ingest, decide as memDecide, known, network, stats as memStats, keyOf, setStage, dealOf, pipeline, prune, DEAL_STAGES } from './lib/search/memory.mjs';
@@ -20,6 +22,9 @@ import { timing, inNiche, listedFor } from './lib/search/timing.mjs';
 import { rankAll, rankOne, APPROACH } from './lib/search/rank.mjs';
 import { initRadar, brandScan, scans as radarScans, recentEvents, intentScan } from './lib/search/radar.mjs';
 let INTENT = null, LAST_INTENT = null; // the deal-intent scan: progress while it runs, and when it last finished
+// background jobs that failed: logged and shown on the page (never swallowed), by job (intent, radar, signals)
+const JOB_ERR = {};
+const jobFailed = what => e => { const msg = String(e?.message || e || 'unknown error').slice(0, 300); JOB_ERR[what] = { at: new Date().toISOString(), error: msg }; console.error(`AION: ${what} stopped: ${msg}`); };
 import { addSignals } from './lib/search/pipeline.mjs';
 import { initDocs, saveDoc, loadDoc, listDocs, getFirm, setFirm, readSource, draftProposal, draftWriteup, candidateFromSearch } from './lib/docs/docs.mjs';
 import { initWatch, watches, setWatch, due, started as watchStarted, finished as watchFinished, watchOf } from './lib/search/watch.mjs';
@@ -39,8 +44,8 @@ const PUB = path.join(ROOT, 'public');
 const PORT = +process.env.PORT || 8765;
 fs.mkdirSync(DEALS, { recursive: true });
 
-const load = (f, d) => { try { return JSON.parse(fs.readFileSync(f, 'utf8')); } catch { return d; } };
-const save = (f, v) => fs.writeFileSync(f, JSON.stringify(v));
+const load = (f, d) => readJson(f, d) ?? d;
+const save = (f, v) => writeJson(f, v);
 // marketComp: the market salary of whoever runs the firm after closing (the seller or a hire). 225000 is a starting guess,
 // shown as "your guess" in Value Creation; change it per deal.
 const fresh = () => ({ assumptions: structuredClone(DEFAULT_ASSUMPTIONS), owner: { marketComp: 225000, count: 1, extraOwnerComp: 0, ownerRuleV: 1 } });
@@ -293,7 +298,7 @@ const unent = t => String(t || '').replace(/&#x27;|&#39;/g, '’').replace(/&quo
 const normName = t => String(t || '').toLowerCase().replace(/[^a-z0-9]+/g, ' ').replace(/\b(llc|inc|corp|co|the|group|ltd)\b/g, '').trim();
 const FINDERS = () => path.join(ROOTWS, 'finders.json');
 function finderKeys() { try { return JSON.parse(fs.readFileSync(FINDERS(), 'utf8')); } catch { return {}; } }
-function saveFinderKeys(k) { fs.writeFileSync(FINDERS(), JSON.stringify(k), { mode: 0o600 }); fs.chmodSync(FINDERS(), 0o600); }
+function saveFinderKeys(k) { writeJson(FINDERS(), k, { mode: 0o600 }); }
 function ownerList() {
   const B = OUT.board(), byKey = new Map(B.map(x => [`${x.search}|${x.entity}`, x])), byName = new Map(B.filter(x => x.mode === 'target').map(x => [normName(x.name), x]));
   const ss = listSearches().map(h => loadSearch(h.id)).filter(Boolean).sort((a, b) => String(b.created || '').localeCompare(String(a.created || '')));
@@ -695,9 +700,9 @@ const server = http.createServer(async (req, res) => {
         // owner ranking: every firm to buy across all searches, ranked by deal intent (majority sale or growth partnership),
         // breadth of signals, fit and reachability. Proprietary only: firms already listed on a marketplace are set aside.
         const { R, list } = ownerList();
-        return send(res, 200, { scanning: INTENT, lastScan: LAST_INTENT, list, listed: R.listed.map(x => ({ name: x.name, place: x.place, website: x.website })), outside: R.outside.filter(x => x.niche).map(x => ({ search: x.search, entity: x.entity, name: x.name, place: x.place, focus: x.focus, segmentLabel: x.segmentLabel, why: x.box.reasons.join('; ') })), counts: { outside: R.outside.filter(x => x.niche).length, outsideFocus: R.outside.filter(x => x.focus).length, inBox: list.filter(x => x.box.status === 'in').length, all: list.length, high: list.filter(x => x.intent.high).length, sale: list.filter(x => x.intent.sale.level === 'high').length, partner: list.filter(x => x.intent.partner.level === 'high').length, niche: list.filter(x => x.niche).length, focus: list.filter(x => x.focus).length, listed: R.listed.length, segments: Object.fromEntries(['retail_placement', 'marketplace', 'strategy'].map(k => [k, list.filter(x => x.niche && x.segment === k).length])), inOutreach: list.filter(x => x.niche && x.outreach).length } });
+        return send(res, 200, { scanning: INTENT, lastScan: LAST_INTENT, lastError: JOB_ERR.intent || JOB_ERR.signals || null, list, listed: R.listed.map(x => ({ name: x.name, place: x.place, website: x.website })), outside: R.outside.filter(x => x.niche).map(x => ({ search: x.search, entity: x.entity, name: x.name, place: x.place, focus: x.focus, segmentLabel: x.segmentLabel, why: x.box.reasons.join('; ') })), counts: { outside: R.outside.filter(x => x.niche).length, outsideFocus: R.outside.filter(x => x.focus).length, inBox: list.filter(x => x.box.status === 'in').length, all: list.length, high: list.filter(x => x.intent.high).length, sale: list.filter(x => x.intent.sale.level === 'high').length, partner: list.filter(x => x.intent.partner.level === 'high').length, niche: list.filter(x => x.niche).length, focus: list.filter(x => x.focus).length, listed: R.listed.length, segments: Object.fromEntries(['retail_placement', 'marketplace', 'strategy'].map(k => [k, list.filter(x => x.niche && x.segment === k).length])), inOutreach: list.filter(x => x.niche && x.outreach).length } });
       }
-      if (req.method === 'GET' && p === 'search/radar') return send(res, 200, { events: recentEvents(), scans: radarScans(), scanning: SCAN });
+      if (req.method === 'GET' && p === 'search/radar') return send(res, 200, { events: recentEvents(), scans: radarScans(), scanning: SCAN, lastError: JOB_ERR.radar || null });
       if (req.method === 'GET' && p === 'search/pipeline') return send(res, 200, { stages: DEAL_STAGES, deals: pipeline() });
       // Outreach: its own board, senders and drafts (sends only from your connected senders in AION_SENDERS, only with your OK)
       if (req.method === 'GET' && p === 'outreach/state') return send(res, 200, { settings: OUT.settings(), accounts: GMAIL.accounts(), gmailReady: GMAIL.configured(), board: (() => { const { R, list } = ownerList(), off = new Map(R.outside.map(x => [`${x.search}|${x.entity}`, x.box.reasons.join('; ')])), on = new Map(list.map(x => [`${x.search}|${x.entity}`, x]));
@@ -806,7 +811,7 @@ const server = http.createServer(async (req, res) => {
           if (SRUN[b.id] || SIG[b.id]) return send(res, 409, { error: 'This search is already being updated.' });
           const s2 = loadSearch(b.id); if (!s2) return send(res, 404, { error: 'Search not found.' });
           SIG[b.id] = true;
-          addSignals(s2, { cwd: path.join(ROOTWS, 'searches'), model: MODELS.extraction, log: t => { s2.log.push({ t: s2.runtime || 0, text: t }); } }).then(() => saveSearch(s2)).catch(() => {}).finally(() => { delete SIG[b.id]; });
+          addSignals(s2, { cwd: path.join(ROOTWS, 'searches'), model: MODELS.extraction, log: t => { s2.log.push({ t: s2.runtime || 0, text: t }); } }).then(() => { saveSearchMerged(s2); delete JOB_ERR.signals; }).catch(jobFailed('signals')).finally(() => { delete SIG[b.id]; });
           return send(res, 200, { ok: true });
         }
         case 'search/more': {
@@ -823,14 +828,14 @@ const server = http.createServer(async (req, res) => {
           if (INTENT) return send(res, 409, { error: 'Already reading every firm’s site and headlines.' });
           INTENT = { done: 0, total: 0, at: new Date().toISOString() };
           const all = listSearches().map(h => loadSearch(h.id)).filter(x => x?.mode === 'target' && !SRUN[x.id]);
-          intentScan(all, { save: saveSearch, progress: p2 => Object.assign(INTENT, p2) }).catch(() => {}).finally(() => { LAST_INTENT = new Date().toISOString(); INTENT = null; });
+          intentScan(all, { save: saveSearchMerged, progress: p2 => Object.assign(INTENT, p2) }).then(() => { delete JOB_ERR.intent; }).catch(jobFailed('intent')).finally(() => { LAST_INTENT = new Date().toISOString(); INTENT = null; });
           return send(res, 200, { ok: true });
         }
         case 'radar/scan': {
           const region = String(b.region || '').trim().slice(0, 80) || 'United States';
           if (SCAN) return send(res, 409, { error: 'A scan is already running. It takes about a minute.' });
           SCAN = { region, at: new Date().toISOString() };
-          brandScan({ region, days: Math.min(180, Math.max(14, +b.days || 60)) }, { cwd: path.join(ROOTWS, 'searches'), model: MODELS.extraction }).catch(() => {}).finally(() => { SCAN = null; });
+          brandScan({ region, days: Math.min(180, Math.max(14, +b.days || 60)) }, { cwd: path.join(ROOTWS, 'searches'), model: MODELS.extraction }).then(() => { delete JOB_ERR.radar; }).catch(jobFailed('radar')).finally(() => { SCAN = null; });
           return send(res, 200, { ok: true });
         }
         case 'docs/firm': return send(res, 200, { firm: setFirm(b.firm) });
@@ -857,13 +862,16 @@ const server = http.createServer(async (req, res) => {
         }
         case 'outreach/rewrite': { try { const it = OUT.get(b.id); const s2 = SRUN[it.search] || loadSearch(it.search); OUT.rewrite(b.id, { s: s2, pitch: b.pitch, model: MODELS.analysis, cwd: path.join(ROOTWS, 'outreach') }); return send(res, 200, { id: b.id }); } catch (e) { return send(res, 400, { error: e.message }); } }
         case 'outreach/edit': { try { return send(res, 200, OUT.editItem(b.id, b)); } catch (e) { return send(res, 400, { error: e.message }); } }
-        case 'outreach/send': { try { return send(res, 200, await OUT.sendStep(b.id, b.kind, { confirmed: b.confirmed === true, saveOnly: !!b.saveOnly })); } catch (e) { return send(res, 400, { error: e.message }); } }
+        // the preview: exactly what will be sent, plus a one-time code the send must bring back (nothing sends without it)
+        case 'outreach/confirm': { try { const action = ['step', 'answer', 'doc', 'invite'].includes(b.action) ? b.action : 'step', kind = String(b.kind || ''), c = OUT.sendContent(b.id, action, kind, { start: b.start, note: b.note });
+          return send(res, 200, { ...c, token: c.ok ? CONFIRM.issue(`${action}:${b.id}:${kind}`, c) : null }); } catch (e) { return send(res, 400, { error: e.message }); } }
+        case 'outreach/send': { try { if (!b.saveOnly) CONFIRM.take(b.token, `step:${b.id}:${b.kind}`, OUT.sendContent(b.id, 'step', String(b.kind || ''))); return send(res, 200, await OUT.sendStep(b.id, b.kind, { confirmed: b.confirmed === true, saveOnly: !!b.saveOnly })); } catch (e) { return send(res, 400, { error: e.message }); } }
         case 'outreach/done': { try { return send(res, 200, OUT.markDone(b.id, b.kind, b.note)); } catch (e) { return send(res, 400, { error: e.message }); } }
         case 'outreach/stage': { try { return send(res, 200, OUT.setDealStage(b.id, b.stage, b.note)); } catch (e) { return send(res, 400, { error: e.message }); } }
         case 'outreach/sync': { try { return send(res, 200, { changed: await OUT.syncReplies() }); } catch (e) { return send(res, 400, { error: e.message }); } }
         case 'outreach/answer': { try { return send(res, 200, await OUT.draftAnswer(b.id, { model: MODELS.analysis, cwd: path.join(ROOTWS, 'outreach') })); } catch (e) { return send(res, 400, { error: e.message }); } }
-        case 'outreach/answer-send': { try { return send(res, 200, await OUT.sendAnswer(b.id, { confirmed: b.confirmed === true })); } catch (e) { return send(res, 400, { error: e.message }); } }
-        case 'outreach/book': { try { return send(res, 200, await OUT.bookCall(b.id, { start: b.start, minutes: b.minutes, confirmed: b.confirmed === true })); } catch (e) { return send(res, 400, { error: e.message }); } }
+        case 'outreach/answer-send': { try { CONFIRM.take(b.token, `answer:${b.id}:`, OUT.sendContent(b.id, 'answer', '')); return send(res, 200, await OUT.sendAnswer(b.id, { confirmed: b.confirmed === true })); } catch (e) { return send(res, 400, { error: e.message }); } }
+        case 'outreach/book': { try { CONFIRM.take(b.token, `invite:${b.id}:`, OUT.sendContent(b.id, 'invite', '', { start: b.start })); return send(res, 200, await OUT.bookCall(b.id, { start: b.start, minutes: b.minutes, confirmed: b.confirmed === true })); } catch (e) { return send(res, 400, { error: e.message }); } }
         case 'outreach/find-email': { try { return send(res, 200, await OUT.findEmail(b.id, { hunterKey: finderKeys().hunter || process.env.HUNTER_API_KEY })); } catch (e) { return send(res, 400, { error: e.message }); } }
         case 'finders/key': { // Hunter.io free plan key: checked with Hunter, stored only on this Mac (owner-only file)
           const k = String(b.key || '').trim(), cur = finderKeys();
@@ -877,7 +885,8 @@ const server = http.createServer(async (req, res) => {
             if (b.kind === 'loi') {
               if (!it.dealId) return send(res, 400, { error: 'Open their books in Value Creation first (from the attachment in their email, or upload them), then write the LOI.' });
               if (busy()) return send(res, 409, { error: 'An analysis is still running. Try again when it finishes.' });
-              const was = CUR; loadDeal(it.dealId); const d = derive(); loadDeal(was);
+              // read that deal's numbers, then always put the deal you had open back, even if reading fails
+              const was = CUR; let d; try { loadDeal(it.dealId); d = derive(); } finally { loadDeal(was); }
               if (!d.deal) return send(res, 400, { error: 'That company’s books haven’t been analyzed yet (or it can’t be priced). Open it in Value Creation and press Analyze.' });
               const numbers = { fees: d.deal.fees || 0, ebitda: d.normalization.normalized, price: d.deal.price, multiple: d.deal.multiple, basis: d.deal.basis, senior: d.deal.senior, seller: d.deal.seller, equity: d.deal.equity, revenue: d.pnl?.TTM?.revenue || 0, stake: d.deal.stake ?? 1, rollover: d.deal.rollover || 0, wcPeg: d.wc?.peg ?? null };
               // whole thousands, with costs = sources − price, so every figure in the letter adds up exactly
@@ -891,7 +900,7 @@ const server = http.createServer(async (req, res) => {
           } catch (e) { return send(res, 400, { error: e.message }); }
         }
         case 'outreach/doc-edit': { try { return send(res, 200, OUT.setDoc(b.id, b.kind, b.body)); } catch (e) { return send(res, 400, { error: e.message }); } }
-        case 'outreach/doc-send': { try { const pdf = b.kind === 'request' ? null : await outreachPdf(b.id, b.kind); return send(res, 200, await OUT.sendDoc(b.id, b.kind, { confirmed: b.confirmed === true, pdf, note: b.note })); } catch (e) { return send(res, 400, { error: e.message }); } }
+        case 'outreach/doc-send': { try { CONFIRM.take(b.token, `doc:${b.id}:${b.kind}`, OUT.sendContent(b.id, 'doc', String(b.kind || ''), { note: b.note })); const pdf = b.kind === 'request' ? null : await outreachPdf(b.id, b.kind); return send(res, 200, await OUT.sendDoc(b.id, b.kind, { confirmed: b.confirmed === true, pdf, note: b.note })); } catch (e) { return send(res, 400, { error: e.message }); } }
         case 'outreach/link-deal': { try { if (!CUR) return send(res, 400, { error: 'No company is open in Value Creation.' }); if (b.name) { S.name = String(b.name).slice(0, 80); persist(); } return send(res, 200, OUT.linkDeal(b.id, CUR)); } catch (e) { return send(res, 400, { error: e.message }); } }
         case 'outreach/batch': {
           const list = []; for (const x of (b.items || []).slice(0, 25)) { const s2 = SRUN[x.search] || loadSearch(x.search); const e = s2?.entities?.find(y => y.id === x.entity); if (s2 && e) list.push({ s: s2, e }); }

@@ -134,6 +134,7 @@ test('deal steps: NDA, books request, documents emailed as PDFs in the thread, b
   assert.match(it.docs.request.body, /Licenses and who holds each stamp/);
   await assert.rejects(OUT.sendDoc(id, 'nda', { pdf: Buffer.from('%PDF') }), /confirmation/);
   it = await OUT.sendDoc(id, 'nda', { confirmed: true, pdf: Buffer.from('%PDF-1.4 test') });
+  await assert.rejects(OUT.sendDoc(id, 'nda', { confirmed: true, pdf: Buffer.from('%PDF-1.4 test') }), /already sent/); // the same version never goes twice
   const last = GM.fake.threads[it.messages[0].threadId].at(-1);
   assert.equal(last.attachments[0].mime, 'application/pdf');
   assert.match(last.subject, /^Re: /);
@@ -220,6 +221,8 @@ test('a conversation keeps going: answer → they pick an offered time → AION 
   assert.ok(d.offered.length >= 1);
   await OUT.sendAnswer(it.id, { confirmed: true });
   assert.equal(OUT.get(it.id).phase, 'conversation');
+  assert.equal(OUT.get(it.id).drafts.answer, undefined); // sent: "Send reply" can't send it again
+  await assert.rejects(OUT.sendAnswer(it.id, { confirmed: true }), /Nothing to send/);
   const pick = OUT.get(it.id).offered[0], et = new Date(pick.start);
   const day = et.toLocaleDateString('en-US', { weekday: 'long', timeZone: 'America/New_York' }), hr = et.toLocaleString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true, timeZone: 'America/New_York' }).toLowerCase().replace(':00', '');
   GM.fake.threads[tid].push({ id: 'ann2', from: 'Ann Lee <ann@thirdbrand.com>', subject: 'Re', body: `${day} at ${hr} works for me.`, at: new Date().toISOString() });
@@ -337,4 +340,62 @@ test('sync: a quoted footer in an interested reply does not suppress the owner',
   assert.notEqual(OUT.get(it.id).phase, 'finished');
   assert.ok(!OUT.suppressed().includes('owner@quotedreply.test'));
   assert.doesNotMatch(OUT.get(it.id).replied.text, /no thanks/);
+});
+
+test('two sends of the same email at once: only one goes out', async () => {
+  const e8 = { ...e, id: 'e8', company: 'Double Click Co', website: 'https://doubleclick.test', contactInfo: [{ kind: 'email', value: 'owner@doubleclick.test', verified: true }] };
+  s.entities.push(e8); MEM.ingest(s);
+  const it = await OUT.createDraft({ s, e: e8, model: 'x', cwd: dir, engineFn: fakeAI });
+  await wait(() => OUT.get(it.id).phase !== 'writing');
+  const r = await Promise.allSettled([OUT.sendStep(it.id, 'email', { confirmed: true }), OUT.sendStep(it.id, 'email', { confirmed: true })]);
+  assert.equal(r.filter(x => x.status === 'fulfilled').length, 1);
+  assert.equal(OUT.get(it.id).messages.filter(m => m.kind === 'email').length, 1);
+});
+
+test('the server-side confirm code matches exactly what was previewed, and works once', async () => {
+  const C = await import('../lib/outreach/confirm.mjs');
+  const c = { from: 'a@example.test', to: 'b@example.test', subject: 'Hi', body: 'Text' };
+  const t = C.issue('step:o1:email', c);
+  assert.throws(() => C.take('wrong', 'step:o1:email', c), /confirm this send again/);
+  assert.throws(() => C.take(t, 'step:o2:email', c), /confirm this send again/);
+  C.take(t, 'step:o1:email', c);
+  assert.throws(() => C.take(t, 'step:o1:email', c), /confirm this send again/); // used up
+  const t2 = C.issue('step:o1:email', c);
+  assert.throws(() => C.take(t2, 'step:o1:email', { ...c, body: 'Changed' }), /changed after you confirmed/);
+});
+
+test('the same firm from another search is never drafted twice; an opt-out blocks the whole firm domain', async () => {
+  const s2 = { ...s, id: 'stest2', entities: [] };
+  const twin = { ...e, id: 'x1' }; s2.entities.push(twin); MEM.ingest(s2);
+  await assert.rejects(OUT.createDraft({ s: s2, e: twin, model: 'x', cwd: dir, engineFn: fakeAI }), /already have outreach/);
+  // otherair.com said "no thanks" earlier: info@ at that firm and a new search result for it are both blocked
+  assert.ok(OUT.isSuppressed('info@otherair.com'));
+  assert.ok(OUT.isSuppressed('', 'https://www.otherair.com/about'));
+  assert.ok(!OUT.isSuppressed('someone@gmail.com'));
+  const again = { ...e, id: 'x2', company: 'Other Air LLC', website: 'https://otherair.com', contactInfo: [{ kind: 'email', value: 'info@otherair.com', verified: true }] };
+  s2.entities.push(again); MEM.ingest(s2);
+  await assert.rejects(OUT.createDraft({ s: s2, e: again, model: 'x', cwd: dir, engineFn: fakeAI }), /already have outreach|asked not to be contacted/);
+});
+
+test('a Hunter.io address it did not check as deliverable is a guess, never chosen for you', async () => {
+  const e7 = { id: 'e7', company: 'Hunter Test Co', website: 'https://huntertest.test', owner: 'Pat Example', founded: '2010', scored: true, score: 70, industry: 'Marketplace agency',
+    contactInfo: [], contacts: [{ name: 'Pat Example', title: 'Founder' }] };
+  s.entities.push(e7);
+  const it = await OUT.createDraft({ s, e: e7, model: 'x', cwd: dir, engineFn: fakeAI }); await wait(() => OUT.get(it.id).phase !== 'writing');
+  const real = globalThis.fetch;
+  globalThis.fetch = async url => { assert.match(String(url), /^https:\/\/api\.hunter\.io\//); return new Response(JSON.stringify({ data: { email: 'pat@huntertest.test', score: 91, verification: { status: 'accept_all' } } }), { status: 200 }); };
+  try {
+    const r = await OUT.findEmail(it.id, { fetcher: async () => '', hunterKey: 'test-key' });
+    const h = r.contacts.emails.find(x => x.email === 'pat@huntertest.test');
+    assert.ok(h?.likely); assert.match(h.source, /not checked/);
+    assert.notEqual(r.to, 'pat@huntertest.test');
+    OUT.editItem(it.id, { to: 'pat@huntertest.test' });
+    assert.match(OUT.preflight(it.id, 'email').warn, /is a guess/);
+  } finally { globalThis.fetch = real; }
+});
+
+test('the daily send limit counts your local day, not the UTC day', () => {
+  // 9 pm Eastern on Nov 3 is already Nov 4 in UTC
+  assert.equal(OUT.localDay('2026-11-04T02:00:00Z', 'America/New_York'), '2026-11-03');
+  assert.equal(OUT.localDay('2026-11-04T06:00:00Z', 'America/New_York'), '2026-11-04');
 });
