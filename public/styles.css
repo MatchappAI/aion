@@ -367,6 +367,8 @@ details.more2 h3{font-size:14px;margin:22px 0 8px}
 .dtabs button.on{color:var(--ink);border-bottom-color:var(--acc);font-weight:600}
 .dtabs button:hover{color:var(--ink)}
 .r2 [data-tab]{display:none}
+/* four tabs: Real profit (overview + trends), Price & returns (deal), Plan (plan + after you buy), Questions & checks (details + fit) */
+.r2[data-show="overview"] [data-tab="trends"],.r2[data-show="plan"] [data-tab="run"],.r2[data-show="details"] [data-tab="fit"],
 .r2[data-show="overview"] [data-tab="overview"],.r2[data-show="plan"] [data-tab="plan"],.r2[data-show="trends"] [data-tab="trends"],.r2[data-show="deal"] [data-tab="deal"],.r2[data-show="run"] [data-tab="run"],.r2[data-show="details"] [data-tab="details"],.r2[data-show="fit"] [data-tab="fit"]{display:block}
 .r2[data-show="overview"] .unk[data-tab="overview"]{display:flex}
 .lead2{font-size:15.5px;line-height:1.55;margin:0 0 14px}.lead2 b{color:var(--ink)}

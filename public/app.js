@@ -14,7 +14,7 @@ const kfmt = v => v == null || isNaN(v) ? '—' : (v < 0 ? '−' : '') + '$' + (
 const pct = (v, d = 0) => v == null || isNaN(v) ? '—' : (v * 100).toFixed(d) + '%';
 const num = (v, d = 0) => v == null || isNaN(v) ? '—' : (+v).toLocaleString(undefined, { maximumFractionDigits: d });
 
-let V = null, page = 'upload', running = null, mode = 'simple', replay = null, showAll = false, tab = 'overview', appMode = (() => { try { return localStorage.getItem('aion.app') || 'vc'; } catch { return 'vc'; } })();
+let V = null, page = 'upload', running = null, mode = 'simple', replay = null, showAll = false, tab = 'overview', appMode = (() => { try { return localStorage.getItem('aion.app') || 'ps'; } catch { return 'ps'; } })();
 const api = async (p, b) => {
   const r = await fetch('/api/' + p, b === undefined ? {} : { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(b) });
   const j = await r.json(); if (!r.ok || (j.error && !p.startsWith('job/'))) throw new Error(j.error || 'Request failed'); return j;
@@ -22,8 +22,9 @@ const api = async (p, b) => {
 let DL = { deals: [] };
 async function refresh(go) { V = await api('state'); DL = await api('deals'); if (go) page = go; render(); }
 
+// four steps: Upload → Real profit → Price & returns → Questions (the existing pages, grouped)
 const STEPS = [
-  ['upload', 'Upload'], ['map', 'Accounts'], ['earnings', 'Earnings'], ['ops', 'Operations'], ['levers', 'Levers & ROI'], ['plan', 'AI plan'],
+  ['upload', 'Upload', 1], ['map', 'Real profit · sort the accounts', 2], ['earnings', 'Real profit · owner pay and one-offs', 2], ['ops', 'Price & returns · team and workload', 3], ['levers', 'Price & returns · ways to raise profit', 3], ['plan', 'Questions · plan and questions for the seller', 4],
 ];
 const ORDER = ['upload', 'map', 'earnings', 'ops', 'levers'];
 function unlocked(k) {
@@ -41,7 +42,7 @@ function isDone(k) {
 }
 
 function nav() {
-  $('#nav').innerHTML = STEPS.map(([k, l], i) => `<a data-p="${k}" class="${page === k ? 'on' : ''} ${isDone(k) ? 'done' : ''} ${unlocked(k) ? '' : 'locked'}"><span class="n">${i + 1}</span>${l}</a>`).join('')
+  $('#nav').innerHTML = STEPS.map(([k, l, n]) => `<a data-p="${k}" class="${page === k ? 'on' : ''} ${isDone(k) ? 'done' : ''} ${unlocked(k) ? '' : 'locked'}"><span class="n">${n}</span>${l}</a>`).join('')
     + `<div class="sep"></div><a data-p="log" class="${page === 'log' ? 'on' : ''}"><span class="n">≡</span>Run log</a>`
     + `<div class="sep"></div><a id="backSimple"><span class="n">←</span>Back to summary</a>`
     + `<div class="foot">Runs on this Mac. Files stay in <code>demo/workspace/</code>. Only the prompts in the Run log are sent to Claude, via your Claude Code.<br><br><span class="link" id="resetBtn">Start over (archives workspace)</span></div>`;
@@ -385,7 +386,7 @@ function pPlan() {
 // ---------- log ----------
 async function pLog() {
   const log = await api('log');
-  $('#main').innerHTML = `<h1>What the AI was sent</h1><p class="lede">Every instruction (“prompt”) sent to the AI through your Claude Code, exactly as sent, with its answer. Nothing else leaves this computer. Click a line to open it.</p>
+  $('#main').innerHTML = `<h1>Details: every request sent to the AI</h1><p class="lede">Every instruction (“prompt”) sent to the AI through your Claude Code, exactly as sent, with its answer. Nothing else leaves this computer. Click a line to open it.</p>
   ${log.length ? log.map(e => `<details><summary>${esc(e.purpose)} · ${esc(e.model)} · ${esc(new Date(e.at).toLocaleString())} · ${(e.ms / 1000).toFixed(1)}s${e.costUsd != null ? ' · $' + e.costUsd.toFixed(3) : ''}${e.error ? ' · <span class="neg">error</span>' : ''}</summary>
     ${e.error ? `<div class="callout err">${esc(e.error)}</div>` : ''}<p class="note">Prompt</p><pre class="prompt">${esc(e.prompt)}</pre><p class="note">Response</p><pre class="prompt">${esc(e.response)}</pre></details>`).join('') : '<p class="empty">No AI calls yet.</p>'}`;
 }
@@ -527,7 +528,7 @@ function simple() {
   main.innerHTML = `<div class="sw r2" data-show="${tab}">
     <div class="rhead"><button class="ichip" id="ind" title="Change the kind of business"><i></i>${esc(cap(V.profile?.name || 'business'))}<span>${V.profile?.subsectorLabel ? esc(V.profile.subsectorLabel) + (SUBSECTORS[V.profile.subsector]?.legacy ? ' (outside the buy box)' : '') + ' · ' : V.profile ? 'outside the buy box · ' : ''}change</span></button><div class="spacer" style="display:block;flex:1"></div>
       <button class="ghost" id="rp">▶ Replay</button><button class="ghost" id="pdf">1-page PDF</button><button class="ghost" id="xls">Excel</button></div>
-    <nav class="dtabs">${[['overview', 'Overview'], ['fit', 'AION fit'], ['plan', 'Plan'], ['trends', 'Trends'], ['deal', 'Deal'], ['run', 'After you buy'], ['details', 'Questions & checks']].map(([k, l]) => `<button data-tab-btn="${k}" class="${tab === k ? 'on' : ''}">${l}</button>`).join('')}</nav>
+    <nav class="dtabs">${[['overview', 'Real profit'], ['deal', 'Price & returns'], ['plan', 'Plan'], ['details', 'Questions & checks']].map(([k, l]) => `<button data-tab-btn="${k}" class="${tab === k ? 'on' : ''}">${l}</button>`).join('')}</nav>
 
     <section class="hero2" data-tab="overview">
       <h1>${Math.round(d.proForma) > Math.round(n.normalized) ? `Profit can grow from <span>${k$(n.normalized)}</span> to <span>${k$(d.proForma)}</span> a year` : `Real profit is <span>${k$(n.normalized)}</span> a year`}</h1>
@@ -563,7 +564,7 @@ function simple() {
     ${dealExtras(S, d)}
     ${runTab(S, d)}
     <section class="more2" data-tab="details"><p class="howline"><b>How this works:</b> every question, risk and calculation behind the numbers. Change an answer and everything updates. <b>What to do:</b> answer the questions you can; take the rest, and anything marked “important”, to the seller.</p>
-      ${otherQs.length ? `<h3>Questions for the seller</h3><div class="checks">${otherQs.map(qRow).join('')}</div>` : ''}
+      ${otherQs.length ? `<h3>Other questions for the seller</h3><div class="checks">${otherQs.map(qRow).join('')}</div>` : ''}
       <h3>What could go wrong</h3><ul class="found">${S.extra?.sales?.analysis?.top1 > 0.15 ? `<li><span class="sev high">important</span> One ${esc(V.profile?.customers === 'clients' ? 'client' : 'customer')} is ${pct(S.extra.sales.analysis.top1)} of sales (${esc(S.extra.sales.analysis.topCustomers[0].customer)})</li>` : ''}${S.extra?.payroll?.analysis?.top3Share > 0.3 ? `<li><span class="sev medium">check</span> The top 3 earners take ${pct(S.extra.payroll.analysis.top3Share)} of all pay. Make sure they stay.</li>` : ''}${(d.limits || []).map(x => `<li><span class="sev medium">check</span> ${esc(x)}</li>`).join('')}${flags.filter(f => !(S.extra?.sales?.analysis && /concentrat/i.test(f.title))).slice(0, 6).map(f => `<li><span class="sev ${esc(f.severity)}">${f.severity === 'high' ? 'important' : 'check'}</span> <b>${esc(f.title)}.</b> <span class="note">${esc(String(f.detail || '').split(/(?<=\.)\s/)[0])}</span></li>`).join('')}</ul>
       ${nextSteps(S, d, V.checks)}
       ${rest.length ? `<h3>Smaller changes</h3><ul class="found">${rest.map(x => `<li>${esc(x.title)} <b>${x.pending ? 'up to ' : ''}+${k$(x.value)}</b>${x.pending ? ' <span class="note">not counted until the seller confirms it (question above)</span>' : ''}</li>`).join('')}</ul>` : ''}
@@ -571,7 +572,7 @@ function simple() {
       <h3>How each number was worked out</h3>${howBlock(S, d)}
       <div class="assume">Change the guesses: prices <input type="number" data-a="pricing_uplift" data-p="1" value="${+(S.assumptions.pricing_uplift * 100).toFixed(1)}" step="0.5">% higher on new work · <input type="number" data-a="demand_searches" value="${S.assumptions.demand_searches}" step="1"> extra jobs won a year · $<input type="number" data-a="implementation" value="${S.assumptions.implementation}" step="5000"> one-time AI setup${D ? ` · pay <input type="number" class="mult" data-a="entry_multiple" value="${D.multiple}" step="0.25" min="1"> years of profit, borrow <input type="number" class="mult" data-a="senior_multiple" value="${S.assumptions.senior_multiple}" step="0.25" min="0"> years of profit from the bank · deal costs <input type="number" data-a="fee_rate" data-p="1" value="${+((S.assumptions.fee_rate ?? 0.1) * 100).toFixed(1)}" step="1" min="0" max="30">% of the price (quality-of-earnings review, legal, lender; usually 8–12%) · bought as <select data-a="deal_form">${[['asset', 'assets (price written off for tax)'], ['stock', 'shares (no tax write-off)'], ['f_reorg', 'F-reorganization (write-off on the share bought)']].map(([k, l]) => `<option value="${k}" ${(S.assumptions.deal_form || 'asset') === k ? 'selected' : ''}>${l}</option>`).join('')}</select>${D.capped ? ` <span class="note">The revenue-based price was held to ${PRICE.cap} years of profit, AION’s limit.</span>` : ''}` : ''}. Everything updates.</div>
       ${(S.runDetail || log).length ? `<details class="more2"><summary>Every step AION took, in order (${(S.runDetail?.length ? S.runDetail : log).length})</summary><ul class="loglist">${(S.runDetail?.length ? S.runDetail : log).map(e => `<li>${esc(e.text)}<span>${e.t.toFixed(1)}s</span></li>`).join('')}</ul></details>` : ''}
-      <div class="row foot2"><span class="link" id="math">Check every number, step by step</span><span class="link" id="log">What the AI was sent</span><span class="link" id="rerun">Run the AI again</span><span class="link" id="again">Close this deal</span></div>
+      <div class="row foot2"><span class="link" id="math">Check every number, step by step</span><span class="link" id="log">Details: every request sent to the AI</span><span class="link" id="rerun">Run the AI again</span><span class="link" id="again">Close this deal</span></div>
     </section>
   </div>`;
 
@@ -978,9 +979,9 @@ function fitTab(S, d) {
   </section>
   <section data-tab="fit"><h2 class="h2">Why it could be worth more under AION <span class="h2s">capabilities to validate in diligence, not guaranteed synergies</span></h2>
     <div class="panel2"><p class="lead2"><b>${esc(W.verdict)}</b> ${esc(W.summary)}</p><ul class="found">${W.lines.map(l => `<li>${esc(l.text)}</li>`).join('')}<li>${esc(W.experts)}</li></ul></div></section>
-  <section data-tab="fit"><h2 class="h2">AION tool fit <span class="h2s">which reusable AION tools apply here, and the exact workflow we would run</span></h2>
+  <section data-tab="fit"><details class="more2"><summary>Details: which AION tools apply here, and the workflow we would run</summary>
     <div class="tblw"><table class="tcheck"><tr><th>Tool</th><th>Fit</th><th>Why (evidence)</th><th>What we would run</th><th>Tool status</th></tr>${A.fit.map(f => `<tr><td><b>${esc(f.module)}</b></td><td><span class="st ${LVB[f.level]}">${f.label}</span></td><td class="ev">${esc(f.reason)}</td><td class="ev">${esc(f.play)}${f.objective ? `<br><span class="link sm" data-psgo="${esc(f.objective)}">Start this customer search →</span>` : ''}</td><td class="nowrap note">${STATUS[f.status] || ''}</td></tr>`).join('')}</table></div>
-    <p class="note">Fit is HIGH, MEDIUM or LOW only when a recorded answer or the books support it. Answer the questions below to fill in NEEDS DATA.</p></section>
+    <p class="note">Fit is HIGH, MEDIUM or LOW only when a recorded answer or the books support it. Answer the questions below to fill in NEEDS DATA.</p></details></section>
   <section data-tab="fit"><details class="more2" ${open > dq.length / 2 ? 'open' : ''}><summary>Answers from the seller (diligence) · ${dq.length - open} of ${dq.length} recorded</summary>
     <p class="note">What only a conversation with the seller or their files can show. Type the answer and where it came from. Each answer is dated and shown as “From diligence” wherever it is used.</p>
     <div class="tblw"><table class="tcheck dq">${dq.map(k => dilRow(k, S.diligence?.[k])).join('')}</table></div></details></section>
@@ -1182,7 +1183,7 @@ function runTab(S, d) {
     ['Days to get paid', C.dso.now != null ? Math.round(C.dso.now) + ' days' : '—', C.dso.usual != null ? `usual ${Math.round(C.dso.usual)} days` : '', C.dso.now != null && C.dso.usual != null && C.dso.now <= C.dso.usual ? 'ok' : 'mid'],
     ['Written off', L && k$(L.writeoffs), `usual ${k$(C.usual.writeoffs)}`, L && L.writeoffs <= C.usual.writeoffs ? 'ok' : 'bad']];
   const warn = [...C.quiet.map(q => `${esc(q.name)} usually buys ${k$(q.usual)} a month; now ${k$(q.now)}.`), ...C.rising.map(r => `${esc(r.account)} is ${k$(r.now)} a month vs usual ${k$(r.usual)}.`), ...C.newAccounts.map(a => `New account “${esc(a)}”: check what it is.`)];
-  return `<section data-tab="run"><h2 class="h2">Month by month <span class="h2s">${esc(C.file)} · <span class="link" id="c-rm">remove</span></span></h2>
+  return `<section data-tab="run"><h2 class="h2">Monthly check-in after you buy <span class="h2s">${esc(C.file)} · <span class="link" id="c-rm">remove</span></span></h2>
     <p class="howline"><b>How this works:</b> the latest month in your file, compared with the usual month before the plan and with the plan’s target. The coloured edge on each box: green = on track, amber = watch, red = behind.</p>
     <p class="lead2">${L ? `${mon(L.m)}: profit <b>${k$(L.profit)}</b>, ${onT ? '<b class="pos">on track</b> for the plan' : aboveU ? 'above the usual month but <b>below the plan’s target</b>' : '<b class="neg">below the usual month</b>'}.` : ''}${C.overlapOnly ? ' <span class="note">These months overlap the original books, so this compares like with like.</span>' : ''}</p>
     <div class="panel"><div class="legend"><span><i class="k2"></i>Profit</span><span><i class="tl"></i>Plan target</span></div>${bars(C.months, [{ k: 'profit', cls: 'b2', label: 'Profit' }], { line: { v: C.target, label: 'target' }, h: 130 })}</div>
@@ -1201,5 +1202,5 @@ async function runOutside() {
 async function sendCheckin(f) {
   if (!f) return;
   const b64 = await new Promise((ok, bad) => { const r = new FileReader(); r.onload = () => ok(r.result.split(',')[1]); r.onerror = bad; r.readAsDataURL(f); });
-  try { V = await api('checkin', { filename: f.name, data: b64 }); tab = 'run'; render(); } catch (e) { showError(e.message); }
+  try { V = await api('checkin', { filename: f.name, data: b64 }); tab = 'plan'; render(); } catch (e) { showError(e.message); }
 }
