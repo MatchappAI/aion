@@ -178,7 +178,7 @@ test('writing for many at once queues them two at a time', async () => {
 
 test('both senders: pick sender-two for a firm, its thread stays there, and busy times come from both calendars', async () => {
   GM.connectUrl(8765, 'sender-two@example.com');
-  assert.deepEqual(GM.accounts().map(a => a.email).sort(), ['sender-two@example.com', 'sender-one@example.com']);
+  assert.deepEqual(GM.accounts().map(a => a.email).sort(), ['sender-one@example.com', 'sender-two@example.com']);
   const e3 = { ...e, id: 'e3', company: 'Third Firm', website: 'https://thirdfirm.com', contactInfo: [{ kind: 'email', value: 'owner@thirdfirm.com', verified: true }] };
   s.entities.push(e3); MEM.ingest(s);
   const it = await OUT.createDraft({ s, e: e3, model: 'x', cwd: dir, engineFn: fakeAI });

@@ -10,8 +10,8 @@ Your acquisition and value-creation system: find firms to buy, clients and peopl
 | Setup, data folder, updates | `docs/handoff/INSTALLATION_AND_SETUP.md` |
 | Something broke | `docs/handoff/TROUBLESHOOTING.md` |
 | Code map and test commands | `docs/handoff/ARCHITECTURE.md` |
-| What was tested and changed | `docs/handoff/TEST_RESULTS.md`, `BUTTON_AND_INTERACTION_AUDIT.md`, `CHANGELOG.md` |
+| What was tested and changed | `docs/handoff/TEST_RESULTS.md`, `CHANGELOG.md` |
 | Security, limits | `docs/handoff/SECURITY_REVIEW.md`, `KNOWN_LIMITATIONS.md` |
-| Investor view: overview, ROI model, demo script, audit and scores | `docs/investor/` (start with `EXECUTIVE_PRODUCT_OVERVIEW.md`; editable `AION_ROI_model.xlsx`) |
+| Investor materials (overview, ROI model, audit) | kept privately, not in this public repo (`private/docs/` on the owner's Mac) |
 
 Status: ready for your own use, with the limitations listed in `KNOWN_LIMITATIONS.md`.

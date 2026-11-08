@@ -49,7 +49,7 @@ test('a partnership pitch changes the draft goal; older sale/both pitches are a 
   assert.match(draftPrompt('target', 'Owner at Acme', [], me, null, 'partner'), /wants a growth partner or investor/);
   assert.match(draftPrompt('target', 'Owner at Acme', [], me, null, 'sale'), /buy the whole firm/);
   assert.match(draftPrompt('target', 'Owner at Acme', [], me, null, 'both'), /buy the whole firm/);
-  assert.match(draftPrompt('target', 'Owner at Acme', [], me, null, null), /keeps firms for the long term and may want to buy/);
+  assert.match(draftPrompt('target', 'Owner at Acme', [], me, null, null), /long[- ]term/);
 });
 
 test('headline must be about this firm doing something, not a namesake', async () => {

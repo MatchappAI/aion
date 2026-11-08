@@ -11,6 +11,7 @@ import { thesisCheck, toolFit, whyAion, SUBSECTORS, DILIGENCE, detectSubsector, 
 import { analyzePayroll, analyzeSales, extraLevers } from './lib/extras.mjs';
 import { buildWorkbook } from './lib/excel.mjs';
 import { initStore, saveSearch, loadSearch, listSearches, archiveSearch, saveSearchMerged } from './lib/search/store.mjs';
+import { PRICE, browserConfig } from './lib/private.mjs';
 import * as OUT from './lib/outreach/outreach.mjs';
 import * as CONFIRM from './lib/outreach/confirm.mjs';
 import * as GMAIL from './lib/outreach/gmail.mjs';
@@ -69,8 +70,8 @@ function loadDeal(id) {
   CUR = id; S = load(path.join(D(), 'state.json'), fresh()); ROWS = load(path.join(D(), 'gl.json'), []); CHECK = load(path.join(D(), 'checkin.json'), []);
   S.assumptions = { ...structuredClone(DEFAULT_ASSUMPTIONS), ...(S.assumptions || {}) };
   delete S.assumptions.extra_client_searches;
-  // one-time: the old 4.0× default becomes the thesis price (about the target multiple, never above the price cap); a multiple you set yourself stays
-  if (!S.assumptions.priceRuleV) { if (S.assumptions.entry_multiple === 4) S.assumptions.entry_multiple = 4; S.assumptions.priceRuleV = 1; }
+  // one-time: the old 4.0× default becomes the price guide's target; a multiple you set yourself stays
+  if (!S.assumptions.priceRuleV) { if (S.assumptions.entry_multiple === 4) S.assumptions.entry_multiple = PRICE.target; S.assumptions.priceRuleV = 1; }
   S.name ??= niceName(S.file?.name);
   // one-time: an older answer "the seller stays" set the leaders to pay to 0, which added their pay back with nothing taken off.
   // Whoever runs it after closing (the seller or a hire) is paid a market salary, so at least one leader is always paid.
@@ -1024,7 +1025,8 @@ const server = http.createServer(async (req, res) => {
       }
       return send(res, 404, { error: 'unknown endpoint' });
     }
-    if (url.pathname === '/thesis.mjs') return send(res, 200, fs.readFileSync(path.join(ROOT, 'lib', 'thesis.mjs')), 'text/javascript');
+    // the browser gets the same price guide as the server (from private/config.json when present); only this computer sees it
+    if (url.pathname === '/thesis.mjs') return send(res, 200, `${fs.readFileSync(path.join(ROOT, 'lib', 'thesis.mjs'), 'utf8')}\nconfigure(${JSON.stringify(browserConfig())});\n`, 'text/javascript');
     let f = path.normalize(path.join(PUB, url.pathname === '/' ? 'index.html' : url.pathname));
     if (!f.startsWith(PUB) || !fs.existsSync(f) || fs.statSync(f).isDirectory()) return send(res, 404, 'Not found', 'text/plain');
     return send(res, 200, fs.readFileSync(f), MIME[path.extname(f)] || 'application/octet-stream');

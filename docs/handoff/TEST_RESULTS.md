@@ -6,7 +6,7 @@ All browser tests ran against a **copy** of `workspace/` (10 deals, 28 searches,
 |---|---|---|
 | Unit tests (model, thesis, periods, scoring, timing, radar, link safety) | `npm test` | **64 passed, 0 failed** |
 | End-to-end browser suite (upload a test ledger, analyze with saved answers, every tab, search, documents, phone widths) | `node tests/ui/run.mjs` | **73 passed, 0 failed** (several runs; one timing-dependent phone-width check was fixed by making corner messages wrap) |
-| Every control on every screen | `node tests/ui/crawl.mjs` | **622 controls: 0 page errors, 0 failures hidden from the person** (see BUTTON_AND_INTERACTION_AUDIT.md) |
+| Every control on every screen | `node tests/ui/crawl.mjs` | **622 controls: 0 page errors, 0 failures hidden from the person** |
 | Dependencies | `npm audit` | 0 vulnerabilities |
 | Live AI check | Settings → Test on Claude Code | `{"ok":true,"ms":2491}` |
 | Engine detection | `/api/engine` | Claude Code ready, Codex ready, keys none |

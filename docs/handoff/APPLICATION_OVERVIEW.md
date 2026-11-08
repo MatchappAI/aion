@@ -15,4 +15,4 @@
 | Settings | Which AI does the work: Claude Code first, Codex or an API key as backups |
 | Help | How to use each tool and fixes for common problems |
 
-**Status:** working, tested; see `TEST_RESULTS.md` and `KNOWN_LIMITATIONS.md`. Sibling product: the partner editions for Partner A and Partner B (`~/Desktop/AION/partner-editions`), which share most of this code.
+**Status:** working, tested; see `TEST_RESULTS.md` and `KNOWN_LIMITATIONS.md`.

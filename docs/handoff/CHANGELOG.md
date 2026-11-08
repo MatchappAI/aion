@@ -14,7 +14,7 @@
 ## October 25, 2026 (investor review pass)
 - `tests/eval/grounding.mjs`: automated check of AI outputs (add-backs tied to ledger rows, source links on every fact, contact, criterion and timing clue, 40% cap on failed must-haves). 5,065 checks pass on the workspace; planted errors are caught.
 - Run-time copy now matches the logs (about a minute for a ledger, a few minutes for a PDF).
-- `docs/investor/`: executive overview, business value and ROI (with `AION_ROI_model.xlsx`), product audit, demo guide, user guide, final audit report with scores.
+- Investor materials (overview, ROI model, audits): moved out of the public repo to the owner's private folder.
 
 ## October 24–25, 2026
 Backups before changes: `archive/demo-before-qa-2026-10-24.tgz`, `archive/demo-before-engine-port-2026-10-24.tgz`.

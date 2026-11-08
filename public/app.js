@@ -4,7 +4,7 @@ import { mountSettings, leaveSettings } from './settings.js';
 import { mountHelp } from './help.js';
 import { mountDocs, leaveDocs } from './docs.js';
 import { mountOutreach, leaveOutreach } from './outreach.js';
-import { THESIS, SUBSECTORS, TOOLKIT, STATUS, DILIGENCE, REVENUE_MODELS, diligenceFor, valueBuckets, hundredDays, revenueMix, bucketOf } from '/thesis.mjs';
+import { THESIS, PRICE, SUBSECTORS, TOOLKIT, STATUS, DILIGENCE, REVENUE_MODELS, diligenceFor, valueBuckets, hundredDays, revenueMix, bucketOf } from '/thesis.mjs';
 const $ = s => document.querySelector(s);
 const esc = v => String(v ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 // links that come from web pages: only web, email and phone addresses become clickable
@@ -556,7 +556,7 @@ function simple() {
       <p>Buy ${(D.stake ?? 1) < 1 ? `<b>${Math.round(D.stake * 100)}%</b> of the company, valued at` : 'it for'} <b>${k$(D.price)}</b> (${D.multiple} years of profit). Paid with a <b>${k$(D.senior)}</b> bank loan, <b>${k$(D.seller)}</b> paid to the seller over the next few years (a seller note), ${(D.stake ?? 1) < 1 ? `<b>${k$(D.rollover)}</b> the owner keeps in the company (their ${Math.round((1 - D.stake) * 100)}%), ` : ''}and <b>${k$(D.investorEquity ?? D.equity)}</b> from ${D.sba ? 'the buyer' : 'investors'}. The seller gets about <b>${k$(D.sellerCashAtClose ?? (D.price - D.seller))}</b> in cash at closing. After 5 years, each $1 ${D.sba ? 'the buyer puts' : 'investors put'} in becomes:</p>
       <div class="dbars">${dbar('if the actions work', D.base, 'up')}${dbar('if nothing changes', D.none, 'flat')}${dbar('if profit falls 15%', D.downside, 'down')}</div>
       <p class="dnote">${vehNote(D)}</p>
-      <p class="dnext"><b>Offer about ${k$(D.price)}</b> once an accountant confirms the profit. ${(S.assumptions.vehicle || 'holdco') === 'holdco' ? `<b>Walk away above ${k$(n.normalized * 5)}</b> (the price cap in years of profit, AION’s limit). Anything more is paid only as an earnout: later, and only if profit holds.` : `<b>Walk away above ${k$(n.normalized * 5)}</b> (5 years of profit, the top of the usual range for a business this size).`}</p>
+      <p class="dnext"><b>Offer about ${k$(D.price)}</b> once an accountant confirms the profit. ${(S.assumptions.vehicle || 'holdco') === 'holdco' ? `<b>Walk away above ${k$(n.normalized * PRICE.cap)}</b> (${PRICE.cap} years of profit, AION’s limit). Anything more is paid only as an earnout: later, and only if profit holds.` : `<b>Walk away above ${k$(n.normalized * 5)}</b> (5 years of profit, the top of the usual range for a business this size).`}</p>
       </section>` : ''}
 
     ${dealExtras(S, d)}

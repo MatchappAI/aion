@@ -10,3 +10,5 @@ tests/ui/server.log
 .DS_Store
 # internal notes
 NOTES.md
+# AION's private negotiating numbers, playbook and internal docs (see private.example.json). Never committed.
+private/

@@ -1,0 +1,15 @@
+{
+  "_note": "Copy to private/config.json (git-ignored) and set your own values. Without it AION uses these neutral examples.",
+  "price": {
+    "target": 4,
+    "cap": 5
+  },
+  "loi": {
+    "terms": "the diligence and exclusivity periods: [[to agree]]"
+  },
+  "prompts": {
+    "purpose": {
+      "full": "what a full-buyout email must get across, in your words"
+    }
+  }
+}
