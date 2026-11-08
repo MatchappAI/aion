@@ -32,6 +32,8 @@ ws.onmessage = async m => {
 // a page call that never answers (a stuck dialog, a crashed tab) is reported instead of hanging the run
 const ev = async expr => (await Promise.race([send('Runtime.evaluate', { expression: expr, awaitPromise: true, returnByValue: true }), sleep(20000).then(() => { errs.push('TIMEOUT: the page did not answer in 20 s'); return {}; })])).result?.value;
 await send('Runtime.enable'); await send('Log.enable'); await send('Page.enable');
+// downloads (PDF, Excel) are refused, so a crawl never drops files in ~/Downloads; the files themselves are checked by run.mjs and flows.mjs
+await send('Page.setDownloadBehavior', { behavior: 'deny' });
 await send('Fetch.enable', { patterns: [{ urlPattern: BASE + '/api/*' }] });
 
 // screens: how to reach each one from a fresh load

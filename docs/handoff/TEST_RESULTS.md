@@ -1,5 +1,22 @@
 # Test results
 
+## November 8, 2026 (second pass)
+
+Every run used fake Gmail (`AION_GMAIL_MOCK=1`), no AI or web (`AION_OFFLINE=1`) and blocked every request that would leave this computer (`tests/helpers/no-network.mjs`). Browser runs were headless Chrome against servers on **copies** of `workspace/` (Gmail tokens blanked in each copy), on ports 8811–8813, never the real server on 8765. The real workspace was compared with a snapshot taken at the start: unchanged apart from the running AION refreshing its Gmail sign-in.
+
+| Suite | Command | Result |
+|---|---|---|
+| Unit and route tests | `npm test` | **168 passed, 0 failed**; also 168/168 with `AION_NO_PRIVATE=1` (the public defaults CI uses) |
+| Browser suite | `AION_UI_EXISTING=1 AION_BASE=… AION_WORKSPACE=<copy> node tests/ui/run.mjs` | **74 passed, 1 failed**: the failure is "Value Creation analysis runs", which needs a live AI call (off by rule); screens were checked on a saved deal |
+| Flows | `AION_BASE=… AION_EMPTY_BASE=… node tests/ui/flows.mjs` | **97 passed, 0 failed**: confirm-and-send with the browser's OK dialog (No sends nothing, OK sends once), second send refused, interested reply, Write reply with AI off, NDA written and sent once with its PDF, the same NDA refused again, open times, invite booked once, opt-out closes it and blocks more sends, a list that fails to load (Try again), a failed action shows a message, all 4 saved deals × 4 tabs (no undefined/NaN, no staffing words on ecommerce deals, phone width), 1-page summary and Excel for each, Help/Settings/Search & Outreach, keyboard access, empty first run |
+| Phone width of the detailed steps and an outreach item | `node tests/ui/phone-steps.mjs` | **11 passed** (after fixes: 5 had failed) |
+| Every control on every screen | `node tests/ui/crawl.mjs` (in parts, `CRAWL_ONLY`) | about 370 controls: **0 page errors, 0 failures hidden from the person**. After the 1-page PDF button the crawler's own connection stops answering; the button itself was checked directly (page stays responsive, file builds) and Replay by `tests/ui/replay-probe.mjs` |
+| 1-page PDF | `POST /api/pdf` | one page, built in under a second, no Chrome left running |
+| Dependencies | `npm audit --omit=dev` | 0 vulnerabilities |
+| Network attempts | server logs | 0 |
+
+**Checked by reading the code only:** live Gmail sending, reply sync against real Gmail, Hunter.io, live web searches, the AI steps (classify, add-backs, plan, outside check, drafts, LOI) and the Gmail attachment import, all off by rule. Native file pickers and drag-and-drop (the upload routes they call are tested).
+
 ## November 8, 2026
 
 All runs used fake Gmail (`AION_GMAIL_MOCK=1`) and no AI or web (`AION_OFFLINE=1`); the browser suite ran against a **copy** of `workspace/` (Gmail tokens blanked in the copy) with every request off this computer blocked (`tests/helpers/no-network.mjs`). The real workspace files were compared before and after: unchanged.
