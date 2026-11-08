@@ -109,11 +109,11 @@ test('deal costs default to 10% of the price; the bad case also values the firm 
   assert.equal(r.downside.minDscr, same.downside.minDscr); // loan cover depends on profit, not on the exit value
 });
 
-test('a revenue-based price is held to the price cap on real profit (holding company)', () => {
+test('a revenue-based price is held to the price cap on real profit (every kind of buyer)', () => {
   const r = dealReturns(400000, 0, { ...DEFAULT_ASSUMPTIONS, price_basis: 'revenue', revenue_multiple: 2.5 }, 2e6);
   assert.equal(r.capped, true); near(r.price, PRICE.cap * 400000, 'capped at the price cap'); assert.equal(r.ebitdaMultiple, PRICE.cap);
   const fund = dealReturns(400000, 0, { ...DEFAULT_ASSUMPTIONS, price_basis: 'revenue', revenue_multiple: 2.5, vehicle: 'fund' }, 2e6);
-  assert.equal(fund.capped, false); near(fund.price, 5e6, 'other vehicles are shown at the revenue price');
+  assert.equal(fund.capped, true); near(fund.price, PRICE.cap * 400000, 'every kind of buyer is compared at the same capped price');
 });
 
 test('tax: buying shares (stock) gives no write-off of the price, so less cash than an asset deal', () => {

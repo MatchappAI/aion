@@ -747,6 +747,9 @@ function topActions(S, d) {
         prompts: [{ when: 'Weekly', prompt: 'Read inputs/hours.csv (person, date, regular hours, overtime hours) and inputs/next_week_jobs.csv.\nList who worked overtime last week and why (which jobs).\nDraft next week\'s schedule that keeps everyone under 40 hours where possible, in outputs/schedule_draft.csv. Draft only; a manager approves.' }] });
     }
   }
+  // ecommerce levers measured straight from the books (the rest are listed in the plan as not counted)
+  for (const x of (d.ecomLevers || []).filter(y => y.counted && y.value > 0)) out.push({ id: x.id, kind: 'Business', value: x.value, short: x.title, title: x.title, owner: 'Owner and bookkeeper', sure: x.sure, sureWhy: 'paid and billed amounts come straight from the books',
+    proof: x.facts.map(esc).join(' · '), steps: x.steps, kpis: x.kpis, basisText: x.basis });
   // top actions: easiest to make happen among those that raise EBITDA
   return out.sort((x, y) => easeScore(y, d) - easeScore(x, d) || (y.score ?? y.value) - (x.score ?? x.value));
 }
@@ -897,10 +900,10 @@ function growTable(S, d) {
 
 
 // ---------- tabs: plan, trends, deal, run it ----------
-const EFFORT = { pricing: [2, 5000], billing: [2, 3000], vendors: [3, 2000], discounts: [3, 2000], overtime: [4, 5000] };
+const EFFORT = { pricing: [2, 5000], billing: [2, 3000], vendors: [3, 2000], discounts: [3, 2000], overtime: [4, 5000], ecom_passthrough: [2, 1000] };
 // Ease x impact: yearly EBITDA added per adjusted week of work. Anything that must be built counts as more effort.
 const BUILD_WEIGHT = { none: 1, reuse: 1.5, new: 2.5 };
-const buildOf = id => ['pricing', 'retention', 'cash', 'discounts'].includes(id) ? 'none' : String(id).startsWith('ind') ? 'new' : 'reuse';
+const buildOf = id => ['pricing', 'retention', 'cash', 'discounts'].includes(id) || String(id).startsWith('ecom_') ? 'none' : String(id).startsWith('ind') ? 'new' : 'reuse';
 function effortOf(x, d) { const ind = (d.industryLevers || []).find(y => y.id === x.id); const [w, c] = ind ? [ind.weeks || 4, ind.cost || 0] : x.id === 'ai' ? [8, d.levers.six.costs.implementation] : EFFORT[x.id] || [3, 3000]; return { weeks: w, cost: c, build: ind?.build || buildOf(x.id) }; }
 const easeScore = (x, d) => { if (x.pending || !(x.value > 0)) return -1; const e = effortOf(x, d); return x.value / (e.weeks * BUILD_WEIGHT[e.build]); };
 const mon = m => new Date(m + '-15').toLocaleDateString(undefined, { month: 'short' });
@@ -914,6 +917,7 @@ function bars(series, keys, opts = {}) {
 function basisOf(x, d, S) {
   const L = d.levers, a = S.assumptions, ind = (d.industryLevers || []).find(y => y.id === x.id), ex = id => (d.extraLevers || []).find(y => y.id === id);
   if (ind) return ind.basis;
+  const ec = (d.ecomLevers || []).find(y => y.id === x.id); if (ec) return ec.basis;
   if (x.id === 'pricing') return L.nonAI.pricingBasis;
   if (x.id === 'billing') return `Books: ${k$(d.pnl.TTM.byCat?.bad_debt || 0)} written off last year; ${Math.round(a.writeoff_reduction * 100)}% of it counted as recovered.`;
   if (x.id === 'discounts') { const e = ex('discounts'); return `Sales file: ${e.basis.count} customers pay ${k$(e.basis.gap)} a year below the usual price; half counted.`; }
@@ -1014,6 +1018,9 @@ function queueRows(S, d, acts) {
     rows.push({ ...x, weeks: e.weeks, cost: e.cost, build: e.build, area: x.kind === 'AI' ? 'AI' : x.kind === 'Industry' ? 'Industry' : 'Business', priced: !x.pending && x.value > 0, ease: easeScore(x, d) }); seen.add(x.id);
   }
   for (const x of (d.industryLevers || []).filter(y => !(y.value > 0))) rows.push({ id: x.id, title: x.title, value: 0, steps: x.steps, owner: x.owner, sure: 'Not counted', weeks: x.weeks || 4, cost: x.cost || 0, build: x.build || 'none', area: 'Industry', priced: false, note: `Not counted: ${x.unsized}`, kpis: x.kpis, what: `A checklist and tracker for: ${x.title.toLowerCase()}`, how: x.steps, prompts: [] });
+  // ecommerce levers with no number from the books yet: what was measured, and what it would take to size them
+  for (const x of (d.ecomLevers || []).filter(y => !(y.counted && y.value > 0))) rows.push({ id: x.id, title: x.title, value: 0, steps: x.steps, owner: 'Owner', sure: 'Not counted', weeks: 2, cost: 0, build: 'none', area: 'Business', priced: false,
+    note: [x.basis, ...x.facts].join(' · '), kpis: x.kpis, what: x.title, how: x.steps, prompts: [] });
   // AI builds that support value creation sit in the same queue; they speed up the work, so no EBITDA is claimed for them
   for (const a of VC_AGENTS) rows.push({ id: a.id, title: a.name, value: 0, steps: a.steps, sure: 'Not counted', weeks: a.weeks, cost: 0, build: 'new', area: 'AI', priced: false, note: `Not built yet · about ${a.time} in Claude Code. ${a.what}`, what: a.what, how: a.steps, prompts: [] });
   // moves from the playbook that aren't priced in profit, still worth doing
@@ -1143,7 +1150,7 @@ function trendsTab(S, d) {
     <div class="panel"><b class="pt">Customers coming and going</b>${F ? `<p>Since ${mon(F.split)}: <b>${F.lostCount}</b> stopped buying (${k$(F.lostRevenue)} before), <b>${F.freshCount}</b> new (${k$(F.freshRevenue)}).</p>${F.lost.length ? `<p class="note">Stopped: ${F.lost.slice(0, 3).map(x => `${esc(x.name)} (${k$(x.revenue)})`).join(', ')}</p>` : ''}${F.fresh.length ? `<p class="note">New: ${F.fresh.slice(0, 3).map(x => `${esc(x.name)} (${k$(x.revenue)})`).join(', ')}</p>` : ''}` : '<p class="note">Needs at least 4 months of data.</p>'}</div></div></section>`;
 }
 function dealMetrics(S, d) {
-  const D = d.deal, n = d.normalization, t = d.pnl.TTM; if (!D) return d.unpriceable ? `<section data-tab="deal" class="panel2"><h2 class="h2">Not priceable yet</h2><p class="lead2">Real profit is <b>${k$(n.normalized)}</b> a year, so the business loses money. Buyers price a business at a number of years of profit (the “multiple”), so there is no sensible price until it is profitable. The Plan tab shows the changes that would get it there. Or <span class="link" id="price-rev">price it on sales instead</span>.</p></section>` : '';
+  const D = d.deal, n = d.normalization, t = d.pnl.TTM; if (!D) return d.unpriceable && d.unpriceableWhy === 'short' ? `<section data-tab="deal" class="panel2"><h2 class="h2">Not priceable yet</h2><p class="lead2">The books cover only <b>${d.monthsCovered} month${d.monthsCovered === 1 ? '' : 's'}</b>. A price is a number of years of profit, so it needs a full 12 months. Ask the seller for the last 12 months (ideally 3 years) and upload them.</p></section>` : d.unpriceable ? `<section data-tab="deal" class="panel2"><h2 class="h2">Not priceable yet</h2><p class="lead2">Real profit is <b>${k$(n.normalized)}</b> a year, so the business loses money. Buyers price a business at a number of years of profit (the “multiple”), so there is no sensible price until it is profitable. The Plan tab shows the changes that would get it there. Or <span class="link" id="price-rev">price it on sales instead</span>.</p></section>` : '';
   const tiles = [['Sales', k$(t.revenue), 'last 12 months'], ['Real profit (EBITDA)', k$(n.normalized), `${pct(n.normalized / t.revenue)} of sales`], ['Could reach', k$(d.proForma), `+${pct(d.levers.runRate / n.normalized)}`],
     ['Bank loan at purchase', n.normalized > 0 ? (D.senior / n.normalized).toFixed(1) + '×' : '—', 'years of profit borrowed'], ['Bad-year loan cover', D.downside.minDscr == null ? 'No loan' : D.downside.minDscr.toFixed(1) + '×', 'profit ÷ loan payments; banks want 1.25×'], ['Each $1 becomes', '$' + D.base.net.moic.toFixed(2), 'after fees, 5 years (MOIC)'], ['Yearly return', Math.round((D.base.net.irr || 0) * 100) + '%', 'after fees (IRR)']];
   return `<section data-tab="deal"><p class="howline"><b>How this works:</b> sales and real profit come from the books; “could reach” adds the plan. Loan and return figures come from the deal model below: returns assume the plan works, loan cover assumes a bad year. MOIC = money back per $1 invested; IRR = the same return as a yearly rate.</p><div class="mtiles">${tiles.map(([a, b, c]) => `<div><small>${a}</small><b>${b}</b><span>${c}</span></div>`).join('')}</div></section>`;

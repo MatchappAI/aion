@@ -6,6 +6,7 @@ import path from 'node:path';
 import { accountSummary } from './lib/gl.mjs';
 import { CATEGORIES, DEFAULT_ASSUMPTIONS, detectSignMode, periods, pnl, matchRows, normalize, quality, dso, levers, cashRelease, rowValue, r2, dealReturns, VEHICLES, monthlySeries, customerFlow, nonOverlappingPeriods } from './lib/model.mjs';
 import { libraryPlan } from './lib/playbooks.mjs';
+import { ecomLevers } from './lib/levers-ecom.mjs';
 import { profile, kindOf } from './lib/industry.mjs';
 import { thesisCheck, toolFit, whyAion, SUBSECTORS, kindFor, REVENUE_MODELS } from './lib/thesis.mjs';
 import { extraLevers } from './lib/extras.mjs';
@@ -96,7 +97,7 @@ function derive() {
   const per = periods(S.range);
   out.periods = per.list;
   out.pnl = Object.fromEntries(per.list.map(p => [p.key, pnl(ROWS, S.mapping, S.signMode, p)]));
-  out.quality = S.file.kind === 'gl' ? quality(ROWS, S.mapping, S.signMode, per) : null;
+  out.quality = S.file.kind === 'gl' ? quality(ROWS, S.mapping, S.signMode, per, S.parse?.opening || {}) : null;
   out.priorTTM = S.file.kind === 'gl' && !per.prior.partial ? pnl(ROWS, S.mapping, S.signMode, per.prior) : null;
   out.payConcentration = payConcentration(per.ttm);
   const ttm = out.pnl.TTM;
@@ -106,28 +107,29 @@ function derive() {
   out.normalization = normalize(ttm, S.addbacks || [], noOwner ? { ...S.owner, count: 0 } : S.owner);
   out.noOwnerAdjustment = noOwner;
   if (S.file.kind === 'gl') {
-    out.monthly = monthlySeries(ROWS, S.mapping, S.signMode, S.range);
+    out.monthly = monthlySeries(ROWS, S.mapping, S.signMode, S.range, S.parse?.opening || {});
     out.flow = customerFlow(ROWS, S.mapping, S.signMode, S.range);
     const hasWC = Object.values(S.mapping).some(c => c === 'bs_ar' || c === 'bs_ap' || c === 'bs_inventory');
     const last12 = out.monthly.slice(-12);
     // working capital target: the usual amount tied up in money owed to the company plus stock, minus bills it owes
-    if (hasWC && last12.length) out.wc = { peg: r2(last12.reduce((t, x) => t + x.wc, 0) / last12.length), latest: last12[last12.length - 1].wc, low: Math.min(...last12.map(x => x.wc)), high: Math.max(...last12.map(x => x.wc)), months: last12.length, hasAP: Object.values(S.mapping).includes('bs_ap'), hasInv: Object.values(S.mapping).includes('bs_inventory') };
+    if (hasWC && last12.length && last12.every(x => x.wc != null)) out.wc = { peg: r2(last12.reduce((t, x) => t + x.wc, 0) / last12.length), latest: last12[last12.length - 1].wc, low: Math.min(...last12.map(x => x.wc)), high: Math.max(...last12.map(x => x.wc)), months: last12.length, hasAP: Object.values(S.mapping).includes('bs_ap'), hasInv: Object.values(S.mapping).includes('bs_inventory') };
   }
   out.stage = S.normConfirmed ? (S.opsConfirmed ? 'levers' : 'ops') : 'earnings';
   if (S.opsConfirmed) {
     out.levers = levers(ttm, S.ops, S.assumptions, S.vendors);
     // optional files: add their levers; the general price rise no longer applies to customers already being brought up to normal price
-    const ex = extraLevers(S.extra, S.assumptions);
+    const ex = extraLevers(S.extra, S.assumptions, { payrollBooks: (ttm.byCat.comp_producers || 0) + (ttm.byCat.comp_admin || 0) + (ttm.byCat.comp_owner || 0) });
     const disc = ex.find(x => x.id === 'discounts');
     if (disc) { const overlap = r2(disc.underRevenue * S.assumptions.pricing_uplift * (1 - (S.ops.commission_rate || 0))); out.levers.nonAI.pricing = r2(Math.max(0, out.levers.nonAI.pricing - overlap)); out.levers.nonAI.total = r2(out.levers.nonAI.total - overlap); out.levers.runRate = r2(out.levers.runRate - overlap); }
     out.extraLevers = ex; out.levers.runRate = r2(out.levers.runRate + ex.reduce((t, x) => t + x.value, 0));
     // industry moves: the AI picks the lever and size; software prices it from this company's accounts, with caps
-    const IM = S.industryPlan?.moves || [], acct = S.industryPlan?.acct || {}, acctN = S.industryPlan?.acctN || {}, rev = ttm.revenue || 1, gm = rev ? (rev - ttm.direct) / rev : 0, comm = S.ops?.commission_rate || 0;
+    const IM = S.industryPlan?.moves || [], acct = S.industryPlan?.acct || {}, acctN = S.industryPlan?.acctN || {}, rev = (ttm.netRevenue ?? ttm.revenue) || 1, gm = rev ? (rev - (ttm.netDirect ?? ttm.direct)) / rev : 0, comm = S.ops?.commission_rate || 0;
+    const vendAccts = new Set((S.vendors || []).filter(v => v.accepted && v.account).map(v => v.account)); // already counted as supplier savings
     out.industryLevers = IM.map((mv, i) => {
-      const accts = (mv.accounts || []).filter(k => k in acct), base = accts.reduce((t, k) => t + Math.abs(acct[k]), 0);
+      const accts = (mv.accounts || []).filter(k => k in acct); let base = accts.reduce((t, k) => t + Math.abs(acct[k]), 0);
       let value = 0, basis = '';
       if (mv.driver === 'price' && base) { const p = Math.min(0.05, Math.max(0, +mv.pct || 0)); value = base * p * (1 - comm); basis = `${$k(base)} of ${accts.join(', ')} × ${+(p * 100).toFixed(1)}% higher price`; }
-      else if (mv.driver === 'cost' && base) { const p = Math.min(0.15, Math.max(0, +mv.pct || 0)); value = base * p; basis = `${$k(base)} of ${accts.join(', ')} × ${+(p * 100).toFixed(1)}% lower cost`; }
+      else if (mv.driver === 'cost' && base && (base = accts.filter(k => !vendAccts.has(k)).reduce((t, k) => t + Math.abs(acct[k]), 0))) { const p = Math.min(0.15, Math.max(0, +mv.pct || 0)); value = base * p; basis = `${$k(base)} of ${accts.join(', ')} × ${+(p * 100).toFixed(1)}% lower cost`; }
       else if (mv.driver === 'volume' && S.file.kind === 'gl') {
         // value each extra sale at the average sale of the named revenue account, not the company-wide average job
         const revA = accts.filter(k => acctN[k]), n0 = revA.reduce((t, k) => t + acctN[k], 0), unit = n0 ? revA.reduce((t, k) => t + Math.abs(acct[k]), 0) / n0 : (S.ops?.avg_fee || 0);
@@ -141,7 +143,9 @@ function derive() {
     // Benchmark rule: price and direct-cost levers share half of the measured gross-margin gap to peers; overhead levers share half of the
     // overhead gap. If the company already beats the benchmark, or there is no benchmark, those levers are listed but not counted.
     const peer = peerMargin(S.industry?.peer), L0 = out.levers;
-    const grossM = rev ? (rev - ttm.direct) / rev : 0, ohM = rev ? ttm.opex / rev : 0;
+    // margins on fee revenue (pass-through ad spend left out); overhead after owner pay and one-off costs are adjusted,
+    // without write-offs (they have their own lever), so the benchmark gap is not made bigger than it is
+    const grossM = rev ? (rev - (ttm.netDirect ?? ttm.direct)) / rev : 0, ohM = rev ? Math.max(0, ttm.revenue - ttm.direct - out.normalization.normalized - (ttm.byCat.bad_debt || 0)) / rev : 0;
     const gGap = peer?.gross != null ? Math.max(0, peer.gross - grossM) : null, oGap = peer?.sga != null ? Math.max(0, ohM - peer.sga) : null;
     const pools = { gross: gGap != null ? gGap * rev * 0.5 : 0, overhead: oGap != null ? oGap * rev * 0.5 : 0 };
     const poolOf = x => x.driver === 'price' ? 'gross' : x.driver === 'cost' ? (x.accounts.some(k => CATEGORIES[S.mapping[k]]?.group === 'direct') ? 'gross' : 'overhead') : null;
@@ -164,23 +168,28 @@ function derive() {
     // AI time savings rest on estimated hours, so they are not counted until hours are tracked
     L0.aiUnsized = true; L0.aiSkipped = true;
     L0.nonAI.total = r2(L0.nonAI.pricing + L0.nonAI.writeoffs + L0.nonAI.vendors);
-    L0.runRate = r2(L0.nonAI.total + ex.reduce((t, x) => t + x.value, 0) + out.industryLevers.reduce((t, x) => t + x.value, 0));
+    // ecommerce consulting levers (not for the old staffing deals): only those measured straight from the books count
+    out.ecomLevers = profile(S).kind === 'staffing' ? [] : ecomLevers({ ttm, rows: S.file.kind === 'gl' ? ROWS : [], mapping: S.mapping, signMode: S.signMode, per, quality: out.quality, S });
+    const ecomCounted = out.ecomLevers.filter(x => x.counted).reduce((t, x) => t + x.value, 0);
+    L0.runRate = r2(L0.nonAI.total + ex.reduce((t, x) => t + x.value, 0) + out.industryLevers.reduce((t, x) => t + x.value, 0) + ecomCounted);
     out.benchmarkGaps = peer ? { peer, grossM, ohM, gGap, oGap } : null;
     out.cashRelease = cashRelease(out.dso, S.assumptions.dso_reduction_days, ttm.revenue);
     out.proForma = r2(out.normalization.normalized + out.levers.runRate);
-    const L = out.levers, costs = L.six.costs.software + L.six.costs.ongoing, gains = L.nonAI.total + L.ai;
-    out.range = { low: r2(out.normalization.normalized + gains * 0.5 - costs), high: r2(out.normalization.normalized + gains * 1.5 - costs) };
+    const L = out.levers;
     out.rates = loanRates();
     out.peer = peer;
     // a business that loses money cannot be priced on a multiple of profit
-    out.unpriceable = S.assumptions.price_basis === 'revenue' ? !(ttm.revenue > 0) : out.normalization.normalized <= 0;
-    out.deal = out.unpriceable ? null : dealReturns(out.normalization.normalized, L.runRate, { ...S.assumptions, rates: out.rates }, ttm.revenue);
+    // …and less than a year of books can't be priced as a year's profit
+    const short = per.monthsCovered < 12;
+    out.unpriceable = short || (S.assumptions.price_basis === 'revenue' ? !(ttm.netRevenue > 0) : out.normalization.normalized <= 0);
+    out.unpriceableWhy = short ? 'short' : out.unpriceable ? 'loss' : null; out.monthsCovered = per.monthsCovered;
+    out.deal = out.unpriceable ? null : dealReturns(out.normalization.normalized, L.runRate, dealInputs(out), ttm.netRevenue);
   }
   if (out.deal) {
     // three cases, weighted by how well each number is backed: from the books counts most, guesses least
     const acts = actionList(out).filter(x => x.value > 0), aiCost = 0;
     const W = { 'From the books': [0.8, 1, 1.2], Confirmed: [0.8, 1, 1.2], 'From the sales file': [0.7, 1, 1.2], 'From the payroll file': [0.7, 1, 1.2], 'Benchmark gap': [0.6, 1, 1.3] };
-    out.cases = ['Cautious', 'Expected', 'Stretch'].map((name, k) => { const gain = r2(acts.reduce((t, x) => t + x.value * (W[x.sure] || [0.5, 1, 1.3])[k], 0) - aiCost); const r = dealReturns(out.normalization.normalized, gain, { ...S.assumptions, rates: out.rates }, ttm.revenue); return { name, gain, ebitda: r2(out.normalization.normalized + gain), value: r2(gain * out.deal.multiple), moic: r.base.net.moic, irr: r.base.net.irr }; });
+    out.cases = ['Cautious', 'Expected', 'Stretch'].map((name, k) => { const gain = r2(acts.reduce((t, x) => t + x.value * (W[x.sure] || [0.5, 1, 1.3])[k], 0) - aiCost); const r = dealReturns(out.normalization.normalized, gain, dealInputs(out), ttm.netRevenue); return { name, gain, ebitda: r2(out.normalization.normalized + gain), value: r2(gain * (out.deal.ebitdaMultiple ?? out.deal.multiple)), moic: r.base.net.moic, irr: r.base.net.irr }; });
   }
   if (CHECK.length && out.monthly && out.deal) out.checkin = checkinAnalysis(out);
   // AION thesis v3.0: books-and-diligence check, tool fit and why AION (lib/thesis.mjs); never one blended score
@@ -188,6 +197,8 @@ function derive() {
   out.limits = limits(out);
   return out;
 }
+// what the deal maths gets: the settings, today's loan rates, and no AI set-up cost while AI savings are not counted
+const dealInputs = d => ({ ...S.assumptions, rates: d.rates, implementation: d.levers?.aiSkipped ? 0 : S.assumptions.implementation });
 const PAYROLL_GENERIC = /payroll|adp|gusto|paychex|rippling|wages|salar|bonus|commission|staff|employees|contractors?$/i;
 // share of delivery pay going to the top 1 and top 3 named people in the ledger (3+ people), a stand-in for key-person exposure
 function payConcentration(p) {
@@ -479,8 +490,12 @@ const AI = {
     const payees = aggregate(expenseCats, per.ttm).slice(0, 160).map(a => ({ account: a.account, payee: a.payee, category: a.category, rows: a.rows, ttm_total: a.total, sample_memos: a.memos }));
     const { data } = await ask({ purpose: 'Propose add-backs, vendor opportunities and flags', model: MODELS.extraction, prompt: addbackPrompt({ ttm: byCat, quality: q, payees }, profile(S)), cwd: D(), logFile: LOGF() });
     // standard practice: add-backs come only from costs inside operating profit (not depreciation, impairment, interest or tax)
-    const inEbitda = a => ['direct', 'opex'].includes(CATEGORIES[S.mapping[a.account]]?.group);
-    S.addbacks = (data.addbacks || []).filter(inEbitda).map((a, i) => { const m = matchRows(ROWS, a, S.mapping, S.signMode, per.ttm); return { ...a, id: 'ab' + i, amount: m.amount, ids: m.ids, accepted: false }; }).filter(a => a.ids.length);
+    // owner pay is already added back in full (and replaced by a market salary), so it is never an add-back too;
+    // a ledger line counts in one add-back only, even when two suggestions match it
+    const inEbitda = a => ['direct', 'opex'].includes(CATEGORIES[S.mapping[a.account]]?.group) && S.mapping[a.account] !== 'comp_owner';
+    const used = new Set(), byId = new Map(ROWS.map(r => [r.id, r]));
+    S.addbacks = (data.addbacks || []).filter(inEbitda).map((a, i) => { const m = matchRows(ROWS, a, S.mapping, S.signMode, per.ttm); const ids = m.ids.filter(x => { const r = byId.get(x); return r && S.mapping[r.account] !== 'comp_owner' && !used.has(x); }); ids.forEach(x => used.add(x));
+      return { ...a, id: 'ab' + i, amount: r2(ids.reduce((t, x) => { const r = byId.get(x); return t + rowValue(r, S.mapping[r.account] || 'other_opex', S.signMode); }, 0)), ids, accepted: false }; }).filter(a => a.ids.length && a.amount);
     S.vendors = (data.vendors || []).map((v, i) => { const m = matchRows(ROWS, v, S.mapping, S.signMode, per.ttm); const pct = Math.min(0.5, Math.max(0, +v.suggested_savings_pct || 0)); return { ...v, id: 'v' + i, spend: m.amount, ids: m.ids, pct, amount: r2(m.amount * pct), accepted: false }; }).filter(v => v.ids.length);
     S.flags = (data.flags || []).map(f => ({ ...f, title: String(f?.title || f?.label || f?.text || "").trim() })).filter(f => f.title); // the AI sometimes says "label"
     S.normConfirmed = false;
@@ -609,11 +624,12 @@ function checkinAnalysis(d) {
 }
 function actionList(d) {
   const L = d.levers, a = S.assumptions, lev = k => (S.plan?.levers || []).find(l => l.key === k), out = [];
-  if (L.nonAI.pricing > 0) out.push({ title: `Raise prices ${+(a.pricing_uplift * 100).toFixed(1)}% on new work`, value: L.nonAI.pricing, basis: L.nonAI.pricingBasis, owner: 'Owner and sales lead', sure: 'Benchmark gap', steps: lev('pricing')?.steps, kpis: ['Average price per job', 'Win rate on quotes'] });
+  if (L.nonAI.pricing > 0) out.push({ title: 'Raise prices on new work to close half the margin gap to peers', value: L.nonAI.pricing, basis: L.nonAI.pricingBasis, owner: 'Owner and sales lead', sure: 'Benchmark gap', steps: lev('pricing')?.steps, kpis: [`Average fee per ${profile(S).job || 'client'}`, 'Win rate on proposals'] });
   if (L.nonAI.writeoffs > 0) out.push({ title: 'Bill on time and chase late invoices', value: L.nonAI.writeoffs, basis: 'Ledger write-offs × reduction (assumption)', owner: 'Office manager', sure: 'From the books', steps: ['Send every bill the day the work is done', 'Automatic reminders at 15 and 30 days', 'Weekly review of anything over 45 days'], kpis: ['Days to get paid', 'Write-offs'] });
   if (L.nonAI.vendors > 0) out.push({ title: 'Cut supplier and tool costs', value: L.nonAI.vendors, basis: 'Ledger spend × saving (confirmed)', owner: 'Owner', sure: 'Confirmed', steps: lev('vendors')?.steps, kpis: ['Supplier spend as a share of sales'] });
   for (const x of d.extraLevers || []) out.push(x.id === 'discounts' ? { title: `Bring ${x.basis.count} customers up to normal prices`, value: x.value, basis: 'Sales file: half the measured price gap', owner: 'Owner', sure: 'From the sales file', steps: ['Review each discounted account with the owner', 'Move to normal prices at renewal, with notice', 'Approve any discount left in writing'], kpis: ['Average price vs. normal price'] } : { title: 'Cut overtime with better scheduling', value: x.value, basis: 'Payroll file: overtime × share moved to regular hours', owner: 'Operations lead', sure: 'From the payroll file', steps: ['See who works the most overtime, and why', 'Plan the week ahead and spread the work', 'Approve overtime in advance'], kpis: ['Overtime pay per month'] });
   for (const x of (d.industryLevers || []).filter(y => y.value > 0)) out.push({ title: x.title, value: x.value, basis: x.basis, owner: x.owner, sure: x.sure, steps: x.steps, kpis: x.kpis });
+  for (const x of (d.ecomLevers || []).filter(y => y.counted && y.value > 0)) out.push({ title: x.title, value: x.value, basis: x.basis, owner: 'Owner and bookkeeper', sure: x.sure, steps: x.steps, kpis: x.kpis });
   if (!L.aiSkipped && L.ai > 0) out.push({ title: 'Use AI for routine paperwork', value: L.ai, basis: 'Estimated hours saved × extra jobs won', owner: 'Operations lead', sure: 'Estimate', steps: [], kpis: ['Hours per job'] });
   return out.sort((x, y) => y.value - x.value);
 }
