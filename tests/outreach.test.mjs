@@ -290,6 +290,13 @@ test('a bounced likely address is never suggested again; the next format is offe
   assert.ok(likely, 'a new likely address'); assert.notEqual(likely.email, 'jane.roe@northfield.test');
 });
 
+test('placeholder website text is never turned into an email address', async () => {
+  const item = OUT.get(JSON.parse(fs.readFileSync(path.join(dir, 'outreach.json'), 'utf8')).items.find(x => x.name === 'Northfield Brokers').id);
+  const keep = item.website; item.website = 'Not found in public sources reviewed.';
+  await assert.rejects(OUT.findEmail(item.id, { fetcher: async () => '', hunterKey: '' }), /no website/);
+  item.website = keep;
+});
+
 test('no owner email: the discreet note can go to info@, the selling email never can', async () => {
   const item = OUT.get(JSON.parse(fs.readFileSync(path.join(dir, 'outreach.json'), 'utf8')).items.find(x => x.name === 'Northfield Brokers').id);
   OUT.editItem(item.id, { to: 'info@northfield.test' });
