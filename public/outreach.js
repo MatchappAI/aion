@@ -14,7 +14,13 @@ const day = d => d ? new Date(d).toLocaleDateString(undefined, { month: 'short',
 const when = d => d ? new Date(d).toLocaleString(undefined, { weekday: 'short', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }) : '';
 const how = t => `<p class="howline"><b>How this works:</b> ${t}</p>`;
 const KINDS = [['email', 'First email'], ['followup1', 'Follow-up 1'], ['followup2', 'Follow-up 2'], ['letter', 'Letter'], ['call', 'Call notes'], ['form', 'Discreet note'], ['answer', 'Your reply']];
-const MODE = { target: 'Firm to buy', client: 'Client', candidate: 'Candidate' };
+const MODE = { target: 'Firm to buy', client: 'Brand', candidate: 'Person' };
+// what a note to each kind of saved result proposes, shown as a one-line example so you know before you press Write
+const EXAMPLE = {
+  target: 'Opens on their latest move, then asks plainly whether the owner would sell (a full buyout, or a majority stake if they are still growing).',
+  client: 'Opens on something recent the brand did, says why it caught your eye and your background, then asks if they would ever be open to selling or partnering.',
+  candidate: 'Opens on something recent they did, says why it caught your eye and your background, then asks about partnering or working together as AION grows.',
+};
 const RKIND = { interested: 'interested', later: 'not now', reply: 'replied', optout: 'no thanks' };
 let O = { main: null, view: 'board', id: null, kind: 'email', timer: null, st: null, it: null, pick: new Set(), queue: null, allSig: false, slots: null };
 
@@ -59,8 +65,14 @@ async function draw() {
     </details>${B0.length ? '' : '-->'}
     ${list('Needs you', needs, 'Replies to answer, drafts to approve, follow-ups that are due, and calls to confirm.', reviews.length > 1 ? `<button class="sm" id="oqueue" data-testid="out-queue">Review ${reviews.length} drafts one by one</button>` : '')}
     ${writing.length ? list('Writing', writing, 'Two are written at a time; this page updates by itself.') : ''}
-    ${S.ready.length ? `<section class="card" data-testid="out-ready"><h2 class="h2">Write for many at once <span class="h2s">${S.ready.length} owners not contacted yet</span></h2>
-      <p class="note">Takes the next owners from the list below, best first, that have an email on file. You still approve every email before it sends.</p>
+    ${(S.saved || []).length ? `<section class="card" data-testid="out-saved"><h2 class="h2">Saved by you <span class="h2s">${S.saved.length} not written to yet</span></h2>
+      <p class="note">What you saved in a search. You read and edit every note before it sends.</p>
+      ${[...new Set(S.saved.map(x => x.mode))].map(m => `<h3 class="h3s">${esc({ target: 'Firms', client: 'Brands', candidate: 'People' }[m] || m)}</h3><p class="note ex"><b>What the note does:</b> ${esc(EXAMPLE[m] || '')}</p>
+        <ul class="outlist">${S.saved.filter(x => x.mode === m).map(x => `<li class="orow" data-testid="out-saved-row"><div class="ocol"><b>${esc(x.name)}</b>${x.priority ? ' <span class="pill2 running">Priority</span>' : ''}${x.strongFit ? ' <span class="pill2 done">Strong fit</span>' : ''}<span class="note">${esc([x.what, x.where].filter(Boolean).join(' · '))}</span>${x.recent ? `<span class="note">Recent: ${esc(x.recent.length > 110 ? x.recent.slice(0, 110) + '…' : x.recent)}</span>` : x.mode === 'target' && x.missing?.length ? `<span class="note">Not a strong fit yet: ${esc(x.missing[0])}</span>` : ''}</div>
+          <div class="ocol"><span class="note">${x.emails ? `${x.emails} email${x.emails === 1 ? '' : 's'} on file` : 'no email yet: AION looks on their site'}</span></div>
+          <button class="sm" data-write="${esc(x.search)}|${esc(x.entity)}" data-testid="out-saved-write">Write outreach</button></li>`).join('')}</ul>`).join('')}</section>` : ''}
+    ${S.ready.length ? `<section class="card" data-testid="out-ready"><h2 class="h2">Write for many at once <span class="h2s">${S.ready.length} strong fit${S.ready.length === 1 ? '' : 's'} not contacted yet</span></h2>
+      <p class="note">Takes the next strong fits from the owner list below, best first, that have an email on file. You still approve every email before it sends.</p>
       <div class="oacts">${[5, 10].map(n => `<button class="${n === 5 ? '' : 'ghost '}sm" data-many="${n}" data-testid="out-many" ${S.ready.some(r => r.emails) ? '' : 'disabled'}>Write for the next ${Math.min(n, S.ready.filter(r => r.emails).length) || n}</button>`).join('')}</div></section>` : ''}
     ${list('Sent, waiting for a reply', waiting)}
     ${list('Finished', done)}
@@ -77,6 +89,7 @@ async function draw() {
         <label>Call length (minutes)<select name="callMinutes">${[15, 20, 30, 45, 60].map(n => `<option ${+S.settings.callMinutes === n ? 'selected' : ''}>${n}</option>`).join('')}</select></label>
         <label class="wide">Mailing address <span class="note">required on outreach email (US CAN-SPAM)</span><input name="address" value="${esc(S.settings.address)}" placeholder="Street, city, state ZIP" data-testid="out-address"></label>
         <label class="wide">Signature <span class="note">optional; otherwise name, title and phone</span><textarea name="signature" rows="3">${esc(S.settings.signature)}</textarea></label>
+        <label class="wide">Your background <span class="note">one line; notes may say this about you and nothing more</span><input name="background" value="${esc(S.settings.background || '')}" data-testid="out-background"></label>
         <label class="wide">How a deal would be paid for <span class="note">used only in letters, call notes and replies to an interested owner, never in a first email; never says money is already committed</span><input name="funding" value="${esc(S.settings.funding || '')}" data-testid="out-funding"></label>
         <label>Daily limit per sender<input name="dailyCap" inputmode="numeric" value="${esc(S.settings.dailyCap)}"></label>
         <label>Follow-ups after (days)<input name="followUpDays" value="${esc(S.settings.followUpDays.join(', '))}"></label>

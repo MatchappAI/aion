@@ -864,3 +864,7 @@ body[data-firstrun="1"] #psown{order:-1}
 /* phone: the detailed steps stack (menu above the page), number tiles two across, wide tables scroll inside the page */
 @media (max-width:700px){.shell{grid-template-columns:minmax(0,1fr)}.side{border-right:0;border-bottom:1px solid var(--line);flex-direction:row;flex-wrap:wrap;gap:6px;padding:10px 12px}.side .foot,.side .sep{display:none}.grid4,.grid3{grid-template-columns:repeat(2,minmax(0,1fr))}.grid4>*,.grid3>*,.panel{min-width:0;overflow-wrap:anywhere}#main{min-width:0}#main table:not(.tblw table){display:block;overflow-x:auto;max-width:100%}}
 @media (max-width:700px){.grid2{grid-template-columns:minmax(0,1fr)}.grid2>*{min-width:0}}
+
+/* Saved by you: kind headings and the one-line example of what the note does */
+.h3s{font-size:14px;font-weight:600;margin:14px 0 2px}
+.note.ex{margin:0 0 6px}

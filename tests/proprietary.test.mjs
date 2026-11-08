@@ -22,7 +22,7 @@ test('niche covers ecommerce consulting and retail placement, not off-niche trad
 });
 
 test('rank: many kinds of signal, fit and reach beat one loud signal; every firm is a buyout unless it asks for a partner', () => {
-  const many = { company: 'A', score: 70, industry: 'Ecommerce consulting agency', owner: 'Jane Roe', contactInfo: [{ kind: 'email', value: 'jane@a.com' }], timing: { signals: [sig('succession'), sig('exit_planning'), sig('partner_program'), sig('growth_hiring', { date: '2026-10' })] } };
+  const many = { company: 'A', website: 'https://firm.com', score: 70, industry: 'Ecommerce consulting agency', owner: 'Jane Roe', contactInfo: [{ kind: 'email', value: 'jane@a.com' }], timing: { signals: [sig('succession'), sig('exit_planning'), sig('partner_program'), sig('growth_hiring', { date: '2026-10' })] } };
   const one = { company: 'B', score: 40, industry: 'Ecommerce consulting agency', timing: { signals: [sig('stale_website')] } };
   const a = rankOne(many), b = rankOne(one);
   assert.ok(a.score > b.score, `${a.score} > ${b.score}`);
