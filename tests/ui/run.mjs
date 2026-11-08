@@ -15,6 +15,8 @@ if (up.error) { console.log('FAIL upload: ' + up.error); process.exit(1); }
 const TEST_ID = (await call('deals', undefined)).current;
 const { job } = await call('ai/all', {}); let j; do { await sleep(1500); j = await call('job/' + job); } while (j.status === 'running');
 ok('Value Creation analysis runs', j.status === 'done', `${(j.detail || []).length} live steps`);
+// AION_OFFLINE=1 (AI off): the live analysis can't run, so the screens are checked on a deal already analyzed in this workspace copy
+if (j.status !== 'done' && process.env.AION_UI_EXISTING) { const L = (await call('deals', undefined)).deals.filter(x => x.id !== TEST_ID); const pick = L.find(x => x.analyzed && /\.(xlsx|xls|csv)$/i.test(x.file || '')) || L.find(x => x.analyzed) || L[0]; if (pick) { await call('deals/select', { id: pick.id }); console.log('NOTE using saved deal ' + pick.id + ' (AI is off)'); } }
 for (const [t, f] of [['payroll', 'Test_HVAC_Payroll_Summary_2025.csv'], ['sales', 'Test_HVAC_Sales_by_Customer_Detail_2025.csv']]) ok(`Adds ${t} report`, !(await call('extra', { type: t, filename: f, data: b64(f) })).error);
 ok('Adds monthly check-in', !(await call('checkin', { filename: 'checkin.csv', data: b64('Test_HVAC_Contractor_General_Ledger_2025.csv') })).error);
 for (const e of ['pdf', 'excel']) { const r = await fetch(B + e, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' }); ok(`Downloads ${e}`, r.ok && (await r.arrayBuffer()).byteLength > 20000); }
@@ -39,12 +41,13 @@ await click('.yn2 button:not(.on)'); await sleep(1500); ok('Toggle back restores
 await click('[data-build]'); await sleep(500); ok('Build it opens plan and prompt', await ev(`!!document.querySelector('.drawer pre')`));
 await ev(`document.dispatchEvent(new KeyboardEvent('keydown',{key:'Escape'}))`); await sleep(300); ok('Escape closes it', !(await ev(`!!document.querySelector('.drawer')`)));
 await shot('vc-overview');
-for (const t of ['plan', 'trends', 'deal', 'run', 'details']) { await click(`[data-tab-btn="${t}"]`); await sleep(400); ok(`Tab ${t} shows content`, await ev(`[...document.querySelectorAll('[data-tab="${t}"]')].some(x => getComputedStyle(x).display !== 'none' && x.innerText.length > 60)`)); await shot('vc-' + t); }
+for (const [b, t] of [['plan', 'plan'], ['overview', 'trends'], ['deal', 'deal'], ['plan', 'run'], ['details', 'details']]) { await click(`[data-tab-btn="${b}"]`); await sleep(400); ok(`Tab ${b} shows ${t}`, await ev(`[...document.querySelectorAll('[data-tab="${t}"]')].some(x => getComputedStyle(x).display !== 'none' && x.innerText.length > 60)`)); await shot('vc-' + t); }
 // thesis v3.0: AION fit tab, value in five parts, company-specific 100 days
-await click('[data-tab-btn="fit"]'); await sleep(500);
+ok('Four result tabs', await ev(`document.querySelectorAll('[data-tab-btn]').length`) === 4);
+await click('[data-tab-btn="details"]'); await sleep(500);
 ok('AION fit: thesis check with statuses and evidence', await ev(`document.querySelectorAll('[data-tab="fit"] .tcheck .st').length >= 20 && document.querySelectorAll('[data-tab="fit"] td.ev').length >= 15`));
 ok('AION fit: missing evidence shows NEEDS DATA', await ev(`/NEEDS DATA/.test(document.querySelector('.r2').innerText)`));
-ok('AION fit: tool fit with honest tool status', await ev(`/EXISTS NOW|PARTIALLY EXISTS/.test(document.querySelector('.r2').innerText) && /AION tool fit/.test(document.querySelector('.r2').innerText)`));
+ok('AION fit: tool fit with honest tool status', await ev(`/EXISTS NOW|PARTIALLY EXISTS/.test(document.querySelector('.r2').innerText) && /AION tools apply here/.test(document.querySelector('.r2').innerHTML)`));
 ok('AION fit: subsector choice', await ev(`document.querySelectorAll('#fit-sub option').length === 8`));
 await ev(`(()=>{const x=document.querySelector('[data-dq="rfp_share"]'); x.value=40; x.dispatchEvent(new Event('change'))})()`); await sleep(1500);
 ok('AION fit: a diligence answer becomes evidence', await ev(`/40% of new revenue/.test(document.querySelector('.r2').innerText)`)); await shot('vc-fit');
@@ -63,7 +66,7 @@ await click('[data-tab-btn="deal"]'); await sleep(300); const m1 = await ev(`doc
 await click('[data-tab-btn="overview"]'); await sleep(300);
 // phone width: no page may scroll sideways
 await cmd('Emulation.setDeviceMetricsOverride', { width: 390, height: 900, deviceScaleFactor: 1, mobile: true }); await sleep(500);
-for (const t of ['overview', 'plan', 'trends', 'deal', 'run', 'details']) { await click(`[data-tab-btn="${t}"]`); await sleep(400); const w = await ev('document.documentElement.scrollWidth'); ok(`Phone: ${t} fits the screen`, w <= 392, `${w}px`); }
+for (const t of ['overview', 'plan', 'deal', 'details']) { await click(`[data-tab-btn="${t}"]`); await sleep(400); const w = await ev('document.documentElement.scrollWidth'); ok(`Phone: ${t} fits the screen`, w <= 392, `${w}px`); }
 await cmd('Emulation.setDeviceMetricsOverride', { width: 1280, height: 1000, deviceScaleFactor: 1, mobile: false }); await sleep(400);
 await click('[data-tab-btn="overview"]'); await sleep(300);
 await click('#rp'); await sleep(1500); const seen = new Set(); for (let i = 0; i < 110; i++) { await sleep(400); const t = await ev(`document.querySelector('.run2 h1.big')?.textContent`); if (t) seen.add(t); else break; }
@@ -86,7 +89,7 @@ ok('Owner list: segment filters for the buy box', await ev(`['box','retail_place
 ok('Owner list: every buy-box row has a segment and an outreach action', await ev(`[...document.querySelectorAll('table.intent tr[data-open]')].every(r => /Retail placement|Marketplace agency|Strategy & analytics/.test(r.innerText) && (r.querySelector('[data-outwrite]') || r.querySelector('[data-outopen]')))`));
 await click('[data-insc="retail_placement"]'); await sleep(1500); ok('Segment filter: only retail placement', await ev(`[...document.querySelectorAll('table.intent tr[data-open]')].every(r => /Retail placement/.test(r.innerText))`)); await click('[data-insc="box"]'); await sleep(1500);
 ok('Outreach: write for many at once without a second copy of the owner list', await ev(`!!document.querySelector('[data-many]') && !document.querySelector('[data-testid="out-ready"] .orow')`));
-ok('Three search modes', await ev(`document.querySelectorAll('[data-mode]').length`) === 3);
+ok('Two search modes (firms to buy, brands)', await ev(`document.querySelectorAll('[data-mode]').length`) === 2);
 ok('History lists searches', await ev(`document.querySelectorAll('[data-open]').length`) >= 2);
 await click('[data-mode="target"]'); await sleep(600); ok('Switch to Find firms to buy', await ev(`document.querySelector('[data-mode="target"]').classList.contains('on')`));
 ok('Find firms to buy is the default, ecommerce consulting first', await ev(`document.querySelector('#ps-sub option:checked')?.textContent === 'Ecommerce Consulting' && !document.querySelector('#ps-sub optgroup')`));
@@ -115,7 +118,7 @@ ok('Detail: signals from data sources', await ev(`[...document.querySelectorAll(
 ok('Targets: deal stage on every card', await ev(`document.querySelectorAll('.pscard [data-stage]').length === document.querySelectorAll('.pscard').length`));
 await ev(`(()=>{const x=document.querySelector('.pscard [data-stage]'); x.value='contacted'; x.dispatchEvent(new Event('change'))})()`); await sleep(900);
 ok('Set a deal stage', await ev(`document.querySelector('.pscard [data-stage]').value`) === 'contacted');
-await click('#ps-back'); await sleep(1200); ok('Pipeline counts it', await ev(`document.querySelector('.pipes li.on b')?.textContent`) === '1'); await shot('ps-pipeline');
+await click('#ps-back'); await sleep(1200); ok('Pipeline counts it', +(await ev(`document.querySelector('.pipes li.on b')?.textContent`)) >= 1); // the workspace copy may already hold contacted firms await shot('ps-pipeline');
 await click('.pipe tr[data-open]'); await sleep(1800); ok('Pipeline row opens the target', await ev(`!!document.querySelector('.psd [data-stage]')`));
 await ev(`(()=>{const x=document.querySelector('.psd [data-stage]'); x.value=''; x.dispatchEvent(new Event('change'))})()`); await sleep(900); await click('#ps-close'); await sleep(300);
 

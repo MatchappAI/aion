@@ -1,4 +1,18 @@
-# Test results (October 25, 2026)
+# Test results
+
+## November 8, 2026
+
+All runs used fake Gmail (`AION_GMAIL_MOCK=1`) and no AI or web (`AION_OFFLINE=1`); the browser suite ran against a **copy** of `workspace/` (Gmail tokens blanked in the copy) with every request off this computer blocked (`tests/helpers/no-network.mjs`). The real workspace files were compared before and after: unchanged.
+
+| Suite | Command | Result |
+|---|---|---|
+| Unit and route tests (model, thesis, outreach, safe saving, private settings, the real server's routes) | `npm test` | **150 passed, 0 failed**; also 150/150 with `AION_NO_PRIVATE=1` (the public defaults) |
+| End-to-end browser suite (headless Chrome) | `AION_UI_EXISTING=1 AION_BASE=http://localhost:8799 node tests/ui/run.mjs` | **74 passed, 1 failed**: the failure is "Value Creation analysis runs", which needs a live AI call (off by rule); the screens were then checked on a deal already analyzed in the copy |
+| Network attempts during the browser suite | server log | 0 |
+
+**Not tested:** a live search, analysis, Gmail send or Claude Code / Codex run (all off by rule for this pass). The new Claude Code flags (`--strict-mcp-config`, `--setting-sources project`) and Codex `--ignore-user-config` are confirmed in each tool's `--help`, not in a live run.
+
+## October 25, 2026
 
 All browser tests ran against a **copy** of `workspace/` (10 deals, 28 searches, 2 documents), never the real folder.
 
