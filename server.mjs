@@ -686,10 +686,13 @@ const server = http.createServer(async (req, res) => {
     // the browser gets the same price guide as the server (from private/config.json when present); only this computer sees it
     if (url.pathname === '/thesis.mjs') return send(res, 200, `${fs.readFileSync(path.join(ROOT, 'lib', 'thesis.mjs'), 'utf8')}\nconfigure(${JSON.stringify(browserConfig())});\n`, 'text/javascript');
     let f = path.normalize(path.join(PUB, url.pathname === '/' ? 'index.html' : url.pathname));
-    if (!f.startsWith(PUB) || !fs.existsSync(f) || fs.statSync(f).isDirectory()) return send(res, 404, 'Not found', 'text/plain');
+    if (!(f === PUB || f.startsWith(PUB + path.sep)) || !fs.existsSync(f) || fs.statSync(f).isDirectory()) return send(res, 404, 'Not found', 'text/plain');
     return send(res, 200, fs.readFileSync(f), MIME[path.extname(f)] || 'application/octet-stream');
   } catch (e) {
-    return send(res, 400, { error: e.message });
+    // plain words for the screen; file paths and parser details stay in the server log
+    const msg = String(e?.message || 'Something went wrong.');
+    if (/\/Users\/|\/private\/|ENOENT|EACCES|JSON|Unexpected token|at position/i.test(msg)) { console.error('AION request failed:', msg); return send(res, 400, { error: e instanceof SyntaxError ? 'The request could not be read.' : 'Something went wrong on this computer. See the server log for details.' }); }
+    return send(res, 400, { error: msg });
   }
 });
 server.requestTimeout = 0;

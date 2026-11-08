@@ -14,6 +14,9 @@ import { MODELS } from '../lib/claude.mjs';
 let INTENT = null, LAST_INTENT = null; // the deal-intent scan: progress while it runs, and when it last finished
 const SIG = {}; // searches whose data signals are being refreshed
 let SCAN = null; // the brand radar scan running now
+// one background job per search at a time (a full check, a signals update or the intent scan): each holds its own copy
+// and saves it whole, so two at once would undo each other's results
+const jobOn = (SRUN, id) => SRUN[id] ? 'This search is still running.' : SIG[id] ? 'This search is already being updated.' : INTENT?.ids?.has(id) ? 'The deal-intent scan is reading this search’s firms. Try again when it finishes.' : null;
 
 export const SEARCH_POST = new Set(['search/start', 'search/contacts', 'search/archive', 'search/signals', 'search/more', 'search/intent-scan', 'radar/scan', 'finders/key', 'search/stage', 'search/decide', 'search/watch', 'search/watchrun']);
 
@@ -64,17 +67,17 @@ export async function searchRoute(req, res, url, p, ctx) {
       if (b.remove) { clearContacts(); return send(res, 200, { ok: true }); }
       try { const r = importContacts(Buffer.from(b.data || '', 'base64'), String(b.filename || 'contacts.csv')); return send(res, 200, r); } catch (e) { return send(res, 400, { error: e.message }); }
     }
-    case 'search/archive': { if (SRUN[b.id]) return send(res, 409, { error: 'This search is still running.' }); if (!archiveSearch(b.id)) return send(res, 404, { error: 'Search not found.' }); prune(listSearches().map(x => x.id)); return send(res, 200, { ok: true }); }
+    case 'search/archive': { { const why = jobOn(SRUN, b.id); if (why) return send(res, 409, { error: why }); } if (!archiveSearch(b.id)) return send(res, 404, { error: 'Search not found.' }); prune(listSearches().map(x => x.id)); return send(res, 200, { ok: true }); }
     case 'search/signals': {
-      if (SRUN[b.id] || SIG[b.id]) return send(res, 409, { error: 'This search is already being updated.' });
+      { const why = jobOn(SRUN, b.id); if (why) return send(res, 409, { error: why }); }
       const s2 = loadSearch(b.id); if (!s2) return send(res, 404, { error: 'Search not found.' });
       SIG[b.id] = true;
-      addSignals(s2, { cwd: path.join(ROOTWS, 'searches'), model: MODELS.extraction, log: t => { s2.log.push({ t: s2.runtime || 0, text: t }); } }).then(() => { saveSearchMerged(s2); delete JOB_ERR.signals; }).catch(jobFailed('signals')).finally(() => { delete SIG[b.id]; });
+      addSignals(s2, { cwd: path.join(ROOTWS, 'searches'), model: MODELS.extraction, save: saveSearchMerged, log: t => { s2.log.push({ t: s2.runtime || 0, text: t }); } }).then(() => { saveSearchMerged(s2); delete JOB_ERR.signals; }).catch(jobFailed('signals')).finally(() => { delete SIG[b.id]; });
       return send(res, 200, { ok: true });
     }
     case 'search/more': {
       // the next unchecked results of a finished search get the full in-depth check, data signals and site emails
-      if (SRUN[b.id]) return send(res, 409, { error: 'This search is still running.' });
+      { const why = jobOn(SRUN, b.id); if (why) return send(res, 409, { error: why }); }
       if (Object.keys(SRUN).length >= 2) return send(res, 409, { error: 'Two searches are already running. Try again when one finishes.' });
       const s2 = loadSearch(b.id); if (!s2) return send(res, 404, { error: 'Search not found.' });
       const left = (s2.entities || []).filter(e => !e.scored).length; if (!left) return send(res, 400, { error: 'Every result in this search is already checked.' });
@@ -84,8 +87,9 @@ export async function searchRoute(req, res, url, p, ctx) {
     }
     case 'search/intent-scan': {
       if (INTENT) return send(res, 409, { error: 'Already reading every firm’s site and headlines.' });
+      const all = listSearches().map(h => loadSearch(h.id)).filter(x => x?.mode === 'target' && !SRUN[x.id] && !SIG[x.id]);
       INTENT = { done: 0, total: 0, at: new Date().toISOString() };
-      const all = listSearches().map(h => loadSearch(h.id)).filter(x => x?.mode === 'target' && !SRUN[x.id]);
+      Object.defineProperty(INTENT, 'ids', { value: new Set(all.map(x => x.id)), enumerable: false }); // not sent to the browser
       intentScan(all, { save: saveSearchMerged, progress: p2 => Object.assign(INTENT, p2) }).then(() => { delete JOB_ERR.intent; }).catch(jobFailed('intent')).finally(() => { LAST_INTENT = new Date().toISOString(); INTENT = null; });
       return send(res, 200, { ok: true });
     }

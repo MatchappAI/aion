@@ -30,6 +30,12 @@ export async function outreachRoute(req, res, url, p, ctx) {
   }
   if (req.method !== 'POST' || !OUTREACH_POST.has(p)) return false;
   const b = await body(req);
+  // only the listed kinds of email and document: anything else (a list, an object, a made-up name) is refused
+  const STEP_KINDS = ['email', 'followup1', 'followup2', 'form'], DOC_KINDS = ['nda', 'request', 'loi'], DONE_KINDS = ['letter', 'call', 'form'];
+  if (p === 'outreach/send' && !STEP_KINDS.includes(b.kind)) return send(res, 400, { error: 'Unknown email.' });
+  if (['outreach/doc', 'outreach/doc-edit', 'outreach/doc-send'].includes(p) && !DOC_KINDS.includes(b.kind)) return send(res, 400, { error: 'Unknown document.' });
+  if (p === 'outreach/done' && !DONE_KINDS.includes(b.kind)) return send(res, 400, { error: 'Only letters, calls and contact-form notes are marked done by hand.' });
+  if (p === 'outreach/confirm' && ((b.action === 'step' || b.action == null) && !STEP_KINDS.includes(b.kind) || b.action === 'doc' && !DOC_KINDS.includes(b.kind))) return send(res, 400, { error: 'Unknown send.' });
   switch (p) {
         case 'outreach/settings': return send(res, 200, OUT.setSettings(b));
         case 'outreach/connect': { try { return send(res, 200, GMAIL.connectUrl(PORT, String(b.email || '').trim())); } catch (e) { return send(res, 400, { error: e.message }); } }
