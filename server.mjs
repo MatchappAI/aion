@@ -623,7 +623,7 @@ function actionList(d) {
 const $k = v => (v < 0 ? '−' : '') + (Math.abs(v) >= 1e6 ? '$' + (Math.abs(v) / 1e6).toFixed(2) + 'M' : '$' + Math.round(Math.abs(v) / 1000) + 'K');
 function checks() {
   if (!S.normConfirmed || !S.opsConfirmed) return [];
-  const d = derive(); const t = d.pnl.TTM; const out = [];
+  const d = derive(); if (!d.pnl) return []; const t = d.pnl.TTM; const out = []; // accounts not confirmed yet: nothing to ask
   for (const a of S.accounts || []) {
     const c = S.mapping[a.account];
     if ((c === 'comp_producers' || c === 'comp_owner') && OWNERISH.test(a.account) && t.byCat[c]) {
