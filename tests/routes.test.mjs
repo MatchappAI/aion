@@ -97,3 +97,16 @@ test('read routes answer without touching the network', async () => {
   }
   assert.doesNotMatch(log, /Network blocked/);
 });
+
+test('every outreach route answers (no crash) after the routes moved to routes/outreach.mjs', async () => {
+  const get = ['outreach/state', 'outreach/results', 'outreach/item?id=otest1', 'outreach/print?id=otest1&kind=letter', 'outreach/attachments?id=otest1', 'outreach/slots'];
+  for (const p of get) { const r = await req('GET', `/api/${p}`); assert.ok(r.status < 500, `${p}: ${r.status} ${r.text.slice(0, 200)}`); }
+  const posts = [['outreach/settings', { callMinutes: 30 }], ['outreach/edit', { id: 'otest1', kind: 'letter', body: 'Dear Pat' }], ['outreach/done', { id: 'otest1', kind: 'call', note: 'x' }],
+    ['outreach/stage', { id: 'otest1', stage: 'met', note: '' }], ['outreach/sync', {}], ['outreach/doc', { id: 'otest1', kind: 'nda' }], ['outreach/doc-edit', { id: 'otest1', kind: 'nda', body: 'NDA text' }],
+    ['outreach/link-deal', { id: 'otest1' }], ['outreach/create', { search: 'nope', entity: 'nope' }], ['outreach/batch', { items: [] }], ['outreach/rewrite', { id: 'nope' }],
+    ['outreach/answer', { id: 'otest1' }], ['outreach/find-email', { id: 'otest1' }], ['outreach/disconnect', { email: 'nobody@example.test' }], ['outreach/finish', { id: 'otest1', why: 'test' }]];
+  for (const [p, b] of posts) { const r = await post(p, b); assert.ok(r.status < 500, `${p}: ${r.status} ${r.text.slice(0, 200)}`); }
+  assert.equal((await post('outreach/nope', {})).status, 404);
+  assert.doesNotMatch(log, /ReferenceError|TypeError: .* is not a function/);
+  assert.match((await post('outreach/delete', { id: 'otest1' })).text, /error|ok/); // an emailed outreach is kept (history), a draft can go
+});
