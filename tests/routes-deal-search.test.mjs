@@ -147,3 +147,26 @@ test('static files and the thesis script', async () => {
   assert.equal((await req('GET', '/%2e%2e/server.mjs')).status, 404);
   assert.doesNotMatch(log, /Network blocked/);
 });
+
+// background jobs run to the end offline (AI off, network blocked): they finish, say what went wrong in plain words,
+// keep the user's decisions, and one job per search at a time
+const until = async (f, ms = 15000) => { const t0 = Date.now(); while (Date.now() - t0 < ms) { const v = await f(); if (v) return v; await new Promise(r => setTimeout(r, 200)); } return null; };
+test('background jobs: a new search, signals, the intent scan and the brand radar finish offline without losing decisions', async () => {
+  assert.equal((await post('search/start', { mode: 'candidate', objective: 'Account managers for an Amazon agency in Ohio' })).status, 400, 'candidate searches are closed');
+  const st = await post('search/start', { mode: 'target', objective: 'Retail placement firms for natural food brands in Texas' });
+  assert.equal(st.status, 200, st.text);
+  const done = await until(async () => { const s = (await get('search/get/' + st.json.id)).json; return s && s.status !== 'running' ? s : null; });
+  assert.ok(done, 'the search stops'); assert.notEqual(done.status, 'running');
+  // signals on the placeholder search while a decision is made: the decision stays
+  assert.equal((await post('search/decide', { id: 'stest1', entity: 'e1', decision: 'saved' })).status, 200);
+  assert.equal((await post('search/signals', { id: 'stest1' })).status, 200);
+  assert.equal((await post('search/decide', { id: 'stest1', entity: 'e1', decision: 'priority' })).status, 200);
+  await until(async () => !(await get('search/list')).json.searches.some(x => x.status === 'running'));
+  assert.equal(JSON.parse(fs.readFileSync(path.join(WS, 'searches', 'stest1.json'), 'utf8')).entities[0].decision, 'priority');
+  assert.equal((await post('search/intent-scan', {})).status, 200);
+  assert.ok(await until(async () => (await get('search/intent')).json.scanning === null), 'the intent scan finishes');
+  assert.equal((await post('radar/scan', { region: 'Texas', days: 30 })).status, 200);
+  const rd = await until(async () => { const r = (await get('search/radar')).json; return r.scanning ? null : r; });
+  assert.ok(rd, 'the radar scan finishes'); if (rd.lastError) assert.doesNotMatch(rd.lastError.error, /\/Users\//);
+  assert.doesNotMatch(log, /ReferenceError|TypeError: .* is not a function/);
+});

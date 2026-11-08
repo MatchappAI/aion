@@ -41,18 +41,14 @@ const home = async app => { if (!primed) { await send('Page.navigate', { url: BA
 const SCREENS = [
   ['Settings', async () => { await home('settings'); }],
   ['Help', async () => { await home('help'); }],
-  ['Documents', async () => { await home('docs'); }],
-  ['Documents · first doc', async () => { await home('docs'); await click('[data-open]'); }],
-  ...['candidate', 'client'].map(m => [`Search home · ${m} mode`, async () => { await home('ps'); await click(`[data-mode="${m}"]`); }]),
-  ['Search home', async () => { await home('ps'); }],
+  ['Search & Outreach home', async () => { await home('ps'); }],
+  ['Search home · brand mode', async () => { await home('ps'); await click('[data-mode="client"]'); }],
+  ['Outreach item', async () => { await home('ps'); await click('#psout [data-open]'); }],
   ['Search results', async () => { await home('ps'); await click('tr[data-open]'); }],
   ['Search result detail', async () => { await home('ps'); await click('tr[data-open]'); await click('[data-detail]'); }],
   ['Network', async () => { await home('ps'); await click('#ps-net'); }],
-  ...['overview', 'fit', 'plan', 'trends', 'deal', 'run', 'details'].map(t => [`Value Creation · ${t}`, async () => { await home('vc'); await click(`[data-tab-btn="${t}"]`); }]),
+  ...['overview', 'deal', 'plan', 'details'].map(t => [`Value Creation · ${t}`, async () => { await home('vc'); await click(`[data-tab-btn="${t}"]`); }]),
   ['Build-it drawer', async () => { await home('vc'); await click('[data-build]'); }],
-  ['Advanced · levers', async () => { await home('vc'); await click('[data-tab-btn="details"]'); await click('#math'); }],
-  ['Advanced · run log', async () => { await home('vc'); await click('[data-tab-btn="details"]'); await click('#log'); }],
-  
 ];
 // every visible control in the current screen, scoped to what is on top (drawer or modal first)
 const LIST = `(() => {

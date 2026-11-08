@@ -1,5 +1,6 @@
 // End-to-end browser test for the whole Aion product. Run with the app running: node tests/ui/run.mjs
-// AION_BASE=http://localhost:8799 points it at a server on a throwaway workspace copy (recommended: it sets a deal stage).
+// AION_BASE=http://localhost:8799 points it at a server on a throwaway workspace copy (always do this: it sets a deal stage);
+// AION_WORKSPACE=<that copy> reads the test ledgers from the copy too.
 // Uses the test ledger in workspace/archive/test-files-other-industries, then archives that deal again.
 import { spawn } from 'node:child_process'; import fs from 'node:fs'; import path from 'node:path';
 const ROOT = path.resolve(path.dirname(new URL(import.meta.url).pathname), '../..'), OUT = path.join(ROOT, 'tests/ui/out'), APP = (process.env.AION_BASE || 'http://localhost:8765').replace(/\/$/, ''), B = APP + '/api/';
@@ -9,7 +10,8 @@ const call = async (p, b) => (await fetch(B + p, b === undefined ? {} : { method
 let pass = 0, fail = 0; const ok = (n, c, x = '') => { c ? pass++ : fail++; console.log((c ? 'PASS ' : 'FAIL ') + n + (x ? ' — ' + x : '')); };
 
 // 1. a company to test Value Creation with
-const T = path.join(ROOT, 'workspace/archive/test-files-other-industries'), b64 = f => fs.readFileSync(path.join(T, f)).toString('base64');
+// the test ledgers, read from the workspace copy when given
+const T = path.join(process.env.AION_WORKSPACE || path.join(ROOT, 'workspace'), 'archive/test-files-other-industries'), b64 = f => fs.readFileSync(path.join(T, f)).toString('base64');
 const up = await call('upload', { filename: 'Test_HVAC_Contractor_General_Ledger_2025.csv', data: b64('Test_HVAC_Contractor_General_Ledger_2025.csv') });
 if (up.error) { console.log('FAIL upload: ' + up.error); process.exit(1); }
 const TEST_ID = (await call('deals', undefined)).current;
