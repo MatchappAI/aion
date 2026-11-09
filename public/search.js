@@ -39,20 +39,19 @@ async function draw() {
   try { const pre = JSON.parse(localStorage.getItem('aion.psPrefill') || 'null'); if (pre) { localStorage.removeItem('aion.psPrefill'); Object.assign(P, { view: 'home', id: null, mode: pre.mode, sub: pre.subsector || undefined, draft: pre.objective }); } } catch {}
   if (P.view === 'search' && P.id) return drawSearch();
   if (P.view === 'network') return drawNetwork();
-  let hist = [], W = [], NS = { people: 0, companies: 0 }, SRC = [], PL = { stages: [], deals: [] }, RD = { events: [], scans: [] }, TD = { list: [], total: 0 }, IN = { list: [], counts: {} }, ST = { pairs: [], market: { bought: [], deals: [], clusters: [] } };
+  let hist = [], W = [], NS = { people: 0, companies: 0 }, SRC = [], PL = { stages: [], deals: [] }, RD = { events: [], scans: [] }, TD = { list: [], total: 0 }, IN = { list: [], counts: {} };
   // each list loads on its own: one that fails says so (with Try again) instead of blanking every list or showing first-run help
   const failed = [], got = (p, pick, label, dflt) => api(p).then(x => pick ? pick(x) : x).catch(() => { failed.push(label); return dflt; });
-  [hist, PL, RD, W, NS, SRC, IN, ST] = await Promise.all([got('search/list', x => x.searches, 'searches', []), got('search/pipeline', null, 'deal pipeline', PL), got('search/radar', null, 'brand radar', RD), got('search/watches', x => x.watches, 'watchlists', []), got('search/network', x => x.stats, 'network', NS), got('search/sources', x => x.sources, 'data sources', []), got('search/intent', null, 'owner list', IN), got('search/strategy', null, 'strategy views', { pairs: [], market: { bought: [], deals: [], clusters: [] } })]);
+  [hist, PL, RD, W, NS, SRC, IN] = await Promise.all([got('search/list', x => x.searches, 'searches', []), got('search/pipeline', null, 'deal pipeline', PL), got('search/radar', null, 'brand radar', RD), got('search/watches', x => x.watches, 'watchlists', []), got('search/network', x => x.stats, 'network', NS), got('search/sources', x => x.sources, 'data sources', []), got('search/intent', null, 'owner list', IN)]);
   const M = MODES[P.mode], on = SRC.filter(x => x.status === 'connected').length;
   document.body.dataset.firstrun = failed.length || (IN.list || []).length || hist.length ? '' : '1'; // first run: Start here and the search box come first
   const sum = [[hist.length, 'searches'], [hist.reduce((t, h) => t + (h.raw || 0), 0), 'pages read'], [(NS.people || 0) + (NS.companies || 0) + (NS.targets || 0), 'people and companies found'], [hist.reduce((t, h) => t + (h.contacts || 0), 0), 'verified contacts']];
   P.main.innerHTML = `${failed.length ? `<div class="callout err" role="alert">Couldn’t load the ${esc(failed.join(', '))}. Is AION still running? <button class="ghost sm" id="ps-retry">Try again</button></div>` : ''}<div class="ps">
-    ${(IN.list || []).length ? `<div class="pshead"><h1>Owners to contact</h1><p class="lede2">Who to contact, why, and what to do next. Press Write outreach on a row; drafts, sends and replies show up in Outreach above.</p></div>
+    ${(IN.list || []).length ? `<div class="pshead"><h1>Firms</h1><p class="lede2">Save the firms you want, then write to them under Saved. Drafts, sends and replies show up in Outreach above.</p></div>
     ${intentPanel(IN)}
-    ${strategyPanel(ST)}
-    <h2 class="h2">Find more</h2>` : `<div class="pshead"><h1>Start here</h1><p class="lede2">Three steps to your first owner conversation. Nothing is sent without your OK.</p></div>
+    <details class="more2 findmore" data-testid="find-more" ${P.findOpen ? 'open' : ''}><summary class="h2">Search for more firms</summary>` : `<div class="pshead"><h1>Start here</h1><p class="lede2">Three steps to your first owner conversation. Nothing is sent without your OK.</p></div>
     <ol class="starthere" data-testid="start-here"><li><b>Find firms.</b> Describe the firms you want to buy below and press Search. It takes 4–8 minutes; every firm found is ranked here, best first.</li><li><b>Connect your Gmail.</b> Under Inboxes and settings (in Outreach, at the top of this page), connect the inbox you send from and add your mailing address.</li><li><b>Write to owners.</b> Press Write outreach on a firm. AION writes a personal email from what it found about that firm; you read it, edit it and press Send.</li></ol>
-    <h2 class="h2">Find your first firms</h2>`}
+    <h2 class="h2">Find your first firms</h2><div>`}
     <div class="psmodes">${Object.entries(MODES).filter(([, m]) => !m.hidden).map(([k, m]) => `<button data-mode="${k}" class="${P.mode === k ? 'on' : ''}"><b>${m.label}</b><span>${m.sub}</span></button>`).join('')}</div>
     <div class="psform">
       ${P.mode === 'candidate' ? '' : `<label class="pssub"><span>${P.mode === 'client' ? 'Brands for which kind of firm?' : 'Kind of firm to buy'}</span><select id="ps-sub">${(() => { const cur = P.sub ?? 'ecommerce', opt = ([k, v]) => `<option value="${k}" ${cur === k ? 'selected' : ''}>${esc(v.label)}</option>`, E = Object.entries(SUBSECTORS);
@@ -69,7 +68,9 @@ async function draw() {
     <details class="more2 srcs"><summary>Data sources · ${on} of ${SRC.length} connected</summary>
       ${SRC.map(x => `<div class="src ${x.status === 'connected' ? 'on' : ''}"><i></i><div><b>${esc(x.name)}</b><span>${esc(x.note)}</span></div>${x.key === 'contacts' ? `<div class="srca">${x.status === 'connected' ? '<span class="link" id="ct-rm">remove</span> · ' : ''}<span class="link" id="ct-add">${x.status === 'connected' ? 'replace' : 'upload'}</span><input type="file" id="ct-file" accept=".csv,.xlsx,.xls" hidden></div>` : `<span class="srcs-st">${x.status}</span>`}</div>`).join('')}
       <p class="howline"><b>How this works:</b> web search finds names; sources read directly set the timing; your contacts show warm introductions.</p></details>
+    ${(IN.list || []).length ? '</details>' : '</div>'}
   </div>`;
+  if ($('.findmore')) $('.findmore').ontoggle = e => { P.findOpen = e.target.open; };
   P.main.querySelectorAll('[data-mode]').forEach(b => b.onclick = () => { P.draft = $('#ps-obj').value; P.mode = b.dataset.mode; P.sub = undefined; draw(); });
   if ($('#ps-sub')) $('#ps-sub').onchange = () => { P.sub = $('#ps-sub').value; };
   if ($('#ps-net')) $('#ps-net').onclick = () => { P.view = 'network'; draw(); };
@@ -426,56 +427,46 @@ function oppRow(x, extra = '') {
       <div><span class="tbadge ${APPR[offerOf(x)][1]}" title="${esc(APPR_WHY[offerOf(x)])}">${APPR[offerOf(x)][0]}</span></div></td>
     <td><b>${esc(S.fit?.label || '—')}</b> <span class="note">fit</span><div class="note">${esc(cut(S.fit?.why || '', 90))}</div>${x.size ? `<div class="note" title="${esc(SIZE_NOTE)}">≈ ${x.size.people} people · ${money(x.size.ebitda[0])}–${money(x.size.ebitda[1])} profit (estimate)</div>` : `<div class="note">Size: ${esc(S.financial?.label || 'unknown')}</div>`}</td>
     <td>${esc(S.next || '')}<div class="note">${esc(S.readiness?.label || '')}: ${esc(S.readiness?.why || '')}</div>${extra}</td>
-    <td>${outCellOf(x)}</td></tr>`;
+    <td>${saveCellOf(x)}</td></tr>`;
 }
-let outCellOf = () => '';
-// strategy views: firms that complete each other (hypotheses with their assumptions), and who is consolidating the market
-function strategyPanel(ST) {
-  const pr = ST.pairs || [], M = ST.market || {};
-  if (!pr.length && !(M.bought || []).length) return '';
-  const nm = f => `<span class="link" data-open="${esc(f.search)}" data-ent="${esc(f.entity)}">${esc(f.name)}</span>${f.strong ? ' <span class="pill2 done">strong fit</span>' : ''} <span class="note">${esc([f.segment, f.place].filter(Boolean).join(' · '))}</span>`;
-  return `<div class="pipe">
-    ${pr.length ? `<details class="inout" data-testid="pairs"><summary>Firms that fit together · ${pr.length}</summary><p class="note">Ideas for a platform plus add-on, from what each firm does and where. Each is a hypothesis; the assumptions say what to check.</p><ul>${pr.slice(0, 8).map(x => `<li>${nm(x.a)} + ${nm(x.b)}<div class="note">${esc(x.why.join(' '))}${x.evidence.length ? ` Evidence: ${esc(x.evidence.join('; '))}.` : ''} <i>Assumes: ${esc(x.assumptions.join(' '))}</i></div></li>`).join('')}</ul></details>` : ''}
-    ${(M.bought || []).length || (M.deals || []).length ? `<details class="inout" data-testid="consolidation"><summary>Who is consolidating · ${(M.bought || []).length} firms already part of a group</summary>
-      ${(M.deals || []).length ? `<p class="lab">Deals in the news</p><ul>${M.deals.slice(0, 8).map(d => `<li>${esc(d.text)}${d.date ? ` <span class="note">${esc(d.date)}</span>` : ''} <a href="${safeUrl(d.url)}" target="_blank" rel="noopener">source</a></li>`).join('')}</ul>` : ''}
-      ${(M.bought || []).length ? `<p class="lab">Already owned by a group or buying others</p><ul>${M.bought.slice(0, 12).map(b => `<li>${esc(b.name)} <span class="note">${esc(b.why)}</span></li>`).join('')}</ul>` : ''}
-      ${(M.clusters || []).length ? `<p class="lab">Independent firms left, by segment and region</p><ul>${M.clusters.slice(0, 8).map(c => `<li><b>${esc(c.key)}</b> · ${c.firms.length}: ${c.firms.slice(0, 6).map(f => esc(f.name)).join(', ')}${c.firms.length > 6 ? '…' : ''}</li>`).join('')}</ul>` : ''}</details>` : ''}
-  </div>`;
-}
+let saveCellOf = () => '';
+// Two sections only (user, 2026-11-08): Saved (everything you saved: write outreach from here) and All firms (every firm
+// found, in every category, each with Save). Evidence, fit, size and the next step are on each row.
+const CATS = [['all', 'All'], ...SEGS, ['other', 'Other'], ['marketed', 'Marketed'], ['aside', 'Set aside']];
 function intentPanel(IN) {
-  const C = IN.counts || {}, f = ['all', 'new', 'full', 'majority', 'partner'].includes(P.inF) ? P.inF : 'all', scope = P.inScope && (P.inScope === 'box' || SEGS.some(([k]) => k === P.inScope)) ? P.inScope : 'box';
-  const inScope = x => x.niche && (scope === 'box' || x.segment === scope);
-  const NICHE = (IN.list || []).filter(x => x.niche), ALL = NICHE.filter(x => x.strongFit || x.outreach), WEAK0 = NICHE.filter(x => !x.strongFit && !x.outreach), confirmed = ALL.length;
-  // the best leads to research are shown openly; the fold holds the rest, so no firm is listed twice
-  const LEADS = WEAK0.filter(x => x.scores?.intent?.category === 'speculative' && (!P.inScope || P.inScope === 'box' || x.segment === P.inScope)).slice(0, 10), leadIds = new Set(LEADS.map(x => `${x.search}|${x.entity}`)), WEAK = WEAK0.filter(x => !leadIds.has(`${x.search}|${x.entity}`));
-  const test = (x, k) => k === 'all' ? true : k === 'new' ? !x.outreach : offerOf(x) === k;
-  const L = ALL.filter(x => inScope(x) && test(x, f)), n = P.inAll ? L.length : 15, sc = IN.scanning;
-  const cnt = k => ALL.filter(x => inScope(x) && test(x, k)).length;
-  const outCell = x => x.outreach ? `<span class="pill2 ${['replied', 'conversation'].includes(x.outreach.phase) ? 'done' : ''}">${esc(OPH[x.outreach.phase] || x.outreach.status || 'In outreach')}</span>${x.outreach.sender ? `<div class="note">✉ ${esc(x.outreach.sender.split('@')[0])}${x.outreach.to ? ` → ${esc(x.outreach.to)}` : ''}</div>` : ''}<div><span class="link" data-outopen="${esc(x.outreach.id)}" data-stop>Open</span></div>`
-    : x.box?.status !== 'out' ? `<button class="sm" data-outwrite="${esc(x.search)}|${esc(x.entity)}" data-stop>Write outreach</button>` : '<span class="note">—</span>';
-  outCellOf = outCell;
-  const filters = [['all', 'All'], ['new', 'Not contacted'], ['full', 'Full buyout'], ['majority', 'Majority stake'], ['partner', 'Partnership']].filter(([k]) => k !== 'partner' || cnt('partner'));
+  const sc = IN.scanning, sv = IN.saved || [], savedKeys = new Set(sv.map(x => `${x.search}|${x.entity}`));
+  const ALL = [...(IN.list || []).map(x => ({ ...x, cat: x.niche ? x.segment : 'other' })), ...(IN.marketed || []).map(x => ({ ...x, cat: 'marketed' })), ...(IN.outsideList || []).map(x => ({ ...x, cat: 'aside' }))];
+  const ORD = { confirmed: 0, documented: 1, speculative: 2, none: 3 };
+  { const seenK = new Set(), keep = ALL.filter(x => { const k = String(x.name || '').toLowerCase().replace(/[^a-z0-9]+/g, ''); if (seenK.has(k)) return false; seenK.add(k); return true; }); ALL.length = 0; ALL.push(...keep); } // one row per firm
+  ALL.sort((x, y) => (ORD[x.scores?.intent?.category] ?? 4) - (ORD[y.scores?.intent?.category] ?? 4) || (x.cat === 'aside') - (y.cat === 'aside') || (y.rankScore || 0) - (x.rankScore || 0));
+  const q = String(P.inFind || '').trim().toLowerCase(), hit = x => !q || [x.name, x.owner, x.place, x.segmentLabel].some(v => String(v || '').toLowerCase().includes(q));
+  const cat = CATS.some(([k]) => k === P.inCat) ? P.inCat : 'all', L = ALL.filter(x => (cat === 'all' || x.cat === cat) && hit(x)), n = P.inAll ? L.length : 25;
+  const cnt = k => ALL.filter(x => k === 'all' || x.cat === k).length;
+  saveCellOf = x => x.outreach ? `<span class="pill2">${esc(OPH[x.outreach.phase] || 'In outreach')}</span>` : saveBtn(x);
+  const saveBtn = x => savedKeys.has(`${x.search}|${x.entity}`) ? '<span class="pill2 done">✓ Saved</span>' : `<button class="ghost sm" data-insave="${esc(x.search)}|${esc(x.entity)}" data-stop data-testid="in-save">Save</button>`;
+  const savedRow = x => { const S = x.scores, I = S?.intent;
+    return `<tr data-open="${esc(x.search)}" data-ent="${esc(x.entity)}" data-testid="saved-row"><td><b>${esc(x.name)}</b>${x.priority ? ' <span class="pill2 running">Priority</span>' : ''}<br><span class="note">${esc([{ target: 'Firm', client: 'Brand', candidate: 'Person' }[x.mode], x.what, x.place].filter(Boolean).join(' · '))}</span></td>
+      <td>${I ? `<span class="tbadge ${INTENT_CLS[I.category] || ''}">${esc(I.label)}</span>${(I.evidence || [])[0] ? `<div class="isig">${esc(cut(I.evidence[0].text))}${I.evidence[0].url ? ` <a href="${safeUrl(I.evidence[0].url)}" target="_blank" rel="noopener" data-stop>source</a>` : ''}</div>` : ''}` : '<span class="note">—</span>'}</td>
+      <td>${esc(S?.next || (x.emails ? 'Write to them' : 'Find their email, then write'))}</td>
+      <td>${x.outreach ? `<span class="pill2 ${['replied', 'conversation'].includes(x.outreach.phase) ? 'done' : ''}">${esc(OPH[x.outreach.phase] || x.outreach.status || 'In outreach')}</span><div><span class="link" data-outopen="${esc(x.outreach.id)}" data-stop>Open</span></div>` : `<button class="sm" data-outwrite="${esc(x.search)}|${esc(x.entity)}" data-stop data-testid="saved-write">Write outreach</button>`}
+        <div><span class="link note" data-unsave="${esc(x.search)}|${esc(x.entity)}" data-stop>remove</span></div></td></tr>`; };
   return `<div class="pipe intent">
-      <p class="note" data-testid="strong-count"><b>${ALL.filter(x => x.strongFit).length} strong fit${ALL.filter(x => x.strongFit).length === 1 ? '' : 's'}</b> of ${NICHE.length} firms found${ALL.length > ALL.filter(x => x.strongFit).length ? ', plus firms already in outreach' : ''}.</p>
-      <div class="psbar"><div class="seg">${[['box', `All segments · ${ALL.length}`], ...SEGS.map(([k, l]) => [k, `${l} · ${ALL.filter(x => x.segment === k).length}`])].map(([k, l]) => `<button data-insc="${k}" class="${scope === k ? 'on' : ''}">${l}</button>`).join('')}</div><div class="spacer"></div>
-      <button class="ghost" id="in-scan" ${sc ? 'disabled' : ''} title="Read every firm’s website and headlines again for new signs">${sc ? `Reading ${sc.done} of ${sc.total || '…'}` : 'Refresh signs'}</button></div>
+      <h2 class="h2" data-testid="saved">Saved <span class="h2s">${sv.length}</span></h2>
+      ${sv.length ? `<div class="tblw"><table class="hist intent"><tr><th>Who</th><th>Why contact them</th><th>Next step</th><th>Outreach</th></tr>${sv.map(savedRow).join('')}</table></div>` : '<p class="note">Nothing saved yet. Press Save on any firm below (or on a brand or person in a search) and write to them from here.</p>'}
+      <div class="psbar"><h2 class="h2" data-testid="all-firms">All firms <span class="h2s">${ALL.length}</span></h2><div class="spacer"></div>
+        <button class="ghost" id="in-scan" ${sc ? 'disabled' : ''} title="Read every firm’s website and headlines again for new signs">${sc ? `Reading ${sc.done} of ${sc.total || '…'}` : 'Refresh signs'}</button></div>
       ${!sc && IN.lastError ? `<p class="warnline sm" data-testid="intent-error">The last refresh of signs stopped: ${esc(IN.lastError.error)}. Try again.</p>` : ''}
-      <div class="psbar"><div class="seg">${filters.map(([k, l]) => `<button data-inf="${k}" class="${f === k ? 'on' : ''}">${l} · ${cnt(k)}</button>`).join('')}</div></div>
-      ${L.length ? `<div class="tblw"><table class="hist intent"><tr><th class="num">#</th><th>Firm</th><th>Why contact them</th><th>Fit · size</th><th>Next step</th><th>Outreach</th></tr>${L.slice(0, n).map(x => oppRow(x)).join('')}</table></div>
-        ${L.length > 15 ? `<p><span class="link" id="in-all">${P.inAll ? 'Show the top 15' : `Show all ${L.length}`}</span></p>` : ''}`
-      : `<p class="note" data-testid="no-strong">${ALL.length ? 'No firms in this view. Pick another segment or filter.' : NICHE.length ? 'No strong fits yet. Press Refresh signs to read every firm again, run another search, or open “not strong yet” below to see what each firm is missing.' : 'Run a “Find firms to buy” search below; each firm shows up here.'}</p>`}
-      ${(() => { const R = LEADS; return R.length ? `<h3 class="h3s" data-testid="leads">Leads to research · ${R.length}</h3><p class="note">Supporting signs only (long tenure, a quiet website, a partner gone): research leads, not evidence they want to sell. The next step says what to look for.</p><div class="tblw"><table class="hist intent">${R.map(x => oppRow(x)).join('')}</table></div>` : ''; })()}
-      ${(IN.marketed || []).length ? `<details class="inout" data-testid="marketed"><summary>${IN.marketed.length} marketed (listed for sale or with a broker)</summary><p class="note">Confirmed interest, but other buyers can see them too. Off-market owners above come first.</p><div class="tblw"><table class="hist intent">${IN.marketed.map(x => oppRow(x)).join('')}</table></div></details>` : ''}
-      ${WEAK.length ? `<details class="inout" data-testid="not-strong"><summary>${WEAK.length} not strong yet</summary>${(() => { const W = WEAK.filter(x => scope === 'box' || x.segment === scope), G = new Map();
-        for (const x of W) { const r = (x.strength?.missing || ['Not strong yet'])[0].replace(/\s*\(.*$|:.*$/, ''); if (!G.has(r)) G.set(r, []); G.get(r).push(x); }
-        return [...G].sort((a, b) => b[1].length - a[1].length).map(([r, xs]) => `<p class="note"><b>${esc(r)}</b> · ${xs.length}</p><ul>${xs.map(x => `<li><span class="link" data-open="${x.search}" data-ent="${x.entity}">${esc(x.name)}</span>${(x.strength?.missing || []).length > 1 ? ` <span class="note">also: ${esc(x.strength.missing.slice(1).join(' · ').toLowerCase())}</span>` : ''}${x.decision === 'saved' || x.decision === 'priority' ? ` <button class="ghost sm" data-outwrite="${esc(x.search)}|${esc(x.entity)}" data-stop>Write outreach</button>` : ''}</li>`).join('')}</ul>`).join(''); })()}<p class="note">A firm moves up by itself when Refresh signs finds a new one.</p></details>` : ''}
-      ${(IN.outside || []).length ? `<details class="inout"><summary>${IN.outside.length} firm${IN.outside.length === 1 ? '' : 's'} set aside (outside the buy box)</summary><ul>${IN.outside.filter(x => scope === 'box' || x.segmentLabel === (SEGS.find(([k]) => k === scope) || [])[1]).map(x => `<li><span class="link" data-open="${x.search}" data-ent="${x.entity}">${esc(x.name)}</span> <span class="note">${esc(x.why)}</span></li>`).join('')}</ul><p class="note">Save a firm from its page to bring it back.</p></details>` : ''}
-      <p class="howline"><b>How this works:</b> AION buys US ecommerce consulting firms that are owner-run, about 5–150 people. Only strong fits are listed: at least one clear sign from the last 18 months (or on their own website today) that the owner wants to <b>sell</b> some or all of the firm (retirement, a stated succession or exit plan, the founder stepping up to chairman, the founder has died), or that the firm asked for an <b>investor or partner</b>. Long tenure, awards, a quiet website or nearby sales only lift the rank. Hires, new services and AI talk never count. Selling → a <b>full buyout</b> (or a majority stake); asking for a partner → a <b>partnership</b>. A <b>partnership</b> is offered only when the firm says it wants one. AION writes to owners directly; firms already listed for sale are left out.${IN.lastScan ? ` Signs last refreshed ${ago(IN.lastScan)}.` : ''}</p></div>`;
+      <div class="psbar"><div class="seg">${CATS.filter(([k]) => k === 'all' || cnt(k)).map(([k, l]) => `<button data-incat="${k}" class="${cat === k ? 'on' : ''}">${l} · ${cnt(k)}</button>`).join('')}</div><div class="spacer"></div><input id="in-find" type="search" placeholder="Find a firm, owner or city" aria-label="Find a firm" value="${esc(P.inFind || '')}" data-testid="in-find"></div>
+      ${L.length ? `<div class="tblw"><table class="hist intent"><tr><th class="num">#</th><th>Firm</th><th>Why contact them</th><th>Fit · size</th><th>Next step</th><th></th></tr>${L.slice(0, n).map(x => oppRow(x)).join('')}</table></div>
+        ${L.length > 25 ? `<p><span class="link" id="in-all">${P.inAll ? 'Show the first 25' : `Show all ${L.length}`}</span></p>` : ''}` : `<p class="note">${ALL.length ? 'No firms in this category.' : 'Run a “Find firms to buy” search below; every firm shows up here.'}</p>`}
+      <p class="howline"><b>How this works:</b> firms with a clear, sourced sign the owner wants to sell (or asked for a partner) come first, then supporting signs only, then the rest. Seller intent is <b>Confirmed</b>, <b>Documented transition</b> or <b>Speculative</b>, never a made-up probability. Save the ones you want; write to them under Saved.${IN.lastScan ? ` Signs refreshed ${ago(IN.lastScan)}.` : ''}</p></div>`;
 }
 const short2 = t => { t = String(t || ''); return t.length > 70 ? t.slice(0, 70).replace(/\s+\S*$/, '') + '…' : t; };
 function wireIntent(IN) {
-  P.main.querySelectorAll('[data-inf]').forEach(b => b.onclick = () => { P.inF = b.dataset.inf; P.inAll = false; draw(); });
-  P.main.querySelectorAll('[data-insc]').forEach(b => b.onclick = () => { P.inScope = b.dataset.insc; P.inAll = false; draw(); });
+  if ($('#in-find')) $('#in-find').oninput = e => { P.inFind = e.target.value; clearTimeout(P.findT); P.findT = setTimeout(() => { const pos = e.target.selectionStart; draw().then?.(() => { const f = $('#in-find'); if (f) { f.focus(); f.setSelectionRange(pos, pos); } }); }, 350); };
+  P.main.querySelectorAll('[data-incat]').forEach(b => b.onclick = () => { P.inCat = b.dataset.incat; P.inAll = false; draw(); });
+  P.main.querySelectorAll('[data-insave],[data-unsave]').forEach(b => b.onclick = async ev => { ev.stopPropagation(); const [id, entity] = (b.dataset.insave || b.dataset.unsave).split('|'); b.disabled = true;
+    try { await api('search/decide', { id, entity, decision: b.dataset.insave ? 'saved' : null }); draw(); } catch (e) { toast(e.message, 'err'); b.disabled = false; } });
   if ($('#in-all')) $('#in-all').onclick = () => { P.inAll = !P.inAll; draw(); };
   P.main.querySelectorAll('[data-stop]').forEach(a => a.onclick = ev => ev.stopPropagation());
   P.main.querySelectorAll('[data-outopen]').forEach(a => a.onclick = ev => { ev.stopPropagation(); try { localStorage.setItem('aion.outOpen', a.dataset.outopen); } catch {} window.dispatchEvent(new Event('aion:outopen')); });

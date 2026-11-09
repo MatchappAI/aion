@@ -319,8 +319,8 @@ function ownerList() {
       clients: (e?.clientBook?.clients || []).map(c => c.company || c.name || c).filter(Boolean).slice(0, 30), researched: e?.founderProfile?.at || null, firstSeen: e?.firstSeen || s2?.created || null,
       signals: x.signals.filter(y => y.path).map(y => ({ key: y.key, label: y.label, path: y.path, text: unent(y.text), url: y.url, date: y.date, direction: y.direction, confidence: y.confidence, source: y.source })).sort((a, b) => (CLUE_ORDER[a.key] ?? 5) - (CLUE_ORDER[b.key] ?? 5)) }; };
   // one list, one numbering: every firm is a buyout (full or majority); a partnership only when the firm asked for one
-  const list = R.ranked.map(slim), marketed = R.listed.map(slim); let n = 0; for (const x of list) { x.track = x.offer === 'partner' ? 'partner' : 'buy'; if (x.niche) x.nicheRank = ++n; }
-  return { R, list, marketed, ss };
+  const list = R.ranked.map(slim), marketed = R.listed.map(slim), outsideList = R.outside.map(slim); let n = 0; for (const x of list) { x.track = x.offer === 'partner' ? 'partner' : 'buy'; if (x.niche) x.nicheRank = ++n; }
+  return { R, list, marketed, outsideList, ss };
 }
 // What to write to next. `ready` = strong fits only (confirmed buy box, named owner, a strong recent sign), best first, not yet
 // in outreach. `saved` = everything you saved or marked priority yourself (firms, brands, people) that has no outreach yet.
@@ -330,19 +330,18 @@ function outreachReady() {
     out.push({ search: x.search, entity: x.entity, mode: 'target', name: x.name, where: x.place, score: x.fit, picked: ['saved', 'priority'].includes(x.decision), priority: x.decision === 'priority', emails: x.emails, pitch: x.offer, track: x.track, dealWhy: x.offerWhy, box: x.box, high: !!x.intent?.high, rankScore: x.rankScore, rank: x.nicheRank, segment: x.segment, segmentLabel: x.segmentLabel, site: !!x.website, strongFit: true, dir: x.strength?.dir || null }); }
   return out.slice(0, 80);
 }
-function savedReady() {
-  const { list, ss } = ownerList(), out = [];
-  const B = OUT.board(), have = new Set(B.map(x => `${x.search}|${x.entity}`)), haveName = new Set(B.map(x => `${x.mode}|${normName(x.name)}`)), seen = new Set();
+/** Everything you saved, any kind (firms, brands, people), with its outreach status: the "Saved" section. */
+function savedAll() {
+  const { list, marketed, R, ss } = ownerList(), B = OUT.board(), byKey = new Map(B.map(x => [`${x.search}|${x.entity}`, x])), byName = new Map(B.map(x => [`${x.mode}|${normName(x.name)}`, x])), seen = new Set(), out = [];
+  const firms = new Map([...list, ...marketed, ...R.outside.map(x => ({ ...x, scores: x.scores }))].map(x => [`${x.search}|${x.entity}`, x]));
   for (const s2 of ss) for (const e of (s2.entities || []).filter(e => e.scored && ['saved', 'priority'].includes(e.decision))) {
-    const name = s2.mode === 'candidate' ? e.name : e.company, k = `${s2.mode}|${normName(name)}`;
-    if (have.has(`${s2.id}|${e.id}`) || haveName.has(k) || seen.has(k)) continue;
-    if (s2.mode === 'target' && (e.listed || listedFor((e.timing?.signals || []).map(x => ({ ...x, signal: x.key })), e))) continue;
-    const R = s2.mode === 'target' ? list.find(x => x.search === s2.id && x.entity === e.id) || rankOne(e) : null;
-    if (R?.strongFit) continue; // a strong fit is already in the owner list: never listed twice
-    seen.add(k);
-    out.push({ search: s2.id, entity: e.id, mode: s2.mode, name, where: String(e.location || '').split(/\s[(;]/)[0], what: s2.mode === 'candidate' ? [e.title, e.employer].filter(Boolean).join(' · ') : e.industry || '', score: e.score ?? 0, priority: e.decision === 'priority', emails: (e.contactInfo || []).filter(c => c.kind === 'email').length, pitch: R ? R.offer : null, strongFit: !!R?.strongFit, missing: R?.strength?.missing || [], recent: (R?.strength?.counted || [])[0]?.text || '' });
+    const name = s2.mode === 'candidate' ? e.name : e.company, k = `${s2.mode}|${normName(name)}`; if (seen.has(k)) continue; seen.add(k);
+    const f = firms.get(`${s2.id}|${e.id}`), o = byKey.get(`${s2.id}|${e.id}`) || byName.get(k);
+    out.push({ search: s2.id, entity: e.id, mode: s2.mode, name, place: String(e.location || '').split(/\s[(;]/)[0], what: s2.mode === 'candidate' ? [e.title, e.employer].filter(Boolean).join(' · ') : (f?.segmentLabel || e.industry || ''), priority: e.decision === 'priority',
+      owner: f?.owner || null, scores: f?.scores || null, offer: f?.offer || null, emails: (e.contactInfo || []).filter(c => c.kind === 'email').length,
+      outreach: o ? { id: o.id, phase: o.phase, status: o.status, sender: o.sender, to: o.to } : null });
   }
-  return out.sort((a, b) => (b.priority - a.priority) || (b.strongFit - a.strongFit) || b.score - a.score).slice(0, 80);
+  return out.sort((a, b) => (b.priority - a.priority) || a.name.localeCompare(b.name));
 }
 function startSearch({ mode, objective, filters, from, queries, criteria, link, watchId }) {
   const prev = from ? loadSearch(from) : null;
@@ -679,9 +678,9 @@ const send = (res, code, body, type = 'application/json') => { res.writeHead(cod
 const body = req => new Promise((ok, bad) => { let b = ''; req.on('data', d => { b += d; if (b.length > 120e6) { bad(new Error('File too large')); req.destroy(); } }); req.on('end', () => { try { ok(b ? JSON.parse(b) : {}); } catch (e) { bad(e); } }); });
 
 // what routes/outreach.mjs needs; the open deal is read live (loadDeal replaces S and CUR)
-const OUTCTX = { send, body, OUT, GMAIL, CONFIRM, ownerList: () => ownerList(), outreachReady: () => outreachReady(), savedReady: () => savedReady(), letterHtml: (...a) => letterHtml(...a), outreachPdf: (...a) => outreachPdf(...a), PORT, SRUN, loadSearch, MODELS, ROOTWS, finderKeys: () => finderKeys(), busy: () => busy(), loadDeal: id => loadDeal(id), derive: () => derive(), persist: () => persist(), deal: { cur: () => CUR, S: () => S } };
+const OUTCTX = { savedAll: () => savedAll(), send, body, OUT, GMAIL, CONFIRM, ownerList: () => ownerList(), outreachReady: () => outreachReady(), letterHtml: (...a) => letterHtml(...a), outreachPdf: (...a) => outreachPdf(...a), PORT, SRUN, loadSearch, MODELS, ROOTWS, finderKeys: () => finderKeys(), busy: () => busy(), loadDeal: id => loadDeal(id), derive: () => derive(), persist: () => persist(), deal: { cur: () => CUR, S: () => S } };
 // what routes/search.mjs and routes/deal.mjs need; the open deal (S, ROWS, CHECK, CUR) and the running AI step are read and written live
-const SEARCHCTX = { send, body, SRUN, JOB_ERR, jobFailed, ROOTWS, ownerList: () => ownerList(), startSearch: a => startSearch(a), cityOf, finderKeys: () => finderKeys(), saveFinderKeys: k => saveFinderKeys(k) };
+const SEARCHCTX = { savedAll: () => savedAll(), send, body, SRUN, JOB_ERR, jobFailed, ROOTWS, ownerList: () => ownerList(), startSearch: a => startSearch(a), cityOf, finderKeys: () => finderKeys(), saveFinderKeys: k => saveFinderKeys(k) };
 const st = Object.defineProperties({}, Object.fromEntries(Object.entries({
   S: [() => S, v => { S = v; }], ROWS: [() => ROWS, v => { ROWS = v; }], CHECK: [() => CHECK, v => { CHECK = v; }], CUR: [() => CUR, v => { CUR = v; }], CURJ: [() => CURJ, v => { CURJ = v; }], FRESH: [() => FRESH, v => { FRESH = v; }],
 }).map(([k, [get, set]]) => [k, { get, set, enumerable: true }])));

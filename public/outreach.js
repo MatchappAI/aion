@@ -24,12 +24,7 @@ const when = d => d ? new Date(d).toLocaleString(undefined, { weekday: 'short', 
 const how = t => `<p class="howline"><b>How this works:</b> ${t}</p>`;
 const KINDS = [['email', 'First email'], ['followup1', 'Follow-up 1'], ['followup2', 'Follow-up 2'], ['letter', 'Letter'], ['call', 'Call notes'], ['form', 'Discreet note'], ['answer', 'Your reply']];
 const MODE = { target: 'Firm to buy', client: 'Brand', candidate: 'Person' };
-// what a note to each kind of saved result proposes, shown as a one-line example so you know before you press Write
-const EXAMPLE = {
-  target: 'Opens on their latest move, then asks plainly whether the owner would sell (a full buyout, or a majority stake if they are still growing).',
-  client: 'Opens on something recent the brand did, says why it caught your eye and your background, then asks if they would ever be open to selling or partnering.',
-  candidate: 'Opens on something recent they did, says why it caught your eye and your background, then asks about partnering or working together as AION grows.',
-};
+
 const RKIND = { interested: 'interested', later: 'not now', reply: 'replied', optout: 'no thanks' };
 let O = { main: null, view: 'board', id: null, kind: 'email', timer: null, st: null, it: null, pick: new Set(), queue: null, allSig: false, slots: null };
 
@@ -64,7 +59,7 @@ async function draw() {
     <div class="pshead"><h1>Outreach</h1><p class="lede2">${O.embedded ? 'Everyone you are writing to and the inbox it goes from. Nothing is sent until you press Send.' : 'Personal emails, letters and calls to the owners your searches found. Nothing is sent until you press Send.'}</p></div>
     <div class="inboxes" data-testid="out-inboxes">${senders.map(x => { const mine = B0.filter(y => y.sender === x.email), rep = mine.filter(y => y.phase === 'replied').length, wait = mine.filter(y => ['waiting', 'conversation'].includes(y.phase)).length, todo = mine.filter(y => y.phase === 'review').length;
       return `<button class="inbox ${O.inbox === x.email ? 'on' : ''}" data-inbox="${esc(x.email)}" title="Show only ${esc(x.email)}"><b>✉ ${esc(x.email)}</b><span>${x.acc ? x.acc.error ? 'needs reconnect' : 'connected' : 'not connected'}${S.settings.defaultSender === x.email ? ' · default' : ''}</span><span>${rep ? `<em>${rep} repl${rep === 1 ? 'y' : 'ies'}</em> · ` : ''}${todo} to approve · ${wait} waiting</span></button>`; }).join('')}</div>
-    ${O.embedded ? '' : how('pick owners under “Next owners to contact”. AION writes a first email, two follow-ups, a letter, call notes and a discreet note for their shared inbox for each from every signal it has. You edit, pick the inbox, and approve each send. Replies are checked every 10 minutes; a “no thanks” is never emailed again.')}
+    ${O.embedded ? '' : how('save firms under Firms below and press Write outreach there. AION writes a first email, two follow-ups, a letter, call notes and a discreet note for their shared inbox for each from every signal it has. You edit, pick the inbox, and approve each send. Replies are checked every 10 minutes; a “no thanks” is never emailed again.')}
     ${setupGaps.length ? `<p class="warnline" data-testid="out-setup-gap">Before you can send: ${setupGaps.join(' and ')} under <span class="link" id="oopenset">Inboxes and settings</span> below.</p>` : ''}
     ${!B0.length ? '<p class="note" data-testid="out-empty">No outreach yet. When you press Write outreach on a firm, its drafts, sends and replies show up here.</p>' : ''}
     ${B0.length ? '' : '<!--'}<details class="card odet" data-testid="out-results" ${O.embedded ? '' : 'open'}><summary class="h2">Results <span class="h2s">from what actually happened in Gmail and your marks</span></summary>
@@ -76,15 +71,6 @@ async function draw() {
     </details>${B0.length ? '' : '-->'}
     ${list('Needs you', needs, 'Replies to answer, drafts to approve, follow-ups that are due, and calls to confirm.', reviews.length > 1 ? `<button class="sm" id="oqueue" data-testid="out-queue">Review ${reviews.length} drafts one by one</button>` : '')}
     ${writing.length ? list('Writing', writing, 'Two are written at a time; this page updates by itself.') : ''}
-    ${(S.saved || []).length ? `<section class="card" data-testid="out-saved"><h2 class="h2">Saved by you <span class="h2s">${S.saved.length} not written to yet</span></h2>
-      <p class="note">What you saved in a search. You read and edit every note before it sends.</p>
-      ${[...new Set(S.saved.map(x => x.mode))].map(m => `<h3 class="h3s">${esc({ target: 'Firms', client: 'Brands', candidate: 'People' }[m] || m)}</h3><p class="note ex"><b>What the note does:</b> ${esc(EXAMPLE[m] || '')}</p>
-        <ul class="outlist">${S.saved.filter(x => x.mode === m).map(x => `<li class="orow" data-testid="out-saved-row"><div class="ocol"><b>${esc(x.name)}</b>${x.priority ? ' <span class="pill2 running">Priority</span>' : ''}${x.strongFit ? ' <span class="pill2 done">Strong fit</span>' : ''}<span class="note">${esc([x.what, x.where].filter(Boolean).join(' · '))}</span>${x.recent ? `<span class="note">Recent: ${esc(x.recent.length > 110 ? x.recent.slice(0, 110) + '…' : x.recent)}</span>` : x.mode === 'target' && x.missing?.length ? `<span class="note">Not a strong fit yet: ${esc(x.missing[0])}</span>` : ''}</div>
-          <div class="ocol"><span class="note">${x.emails ? `${x.emails} email${x.emails === 1 ? '' : 's'} on file` : 'no email yet: AION looks on their site'}</span></div>
-          <button class="sm" data-write="${esc(x.search)}|${esc(x.entity)}" data-testid="out-saved-write">Write outreach</button></li>`).join('')}</ul>`).join('')}</section>` : ''}
-    ${S.ready.length ? `<section class="card" data-testid="out-ready"><h2 class="h2">Write for many at once <span class="h2s">${S.ready.length} strong fit${S.ready.length === 1 ? '' : 's'} not contacted yet</span></h2>
-      <p class="note">Takes the next strong fits from the owner list below, best first, that have an email on file. You still approve every email before it sends.</p>
-      <div class="oacts">${[5, 10].map(n => `<button class="${n === 5 ? '' : 'ghost '}sm" data-many="${n}" data-testid="out-many" ${S.ready.some(r => r.emails) ? '' : 'disabled'}>Write for the next ${Math.min(n, S.ready.filter(r => r.emails).length) || n}</button>`).join('')}</div></section>` : ''}
     ${list('Sent, waiting for a reply', waiting)}
     ${list('Finished', done)}
     <details class="card odet" data-testid="out-senders" ${setupGaps.length && B0.some(x => x.phase === 'review') ? 'open' : ''}><summary class="h2">Inboxes and settings <span class="h2s">AION sends only from the Gmail accounts you connect here</span></summary>
@@ -113,7 +99,6 @@ async function draw() {
   $$('[data-open]').forEach(el => el.onclick = () => { O.view = 'item'; O.id = el.dataset.open; O.kind = null; O.queue = null; draw(); });
   $$('[data-write]').forEach(b => b.onclick = async ev => { ev.stopPropagation(); const [search, entity] = b.dataset.write.split('|'); b.disabled = true; b.textContent = 'Writing…'; try { const r = await api('outreach/create', { search, entity }); O.view = 'item'; O.id = r.id; O.kind = 'email'; draw(); } catch (e) { toast(e.message, 'err'); b.disabled = false; b.textContent = 'Write outreach'; } });
   q('#oopenset') && (q('#oopenset').onclick = () => { const d = q('[data-testid="out-senders"]'); d.open = true; d.scrollIntoView({ behavior: 'smooth', block: 'start' }); });
-  $$('[data-many]').forEach(b => b.onclick = async () => { const items = S.ready.filter(r => r.emails).slice(0, +b.dataset.many).map(r => ({ search: r.search, entity: r.entity })); b.disabled = true; b.textContent = 'Starting…'; try { const r = await api('outreach/batch', { items }); toast(`Writing ${r.made.length} drafts, two at a time${r.skipped.length ? `; ${r.skipped.length} skipped (${r.skipped[0].why})` : ''}.`); draw(); } catch (e) { toast(e.message, 'err'); draw(); } });
   q('#oqueue') && (q('#oqueue').onclick = () => { O.queue = reviews.map(x => x.id); O.view = 'item'; O.id = O.queue[0]; O.kind = null; draw(); });
   $$('[data-conn]').forEach(b => b.onclick = async () => { try { const r = await api('outreach/connect', { email: b.dataset.conn }); if (r.url) { window.open(r.url, '_blank'); toast(`Sign in as ${b.dataset.conn} in the browser tab and allow Gmail and Calendar, then come back.`); pollAccounts(); } else draw(); } catch (e) { toast(e.message, 'err'); } });
   $$('[data-disc]').forEach(b => b.onclick = async () => { if (!confirm(`Disconnect ${b.dataset.disc}? AION won’t be able to send from it or see replies.`)) return; await api('outreach/disconnect', { email: b.dataset.disc }); draw(); });

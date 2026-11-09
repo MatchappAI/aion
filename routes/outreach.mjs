@@ -6,11 +6,11 @@ export const OUTREACH_POST = new Set(['outreach/settings', 'outreach/connect', '
 
 /** Handles an /api/outreach/... request. Returns true when it answered, false when the server should carry on. */
 export async function outreachRoute(req, res, url, p, ctx) {
-  const { send, body, OUT, GMAIL, CONFIRM, ownerList, outreachReady, savedReady, letterHtml, outreachPdf, PORT, SRUN, loadSearch, MODELS, ROOTWS, finderKeys, busy, loadDeal, derive, persist, deal } = ctx;
+  const { send, body, OUT, GMAIL, CONFIRM, ownerList, outreachReady, letterHtml, outreachPdf, PORT, SRUN, loadSearch, MODELS, ROOTWS, finderKeys, busy, loadDeal, derive, persist, deal } = ctx;
   if (req.method === 'GET') {
       // Outreach: its own board, senders and drafts (sends only from your connected senders in AION_SENDERS, only with your OK)
       if (req.method === 'GET' && p === 'outreach/state') return send(res, 200, { settings: OUT.settings(), accounts: GMAIL.accounts(), gmailReady: GMAIL.configured(), board: (() => { const { R, list } = ownerList(), off = new Map(R.outside.map(x => [`${x.search}|${x.entity}`, x.box.reasons.join('; ')])), on = new Map(list.map(x => [`${x.search}|${x.entity}`, x]));
-          return OUT.board().map(b => { const k = `${b.search}|${b.entity}`, r = on.get(k); return { ...b, outside: off.get(k) || null, rank: r?.nicheRank || null, track: r?.track || null, segmentLabel: r?.segmentLabel || null }; }); })(), ready: outreachReady(), saved: savedReady(), suppressed: OUT.suppressed().length });
+          return OUT.board().map(b => { const k = `${b.search}|${b.entity}`, r = on.get(k); return { ...b, outside: off.get(k) || null, rank: r?.nicheRank || null, track: r?.track || null, segmentLabel: r?.segmentLabel || null }; }); })(), ready: outreachReady(), suppressed: OUT.suppressed().length });
       if (req.method === 'GET' && p === 'outreach/results') return send(res, 200, OUT.results());
       if (req.method === 'GET' && p === 'outreach/slots') { try { return send(res, 200, await OUT.openSlots()); } catch (e) { return send(res, 400, { error: e.message }); } }
       if (req.method === 'GET' && p === 'outreach/attachments') { try { return send(res, 200, { files: await OUT.listAttachments(url.searchParams.get('id')) }); } catch (e) { return send(res, 400, { error: e.message }); } }
