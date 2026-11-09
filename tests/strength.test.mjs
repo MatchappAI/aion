@@ -27,6 +27,7 @@ test('strong = at least one clear sign; supporting signs alone never qualify; hi
   const g = signalStrength([sig('recap_interest'), sig('new_office')], {}, null, now); assert.equal(g.dir, 'grow'); assert.equal(g.strong, true);
   assert.equal(signalStrength([sig('retirement'), sig('other', { direction: 'against', age: 3 }), sig('other', { direction: 'against', age: 2, text: 'team grew' })], {}, null, now).strong, false);
   assert.match(signalStrength([], {}, null, now).missing[0], /No clear sign/);
+  assert.equal(tierOf(sig('retirement', { text: "After Ken's retirement, in 2021, Liz and Cal became the new owners of STAR." })), null, 'a completed handover is history');
 });
 
 test('founder died: a clear sign, but never in the first 3 months; read from found facts or an obituary headline', () => {
