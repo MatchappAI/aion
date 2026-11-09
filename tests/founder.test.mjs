@@ -27,3 +27,10 @@ test('explicit transition statements found by research become timing signals; a 
   const T = profileTiming({ facts: { transition_evidence: [{ text: 'Jane Roe told Grocery Dive she plans to retire next year.', url: 'https://g.example/a', date: '2026-05' }, { text: 'Bob Smith passed away in March.', url: 'https://o.example/b' }, { text: 'Bob Smith, founder of Shelf Co, passed away in March.', url: 'https://o.example/c' }, { text: 'The firm grew 20% last year.', url: 'https://x.example' }] } }, 'Shelf Co');
   assert.deepEqual(T.map(x => x.key), ['retirement', 'founder_died']);
 });
+
+test('research that finds the firm was bought by another company sets it aside; a sale to people does not', async () => {
+  const { soldTo } = await import('../lib/search/founder.mjs');
+  assert.equal(soldTo({ facts: { recent_changes: [{ text: 'Chief Media bought AMZ Advisers and its Reach Social stake in August 2026.', url: 'https://x.example' }] } }, 'AMZ Advisors').by, 'Chief Media');
+  assert.equal(soldTo({ facts: { founder_history: [{ text: 'Founder Don Goodwin agreed to sell GoldenSun to Randy Riley and Jason Fuller in 2020.', url: 'https://y.example' }] } }, 'goldensun insights'), null);
+  assert.equal(soldTo({ facts: { founder_history: [{ text: 'Shelf Co was acquired by Big Retail Group in 2025.', url: 'https://z.example' }] } }, 'Shelf Co').by, 'Big Retail Group');
+});

@@ -10,7 +10,7 @@ import { brandScan, scans as radarScans, recentEvents, intentScan } from '../lib
 import { addSignals, checkMore } from '../lib/search/pipeline.mjs';
 import { watches, setWatch, started as watchStarted, watchOf } from '../lib/search/watch.mjs';
 import { MODELS } from '../lib/claude.mjs';
-import { researchFirm, profileTiming } from '../lib/search/founder.mjs';
+import { researchFirm, profileTiming, soldTo } from '../lib/search/founder.mjs';
 import { matchFirms, consolidation } from '../lib/search/matcher.mjs';
 import { ownerOf } from '../lib/search/rank.mjs';
 // founder research: one firm at a time per request, at most two running at once; progress lives here
@@ -21,7 +21,7 @@ export async function researchOne(searchId, entityId, cwd) {
   const s2 = loadSearch(searchId), e = s2?.entities?.find(x => x.id === entityId); if (!e) throw new Error('Result not found.');
   RESEARCH[k] = { running: true, started: new Date().toISOString(), name: e.company };
   researchFirm(e, { owner: ownerOf(e), model: MODELS.analysis, cwd })
-    .then(p => { const s3 = loadSearch(searchId), e3 = s3.entities.find(x => x.id === entityId); e3.founderProfile = p; const keep = (e3.timing?.signals || []).filter(x => x.source !== 'research').map(x => ({ ...x, signal: x.key })); e3.timing = timing([...keep, ...profileTiming(p, e3.company)]); saveSearchMerged(s3); RESEARCH[k] = { running: false, done: p.at, name: e.company, count: p.count }; })
+    .then(p => { const s3 = loadSearch(searchId), e3 = s3.entities.find(x => x.id === entityId); e3.founderProfile = p; const keep = (e3.timing?.signals || []).filter(x => x.source !== 'research').map(x => ({ ...x, signal: x.key })); const sold = soldTo(p, e3.company); if (sold) { e3.ownership = `Acquired by ${sold.by}: ${sold.text}`.slice(0, 300); keep.push({ signal: 'new_owner', key: 'new_owner', source: 'research', text: sold.text, url: sold.url, direction: 'against', confidence: 'likely' }); } e3.timing = timing([...keep, ...profileTiming(p, e3.company)]); saveSearchMerged(s3); RESEARCH[k] = { running: false, done: p.at, name: e.company, count: p.count }; })
     .catch(err => { RESEARCH[k] = { running: false, error: err.message, name: e.company }; });
   return RESEARCH[k];
 }

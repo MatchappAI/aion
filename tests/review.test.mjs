@@ -9,10 +9,11 @@ const { ownerOf, rankOne } = await import('../lib/search/rank.mjs');
 const { teamCount } = await import('../lib/outreach/sitecontacts.mjs');
 const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'aion-review-')); OUT.initOutreach(dir);
 
-test('drafts are told the truth about AION and never raise layoffs', () => {
+test('drafts are told the truth (written as you, never naming AION) and never raise layoffs', () => {
   const p = OUT.draftPrompt('target', 'Ann at Acme', [], { name: 'M', funding: 'bank financing plus investor equity' }, null, 'full');
   assert.match(p, /has not bought a firm yet/);
-  assert.match(p, /never say or imply AION already owns/);
+  assert.match(p, /never say or imply you already own/); assert.match(p, /Never name AION/);
+  assert.doesNotMatch(p.split('SIGNALS')[0].replace(/Never name AION[^.]*\./g, ''), /\bAION\b/, 'the goal and who-you-are lines never name AION');
   assert.match(p, /Never mention layoffs/);
   assert.doesNotMatch(p, /No headcount reductions are planned/);
   assert.match(p, /paid for: bank financing plus investor equity/);
