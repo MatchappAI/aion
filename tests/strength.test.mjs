@@ -89,3 +89,26 @@ test('drafts that sound like AI are flagged', () => {
   assert.ok(aiTells('I came across your firm and was truly impressed — exciting!').length >= 3);
   assert.deepEqual(aiTells('Saw Shelf Co just moved into Costco. That is a hard door to open.'), []);
 });
+
+test('a sale already agreed to other buyers is history, not past interest', () => {
+  assert.equal(tierOf(sig('sale_stated', { age: 74, date: '2020-09', text: 'Founder Don Goodwin signed an agreement to sell the company to Randy Riley and Jason Fuller effective October 1, 2020.' })), null);
+  assert.equal(tierOf(sig('sale_stated', { text: 'The owner says she is exploring a sale of the agency.' })).tier, 'strong', 'still wanting to sell counts');
+});
+
+test('a founder death counts at any age until a successor is named', () => {
+  const old = { age: 30, date: '2024-05' };
+  assert.deepEqual(tierOf(sig('founder_died', { ...old, text: 'Founder died in 2024 and the obituary names no successor or current owner.' })), { dir: 'sell', tier: 'strong' });
+  assert.equal(tierOf(sig('founder_died', { ...old, text: 'Founder died in 2024; his daughter took over as president.' })), null);
+  assert.deepEqual(tierOf(sig('founder_died', { ...old, confidence: 'possible' })), { dir: 'sell', tier: 'medium' });
+  // a succession clue whose text reports the death is read as a death
+  const s = signalStrength([sig('succession', { ...old, text: 'Founder died in 2024 and the obituary names no successor or current owner.' })], {}, null, now);
+  assert.equal(s.counted[0].key, 'founder_died'); assert.equal(s.strong, true);
+});
+
+test('rank points come only from signs that count: a hire and a finished handover add no intent', () => {
+  const e = { company: 'Acme Brokers', website: 'https://acme.com', industry: 'Retail placement food broker', scored: true, score: 70, breakdown: [],
+    timing: { signals: [
+      { key: 'retirement', text: "After Ken's retirement, in 2021, Liz and Cal became the new owners.", url: 'https://acme.com/history', confidence: 'likely', direction: 'for' },
+      { key: 'second_in_command', text: 'Hired a COO in 2026', url: 'https://acme.com/news', date: '2026-09', confidence: 'likely', direction: 'for' }] } };
+  const r = rankOne(e); assert.equal(r.parts.intent, 0); assert.equal(r.parts.breadth, 0); assert.deepEqual(r.why, []);
+});
