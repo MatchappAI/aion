@@ -13,7 +13,7 @@ const kfmt = v => v == null || isNaN(v) ? '—' : (v < 0 ? '−' : '') + '$' + (
 const pct = (v, d = 0) => v == null || isNaN(v) ? '—' : (v * 100).toFixed(d) + '%';
 const num = (v, d = 0) => v == null || isNaN(v) ? '—' : (+v).toLocaleString(undefined, { maximumFractionDigits: d });
 
-let V = null, page = 'upload', running = null, mode = 'simple', replay = null, tab = 'overview', appMode = (() => { try { return localStorage.getItem('aion.app') || 'ps'; } catch { return 'ps'; } })();
+let V = null, page = 'upload', running = null, mode = 'simple', replay = null, tab = (() => { try { return sessionStorage.getItem('aion.vctab') || 'overview'; } catch { return 'overview'; } })(), appMode = (() => { try { return localStorage.getItem('aion.app') || 'ps'; } catch { return 'ps'; } })();
 const api = async (p, b) => {
   // X-Aion-Deal: the deal this page shows, so a change never lands on a deal another tab opened since
   const r = await fetch('/api/' + p, b === undefined ? {} : { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Aion-Deal': DL.current || '' }, body: JSON.stringify(b) }).catch(() => { throw new Error('AION isn’t answering. Is it still running?'); });
@@ -561,7 +561,7 @@ function simple() {
   wireGrow(); wireFit();
   { const QR = queueRows(S, d, acts); document.querySelectorAll('tr.qrow').forEach(r => r.onclick = () => { const x = QR[+r.dataset.q]; openBuild({ ...x, basisText: x.priced ? basisOf(x, d, S) : '' }); }); }
   $('#ind').onclick = async () => { const nm = prompt('What kind of business is this? (e.g. retail placement firm, Amazon marketplace agency, ecommerce analytics consultancy)', V.profile?.name || ''); if (!nm || nm.trim() === V.profile?.name) return; try { V = await api('industry', { name: nm }); startAll(); } catch (e) { showError(e.message); } };
-  document.querySelectorAll('[data-tab-btn]').forEach(b => b.onclick = () => { tab = b.dataset.tabBtn; main.querySelector('.r2').dataset.show = tab; document.querySelectorAll('[data-tab-btn]').forEach(x => x.classList.toggle('on', x === b)); window.scrollTo({ top: 0 }); });
+  document.querySelectorAll('[data-tab-btn]').forEach(b => b.onclick = () => { tab = b.dataset.tabBtn; try { sessionStorage.setItem('aion.vctab', tab); } catch {} main.querySelector('.r2').dataset.show = tab; document.querySelectorAll('[data-tab-btn]').forEach(x => x.classList.toggle('on', x === b)); window.scrollTo({ top: 0 }); });
   document.querySelectorAll('[data-go-tab]').forEach(b => b.onclick = () => main.querySelector(`[data-tab-btn="${b.dataset.goTab}"]`)?.click());
   if ($('#xls')) $('#xls').onclick = () => busy($('#xls'), 'Building…', async () => { try { const r = await fetch('/api/excel', { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Aion-Deal': DL.current || '' }, body: '{}' }); if (!r.ok) throw new Error((await r.json()).error); const url = URL.createObjectURL(await r.blob()); const a = document.createElement('a'); a.href = url; a.download = `AION ${S.name || 'analysis'}.xlsx`; a.click(); } catch (e) { showError(e.message); } });
   if ($('#oc-go')) $('#oc-go').onclick = runOutside;

@@ -263,7 +263,7 @@ async function drawItem() {
         } catch (e) { toast(e.message, 'err'); b.disabled = false; b.textContent = 'Open in Value Creation'; } });
     } catch (e) { toast(e.message, 'err'); ev.target.disabled = false; ev.target.textContent = 'Check the thread for files'; }
   });
-  q('#ofinish') && (q('#ofinish').onclick = async () => { try { await api('outreach/finish', { id: it.id, why: 'Finished by you' }); O.dirty = false; back(); } catch (e) { toast(e.message, 'err'); } });
+  q('#ofinish') && (q('#ofinish').onclick = async () => { if (!confirm('Finish this outreach? No more follow-ups will be sent.')) return; try { await api('outreach/finish', { id: it.id, why: 'Finished by you' }); O.dirty = false; back(); } catch (e) { toast(e.message, 'err'); } });
   q('#odel') && (q('#odel').onclick = async () => { if (!confirm('Delete this outreach and its drafts?')) return; try { await api('outreach/delete', { id: it.id }); O.dirty = false; back(); } catch (e) { toast(e.message, 'err'); } });
 }
 // unsaved typing in a draft: Back, another draft tab, Next draft, a new offer or another top tab ask first
