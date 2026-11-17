@@ -37,6 +37,44 @@ const BAD_TEXT = /\bundefined\b|\bNaN\b|\[object Object\]|Infinity/;
 const STAFFING = /\b(recruiters?|placement fees?|candidates?|producers?|fill rate|payroll float|job orders?|RFPs?)\b/i;
 await cmd('Page.enable'); await cmd('Runtime.enable'); await cmd('Fetch.enable', { patterns: [{ urlPattern: APP + '/api/*' }] });
 
+// ================= Outreach: one task per screen (before any Gmail is connected) =================
+{
+  const st0 = (await call(APP, 'outreach/state')).json;
+  const all0 = await Promise.all((st0.board || []).filter(b => b.id).map(async b => (await call(APP, `outreach/item?id=${b.id}`)).json));
+  const noMail = all0.find(it => it && it.phase === 'review' && !it.to && it.drafts?.email && !it.messages?.length);
+  const withMail = all0.find(it => it && it.phase === 'review' && /@/.test(it.to || '') && !it.addr?.block && !it.messages?.length && it.drafts?.letter);
+  ok('Outreach: a draft without an email address exists to test with', !!noMail);
+  if (noMail) {
+    await go(APP, 'ps'); await click(`#psout [data-open="${noMail.id}"]`, 1500);
+    ok('No email: status says it needs an email address', /Needs (an|the owner’s own) email address/.test(await ev(`document.querySelector('[data-testid=out-status]')?.innerText || ''`)));
+    ok('No email: the main action is Find contact details, and there is no Send', await ev(`!!document.querySelector('.oprimary #ofind') && !document.querySelector('#osend')`));
+    ok('No email: a guessed address is never put in the To field', !(await ev(`document.querySelector('#oto')?.value || ''`)));
+    ok('Progress shows “Review outreach · n of N”', /Review outreach · \d+ of \d+/.test(await ev(`document.querySelector('[data-testid=out-progress]')?.innerText || ''`)));
+  }
+  if (withMail) {
+    await go(APP, 'ps'); await click(`#psout [data-open="${withMail.id}"]`, 1500);
+    ok('No Gmail yet: Copy email is the main action', await ev(`!!document.querySelector('.oprimary #ocopy') && !document.querySelector('#osend')`));
+    await click('#ocopy', 600);
+    ok('Copying an email does not mark it sent', ((await call(APP, `outreach/item?id=${withMail.id}`)).json.messages || []).length === 0);
+    await ev(`(() => { const t = document.querySelector('#obody'); t.value += '\\n\\nAutosave check.'; t.dispatchEvent(new Event('input', { bubbles: true })); })()`); await sleep(1800);
+    ok('Edits save themselves and say so', /Draft saved/.test(await ev(`document.querySelector('#osaved')?.innerText || ''`)) && /Autosave check\./.test((await call(APP, `outreach/item?id=${withMail.id}`)).json.drafts.email.body));
+    block = /outreach\/edit/;
+    await ev(`(() => { const t = document.querySelector('#obody'); t.value += ' Offline line.'; t.dispatchEvent(new Event('input', { bubbles: true })); })()`); await sleep(1800);
+    ok('A failed save says so and keeps the text', /Couldn’t save/.test(await ev(`document.querySelector('#osaved')?.innerText || ''`)) && await ev(`document.querySelector('#obody').value.includes('Offline line.')`));
+    block = null;
+    await ev(`(() => { const t = document.querySelector('#obody'); t.value += ' '; t.dispatchEvent(new Event('input', { bubbles: true })); })()`); await sleep(1800);
+    ok('Typing again after the failure saves it', /Draft saved/.test(await ev(`document.querySelector('#osaved')?.innerText || ''`)) && /Offline line\./.test((await call(APP, `outreach/item?id=${withMail.id}`)).json.drafts.email.body));
+    errs = []; // the refused request above is expected
+    await go(APP, 'ps'); await click(`#psout [data-open="${withMail.id}"]`, 1500);
+    ok('The saved edit is there after a reload', await ev(`(document.querySelector('#obody')?.value || '').includes('Autosave check.')`));
+    const pdf = await fetch(`${APP}/api/outreach/pdf?id=${encodeURIComponent(withMail.id)}&kind=letter`);
+    const after = (await call(APP, `outreach/item?id=${withMail.id}`)).json;
+    ok('Downloading the letter is recorded but does not mark it mailed', pdf.ok && after.downloads?.letter && !(after.messages || []).some(m => m.kind === 'letter'));
+    await click('[data-kind="letter"]', 1200);
+    ok('Letter screen says it is downloaded, not mailed', /downloaded .*not marked as mailed/i.test(await ev(`document.querySelector('[data-testid=out-status]')?.innerText || ''`)));
+  }
+}
+
 // ================= Outreach: confirm and send =================
 const st = (await call(APP, 'outreach/state')).json;
 const items = (st.board || []).map(b => b.id ? b : null).filter(Boolean);

@@ -1,5 +1,5 @@
 import { toast } from './ui.js';
-import { DEAL_STAGES } from '/thesis.mjs';
+import { DEAL_STAGES, THESIS } from '/thesis.mjs';
 const PITCH = { full: 'Full buyout', majority: 'Majority stake', sale: 'Full buyout', both: 'Full buyout', partner: 'Partnership' }; // 'sale' and 'both' are older saved values
 const PITCH_LONG = { full: 'Full buyout: a succession plan on their timeline', majority: 'Majority stake: they keep a share and keep running it', sale: 'Full buyout: a succession plan on their timeline', both: 'Full buyout: a succession plan on their timeline', partner: 'Growth partnership: offered because they asked for a partner' };
 const OFFERS = ['full', 'majority', 'partner'];
@@ -20,6 +20,8 @@ const esc = v => String(v ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': 
 const safeUrl = v => { const u = String(v ?? '').trim(); return /^(https?:\/\/|mailto:|tel:)/i.test(u) ? esc(u) : '#'; };
 const api = async (p, b) => { const r = await fetch('/api/' + p, b === undefined ? {} : { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(b) }); const j = await r.json().catch(() => ({})); if (!r.ok) throw new Error(j.error || `Request failed (${r.status})`); return j; };
 const day = d => d ? new Date(d).toLocaleDateString(undefined, { month: 'short', day: 'numeric' }) : '';
+const plainSrc = s => String(s || 'a common pattern').replace(/\s*\([^)]*\{[^)]*\)/g, '').trim(); // “the most common format for small firms”, without the {first}@ pattern
+const clock = t => new Date(t).toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' });
 const when = d => d ? new Date(d).toLocaleString(undefined, { weekday: 'short', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }) : '';
 const how = t => `<p class="howline"><b>How this works:</b> ${t}</p>`;
 const KINDS = [['email', 'First email'], ['followup1', 'Follow-up 1'], ['followup2', 'Follow-up 2'], ['letter', 'Letter'], ['call', 'Call notes'], ['form', 'Discreet note'], ['answer', 'Your reply']];
@@ -96,7 +98,7 @@ async function draw() {
   </div>`;
   const $$ = s => O.main.querySelectorAll(s), q = s => O.main.querySelector(s);
   $$('[data-inbox]').forEach(b => b.onclick = () => { O.inbox = O.inbox === b.dataset.inbox ? null : b.dataset.inbox; draw(); });
-  $$('[data-open]').forEach(el => el.onclick = () => { O.view = 'item'; O.id = el.dataset.open; O.kind = null; O.queue = null; draw(); });
+  $$('[data-open]').forEach(el => el.onclick = () => { O.view = 'item'; O.id = el.dataset.open; O.kind = null; O.queue = reviews.some(x => x.id === el.dataset.open) ? reviews.map(x => x.id) : null; draw(); }); // a draft opened from the list still shows “1 of N”
   $$('[data-write]').forEach(b => b.onclick = async ev => { ev.stopPropagation(); const [search, entity] = b.dataset.write.split('|'); b.disabled = true; b.textContent = 'Writing…'; try { const r = await api('outreach/create', { search, entity }); O.view = 'item'; O.id = r.id; O.kind = 'email'; draw(); } catch (e) { toast(e.message, 'err'); b.disabled = false; b.textContent = 'Write outreach'; } });
   q('#oopenset') && (q('#oopenset').onclick = () => { const d = q('[data-testid="out-senders"]'); d.open = true; d.scrollIntoView({ behavior: 'smooth', block: 'start' }); });
   q('#oqueue') && (q('#oqueue').onclick = () => { O.queue = reviews.map(x => x.id); O.view = 'item'; O.id = O.queue[0]; O.kind = null; draw(); });
@@ -126,30 +128,85 @@ async function drawItem() {
     O.main.querySelector('#oback').onclick = back; O.timer = setTimeout(drawItem, 1000); return;
   }
   const avail = KINDS.filter(([k]) => it.drafts?.[k]);
-  if (!O.kind || !it.drafts?.[O.kind]) O.kind = it.replied && it.drafts?.answer ? 'answer' : (it.messages.some(m => m.kind === 'email') ? (it.messages.some(m => m.kind === 'followup1') ? 'followup2' : 'followup1') : it.to ? 'email' : 'letter');
+  if (!O.kind || !it.drafts?.[O.kind]) O.kind = it.replied && it.drafts?.answer ? 'answer' : (it.messages.some(m => m.kind === 'email') ? (it.messages.some(m => m.kind === 'followup1') ? 'followup2' : 'followup1') : 'email'); // no address yet: the email view explains it and offers Find contact details, with letter or call as alternatives
   if (!it.drafts?.[O.kind]) O.kind = avail[0]?.[0] || 'email';
-  const d = it.drafts?.[O.kind], sent = it.messages.find(m => m.kind === O.kind), pf = it.preflight?.[O.kind];
+  const d = it.drafts?.[O.kind], sent = it.messages.find(m => m.kind === O.kind && m.sentAt), pf = it.preflight?.[O.kind];
   const used = new Set(d?.used || []);
   const noteSend = O.kind === 'form' && it.preflight?.form && !it.preflight.form.problems.some(p => /only to a shared inbox|already emailed/.test(p));
-  const sendable = ['email', 'followup1', 'followup2'].includes(O.kind) || noteSend, manual = ['letter', 'call'].includes(O.kind) || (O.kind === 'form' && !noteSend);
+  const sendable = ['email', 'followup1', 'followup2'].includes(O.kind) || noteSend, noGmail = sendable && !(O.st?.accounts || []).some(x => !x.error), manual = ['letter', 'call'].includes(O.kind) || (O.kind === 'form' && !noteSend);
   const accts = S.accounts.filter(a => !a.error).map(a => a.email);
   const talking = !!it.replied || it.phase === 'conversation' || !!it.call;
-  // they picked one of the offered times in their reply: show it ready to book
   if (!O.slots && !it.call && it.replied?.picked) O.slots = { slots: [it.replied.picked, ...(it.offered || []).filter(x => x.start !== it.replied.picked.start)], note: `${it.toName || 'They'} picked ${it.replied.picked.label} in their reply. Send the invite to confirm it.` };
   const D = it.docs || {};
   const docBox = (kind, title, what, btn) => `<li class="ostep" data-testid="out-doc-${kind}"><div><b>${title}</b><span class="note">${what}</span></div>
       ${D[kind] ? `<textarea class="obody" data-doc="${kind}" rows="${kind === 'request' ? 12 : 14}">${esc(D[kind].body)}</textarea>
       <div class="oacts"><button class="ghost sm" data-docsave="${kind}">Save edits</button>${kind !== 'request' ? `<a class="btnlink" href="/api/outreach/pdf?id=${encodeURIComponent(it.id)}&kind=${kind}">Download PDF</a>` : ''}<button class="sm" data-docsend="${kind}" ${it.to ? '' : 'disabled'}>${kind === 'request' ? 'Send the request…' : 'Email it with the PDF…'}</button>${D[kind].sentAt ? `<span class="note">sent ${day(D[kind].sentAt)}</span>` : ''}</div>` : `<button class="sm" data-docmake="${kind}">${btn}</button>`}</li>`;
-  O.main.innerHTML = `<div class="ps" data-testid="out-item">
-    <div class="oacts"><button class="ghost sm" id="oback">← Back</button>${O.queue ? `<span class="note">Draft ${qpos + 1} of ${O.queue.length}</span>${nextQ ? '<button class="ghost sm" id="onextq">Next draft →</button>' : ''}` : ''}</div>
-    <div class="pshead"><h1>${esc(it.name)}</h1><p class="lede2">${esc(it.status)}${it.pitch ? ` · ${PITCH_LONG[it.pitch] || PITCH_LONG.sale}` : ''}${it.why ? ` · ${esc(it.why)}` : ''}</p>
-      ${it.type ? `<p class="note">Kind of note: <b>${esc(TYPE_LABEL[it.type] || it.type)}</b>${it.variant ? ` · testing: ${esc(it.variant.length)}, ${esc(it.variant.proposition === 'fit' ? 'why they fit' : 'what kind of owner AION would be')}` : ''}</p>` : ''}
-      ${it.qc ? `<div class="oqc ${it.qc.lowConfidence ? 'low' : ''}" data-testid="out-qc">${it.qc.scores ? `<b>Quality check ${it.qc.avg}/5</b> <span class="note">${Object.entries(it.qc.scores).map(([k, v]) => `${esc(k)} ${+v}`).join(' · ')}</span>` : `<b>Quality check</b> <span class="note">${esc(it.qc.note || '')}</span>`}${it.qc.lowConfidence ? '<p class="warnline sm">Low confidence: AION found too little that is specific to them. Add a real detail you know, or research more before sending.</p>' : ''}${(it.qc.issues || []).length ? `<ul class="note">${it.qc.issues.map(x => `<li>${esc(x)}</li>`).join('')}</ul>` : ''}</div>` : ''}</div>
-    <p class="note oinboxline">✉ ${it.messages.some(m => m.sentAt && !m.manual) ? 'Sent from' : 'Sends from'} <b>${esc(it.sender || 'no inbox yet')}</b>${it.to ? ` to <b>${esc(it.to)}</b>` : ''}${it.replied ? ` · their reply is in ${esc(it.sender)}` : ''}</p>
-    ${it.mode === 'target' && !it.messages.some(m => m.sentAt) ? `<div class="seg offers" data-testid="out-offer"><span class="note">Offer:</span>${OFFERS.filter(k => k !== 'partner' || it.pitch === 'partner').map(k => `<button data-pitch="${k}" class="${(it.pitch === 'sale' ? 'full' : it.pitch) === k ? 'on' : ''}" title="${esc(PITCH_LONG[k])}">${PITCH[k]}</button>`).join('')}</div>` : ''}
+  // ---- where things stand, in plain words ----
+  const anySent = it.messages.some(m => m.sentAt), lastSent = it.messages.filter(m => m.sentAt).slice(-1)[0];
+  const toInfo = (it.contacts.emails || []).find(c => c.email === it.to), toGuess = !!(it.to && toInfo && !toInfo.verified && toInfo.likely);
+  const guesses = (it.contacts.emails || []).filter(c => c.likely && !c.verified && c.email !== it.to);
+  const needEmail = !anySent && (!it.to || it.addr?.block), phones = [...new Set(it.contacts.other.filter(c => c.kind === 'phone').map(c => c.value.replace(/\D/g, '')))];
+  const KNAME = Object.fromEntries(KINDS), sch = Object.entries(it.scheduled || {})[0];
+  const SENTWORD = { email: 'First email sent', followup1: 'Follow-up 1 sent', followup2: 'Follow-up 2 sent', letter: 'Letter marked as mailed', call: 'Call marked done', form: 'Contact form note sent', answer: 'Reply sent' };
+  const status = it.phase === 'failed' ? ['bad', 'The drafts could not be written'] : it.replied?.kind === 'optout' ? ['bad', 'Asked not to be contacted'] : it.replied ? ['act', 'They replied: answer them'] : it.call ? ['ok', `Call booked for ${when(it.call.start)}`]
+    : sch ? ['ok', `${KNAME[sch[0]] || 'Email'} scheduled for ${when(sch[1].at)}${sch[1].held ? ' (on hold)' : ''}`] : anySent ? ['ok', `${SENTWORD[lastSent.kind] || 'Sent'} ${day(lastSent.sentAt)}${lastSent.manual ? ' (marked by you)' : ''}`]
+    : it.downloads?.letter && O.kind === 'letter' ? ['act', `Letter downloaded ${day(it.downloads.letter)} · not marked as mailed yet`]
+    : needEmail ? ['act', it.addr?.block ? 'Needs the owner’s own email address' : 'Needs an email address'] : toGuess ? ['act', 'Draft ready · email address not verified'] : ['act', 'Draft ready to review'];
+  const whyLine = String(it.why || '').split(/(?<=[.!?])\s/)[0];
+  const contactLine = [it.toName, it.to ? `${it.to}${toGuess ? ' (a guess, not verified)' : toInfo?.verified ? ' (verified)' : ''}` : 'no email address yet', phones.length ? `${phones.length} phone number${phones.length > 1 ? 's' : ''}` : ''].filter(Boolean).join(' · ');
+  // the one issue that needs you before this can go, if any (shown above the message)
+  const facts = (d?.check || []).filter(x => !/^Also in an email to another firm/.test(x)), dup = (d?.check || []).filter(x => /^Also in an email to another firm/.test(x));
+  const issue = sent ? '' : needEmail && sendable ? `<div class="oissue" data-testid="out-issue"><b>${it.addr?.block ? `${esc(it.to)} is a shared inbox, so a note about selling can’t go there.` : 'There is no verified email address for this company.'}</b>
+      <p>${guesses.length ? `AION guessed <b>${esc(guesses[0].email)}</b> from ${esc(plainSrc(guesses[0].source))}. That is a guess, not a confirmed address, so it isn’t used unless you choose it. ` : ''}Press <b>Find contact details</b> to read their website and public sources for the owner’s address. You can also mail a letter${phones.length ? ' or call' : ''} instead.</p></div>`
+    : toGuess && sendable ? `<div class="oissue" data-testid="out-issue"><b>${esc(it.to)} is a guess, not a verified address.</b><p>It came from ${esc(plainSrc(toInfo.source))}. If it’s wrong the email bounces and AION tells you. Press <b>Find contact details</b> to look for a confirmed one first.</p></div>`
+    : facts.length ? `<div class="oissue" data-testid="out-check"><b>Check before sending:</b> ${facts.map(esc).join(', ')} ${facts.length === 1 ? 'isn’t' : 'aren’t'} in what AION found about them. Fix or remove ${facts.length === 1 ? 'it' : 'them'}, or confirm ${facts.length === 1 ? 'it' : 'them'} yourself.</div>`
+    : sendable && pf && !pf.ok && !noGmail && pf.problems.length ? `<div class="oissue" data-testid="out-problems"><b>Before this can send:</b><ul>${pf.problems.map(p => `<li>${esc(p)}</li>`).join('')}</ul></div>` : '';
+  // the one recommended next step, and quiet alternatives
+  const letterAlt = it.drafts?.letter ? '<button class="ghost" data-kind="letter">Write a letter instead</button>' : '', callAlt = it.drafts?.call && phones.length ? '<button class="ghost" data-kind="call">Call instead</button>' : '';
+  const primary = sent ? '' : O.kind === 'answer' ? '<button id="oansend" data-testid="out-answer-send">Send reply…</button>'
+    : sendable && (needEmail || toGuess) ? `<button id="ofind" data-testid="out-find">Find contact details</button>${needEmail ? `${letterAlt}${callAlt}` : '<button class="ghost" id="osend" data-testid="out-send">Send to this guess anyway…</button>'}`
+    : sendable && noGmail ? '<button id="ocopy" data-testid="out-copy">Copy email</button><button class="ghost" id="omark" data-testid="out-mark-email">I sent it myself</button>'
+    : sendable ? `<button id="osend" ${pf?.ok ? '' : 'disabled'} data-testid="out-send">Send…</button>`
+    : O.kind === 'letter' ? `<a class="btnlink primary" href="/api/outreach/pdf?id=${encodeURIComponent(it.id)}&kind=letter" id="oletter" data-testid="out-letter-pdf">Download letter PDF</a><button class="ghost" id="omark" data-testid="out-mark">Mark letter as mailed</button>`
+    : O.kind === 'call' ? '<button id="omark" data-testid="out-mark">Mark as called</button><button class="ghost" id="ocopy">Copy call notes</button>'
+    : O.kind === 'form' ? `${it.contacts.other.find(c => c.kind === 'contact_page') ? `<a class="btnlink primary" href="${safeUrl(it.contacts.other.find(c => c.kind === 'contact_page').value)}" target="_blank" rel="noreferrer" data-testid="out-formlink">Open their contact form</a>` : ''}<button class="ghost" id="ocopy">Copy note</button><button class="ghost" id="omark" data-testid="out-mark">Mark form sent</button>` : '';
+  const after = sent ? '' : O.kind === 'email' ? `After you send it, follow-ups are ready ${(S.settings.followUpDays || [4, 10]).join(' and ')} days later; a reply stops them.` : O.kind === 'followup1' || O.kind === 'followup2' ? 'A reply from them cancels the remaining follow-ups.' : O.kind === 'letter' ? 'Downloading the PDF does not count as sent: press “Mark letter as mailed” once it’s in the post.' : '';
+  const others = avail.filter(([k]) => k !== O.kind);
+  const more = `<details class="omore" data-testid="out-more"><summary>More options</summary><div class="omenu">
+      ${others.length ? `<p class="note">Other formats</p>${others.map(([k, l]) => `<button class="ghost sm" data-kind="${k}">${l}${it.messages.some(m => m.kind === k && m.sentAt) ? ' ✓' : ''}</button>`).join('')}` : ''}
+      ${it.mode === 'target' && !THESIS.firm && !anySent ? `<p class="note">Offer</p><div class="seg offers" data-testid="out-offer">${OFFERS.filter(k => k !== 'partner' || it.pitch === 'partner').map(k => `<button data-pitch="${k}" class="${(it.pitch === 'sale' ? 'full' : it.pitch) === k ? 'on' : ''}" title="${esc(PITCH_LONG[k])}">${PITCH[k]}</button>`).join('')}</div>` : ''}
+      ${guesses.length && !sent ? `<p class="note">Unverified guesses</p>${guesses.map(c => `<button class="ghost sm" data-uselikely="${esc(c.email)}" data-testid="out-likely">Use ${esc(c.email)} (not verified)</button>`).join('')}` : ''}
+      ${sendable && !sent && !noGmail && !needEmail ? `<p class="note">Sending</p><button class="ghost sm" id="ogdraft" ${pf?.problems?.some(p => /connect|address|recipient/i.test(p)) ? 'disabled' : ''}>Save to Gmail Drafts (doesn’t send)</button>` : ''}
+      ${SCHEDULABLE.includes(O.kind) && !sent && !noGmail && !needEmail && !it.scheduled?.[O.kind] ? `<p class="oschedule"><label>Send later <input type="datetime-local" id="oat" value="${defaultAt(it, O.kind, O.st?.settings?.followUpDays)}" data-testid="out-at"></label> <button class="ghost sm" id="osched" data-testid="out-schedule">Schedule…</button></p>` : ''}
+      ${it.addr?.block && it.drafts?.form && !anySent ? `<button class="ghost sm" id="onote">Write the discreet note to ${esc(it.to)} (no mention of buying)</button>` : ''}
+      <p class="note">This company</p><button class="ghost sm" id="orewrite2">Write the drafts again</button>
+      ${anySent ? '<button class="ghost sm" id="ofinish">Finish (no more follow-ups)</button>' : '<button class="ghost sm" id="odel">Delete this outreach</button>'}
+    </div></details>`;
+  const fields = d && !sent && (sendable || O.kind === 'answer') ? `<div class="ofields">
+      ${accts.length > 1 || it.messages.some(m => m.threadId) ? `<label>From${it.messages.some(m => m.threadId) ? `<input value="${esc(it.sender)}" disabled title="This conversation is in this account’s Gmail">` : `<select id="ofrom">${[...new Set([it.sender, ...accts])].filter(Boolean).map(e => `<option ${e === it.sender ? 'selected' : ''}>${esc(e)}</option>`).join('')}</select>`}</label>` : ''}
+      <label>To${it.contacts.emails.length > 1 ? `<select id="oto">${it.contacts.emails.map(c => `<option value="${esc(c.email)}" ${c.email === it.to ? 'selected' : ''}>${esc(c.name ? `${c.name} <${c.email}>` : c.email)}${c.verified ? ' (verified)' : c.likely ? ' (guess, not verified)' : ''}</option>`).join('')}</select>` : `<input id="oto" value="${esc(it.to)}" placeholder="${needEmail ? 'No verified address yet' : 'name@company.com'}" data-testid="out-to">`}</label>
+      ${O.kind === 'email' ? `<label class="wide">Subject<input id="osubj" value="${esc(d.subject)}" data-testid="out-subject"></label>` : ''}</div>` : '';
+  O.main.innerHTML = `<div class="ps oitem" data-testid="out-item">
+    <div class="otop"><button class="ghost sm" id="oback">← Back to Search &amp; Outreach</button>${qpos >= 0 ? `<span class="oprog" data-testid="out-progress">Review outreach · ${qpos + 1} of ${O.queue.length}</span>${nextQ ? '<button class="ghost sm" id="onextq">Skip to next →</button>' : ''}` : ''}</div>
+    <div class="pshead"><h1>${esc(it.name)}</h1><p class="note ocontact" data-testid="out-contact">${esc(contactLine)}</p>
+      <p class="ostatus ${status[0]}" data-testid="out-status">${esc(status[1])}</p>
+      ${whyLine ? `<p class="owhy">${esc(whyLine)}</p>` : ''}</div>
     ${it.phase === 'failed' ? `<p class="warnline">${esc(it.status)} <button class="sm" id="orewrite" data-testid="out-rewrite">Write the drafts again</button></p>` : ''}
     ${it.replied ? `<section class="card" data-testid="out-reply"><h2 class="h2">Their reply <span class="h2s">${esc(it.replied.from)} · ${day(it.replied.at)} · ${esc(RKIND[it.replied.kind] || it.replied.kind)}</span></h2><pre class="obody">${esc(it.replied.text)}</pre>
       ${it.drafts?.answer ? '' : `<button id="oanswer" data-testid="out-answer">Draft my reply${it.replied.kind !== 'later' ? ' with my open times' : ''}</button>`}</section>` : ''}
+    <section class="card omsg" data-testid="out-message">
+      <div class="omsghead"><h2 class="h2">${esc(KNAME[O.kind] || 'Message')}</h2>${more}</div>
+      ${issue}
+      ${sent ? `<p class="ostatus ok" data-testid="out-sent">${sent.manual ? `${esc(SENTWORD[O.kind] || 'Marked done')} ${day(sent.sentAt)}${sent.note ? `: ${esc(sent.note)}` : ''}` : `Email sent ${day(sent.sentAt)} from ${esc(sent.from)} to ${esc(sent.to)}`}</p><pre class="obody">${esc(sent.body || d?.body || '')}</pre>`
+      : d ? `${fields}<textarea id="obody" class="obody" rows="${O.kind === 'letter' ? 16 : 12}" data-testid="out-body" aria-label="${esc(KNAME[O.kind] || 'Message')} text">${esc(O.unsaved?.[it.id + O.kind] ?? d.body)}</textarea>
+        <div class="osaveline"><span id="osaved" class="note" aria-live="polite" data-testid="out-saved">${O.savedAt?.[it.id + O.kind] ? `Draft saved ${clock(O.savedAt[it.id + O.kind])}` : 'Edits save automatically'}</span>${sendable || O.kind === 'answer' ? '<span class="note">Your signature, mailing address and a one-line opt-out are added when it sends.</span>' : ''}</div>
+        ${dup.length ? `<p class="note" data-testid="out-dup">Tip: “${esc(dup[0].replace(/^Also in an email to another firm: /, '').replace(/[“”]/g, ''))}” also appears in an email to another firm; consider making it more personal.</p>` : ''}
+        ${it.scheduled?.[O.kind] ? `<p class="oschedule" data-testid="out-scheduled">⏱ Scheduled for <b>${esc(when(it.scheduled[O.kind].at))}</b> from ${esc(it.sender)}${it.scheduled[O.kind].held ? ` <span class="warnline sm">On hold: ${esc(it.scheduled[O.kind].held)}</span>` : ''} <button class="ghost sm" id="ounsched">Cancel the scheduled send</button></p>` : ''}
+        <div class="oacts oprimary">${primary}</div>
+        ${noGmail && !needEmail && !toGuess ? `<p class="note" data-testid="out-nogmail">Gmail isn’t connected, so AION can’t send this. Copy it into your own email, send it, then press <b>I sent it myself</b>. Or connect Gmail under <span class="link" id="ogoset">Inboxes and settings</span>.</p>` : ''}
+        ${sendable && pf?.warn ? `<p class="note" data-testid="out-warn">${esc(pf.warn)}</p>` : ''}
+        ${after ? `<p class="note">${esc(after)}</p>` : ''}` : '<p class="empty">No draft for this.</p>'}
+    </section>
     ${talking && it.replied?.kind !== 'optout' ? `<section class="card" data-testid="out-call"><h2 class="h2">The call <span class="h2s">${it.call ? `booked ${esc(when(it.call.start))}` : 'offer real open times, then send the invite'}</span></h2>
       ${it.call ? `<p>${esc(when(it.call.start))}${it.call.meet ? ` · <a href="${safeUrl(it.call.meet)}" target="_blank" rel="noreferrer">Google Meet link</a>` : ''}${it.call.link ? ` · <a href="${safeUrl(it.call.link)}" target="_blank" rel="noreferrer">In your calendar</a>` : ''}</p>
         ${Date.parse(it.call.end) < Date.now() && !it.callHeld ? `<div class="oacts"><span>Did the call happen?</span><button class="sm" data-stage="met" data-testid="out-held">Yes, meeting held</button><button class="ghost sm" id="orebook">No, find a new time</button></div>` : ''}`
@@ -168,56 +225,41 @@ async function drawItem() {
         ${docBox('loi', '4. Letter of intent (non-binding)', it.dealId ? 'Written from the price and structure in Value Creation' : 'Opens once their books are in Value Creation', 'Write the LOI from the analysis')}
       </ol>
       <div class="ostage"><span class="note">Deal stage:</span>${DEAL_STAGES.filter(([k]) => k !== 'contacted').map(([k, l]) => `<button class="ghost sm ${it.stage === k ? 'on' : ''}" data-stage="${k}">${l}</button>`).join('')}</div></section>` : ''}
-    <div class="ogrid">
-      <section class="card">
-        <nav class="dtabs">${avail.map(([k, l]) => `<button data-kind="${k}" class="${k === O.kind ? 'on' : ''}">${l}${it.messages.some(m => m.kind === k) ? ' ✓' : ''}</button>`).join('')}</nav>
-        ${(!it.to || it.addr?.block) && !it.messages.some(m => m.sentAt) ? `<p class="warnline">${it.to ? `${esc(it.to)} is a shared inbox, so a note about selling can’t go there.` : 'No email address for them yet.'} <button class="ghost sm" id="ofind" data-testid="out-find">Find the owner’s email</button>${it.to ? ' or <span class="link" id="onote">send the discreet note to ' + esc(it.to) + '</span> (asks for the owner’s time, no mention of buying)' : ' or use the letter, call notes or contact form'}.</p>` : ''}
-        ${(it.contacts.emails || []).filter(c => c.likely && c.email !== it.to).map(c => `<p class="note" data-testid="out-likely">Guess: check before sending. Possible address for ${esc(c.name)}: <b>${esc(c.email)}</b>, from ${esc(c.source)}. It is not confirmed: if it’s wrong, Gmail bounces it and AION marks it. <button class="ghost sm" data-uselikely="${esc(c.email)}">Use it</button></p>`).join('')}
-        ${sent ? `<p class="note" data-testid="out-sent">${sent.manual ? `Marked done ${day(sent.sentAt)}${sent.note ? `: ${esc(sent.note)}` : ''}` : `Sent ${day(sent.sentAt)} from ${esc(sent.from)} to ${esc(sent.to)}`}</p><pre class="obody">${esc(sent.body || d?.body || '')}</pre>` : d ? `
-        ${sendable || O.kind === 'answer' ? `<div class="ofields">
-          <label>From${it.messages.some(m => m.threadId) ? `<input value="${esc(it.sender)}" disabled title="This conversation is in this account’s Gmail">` : `<select id="ofrom">${[...new Set([it.sender, ...accts])].map(e => `<option ${e === it.sender ? 'selected' : ''}>${esc(e)}</option>`).join('')}</select>`}</label>
-          <label>To${it.contacts.emails.length > 1 ? `<select id="oto">${it.contacts.emails.map(c => `<option value="${esc(c.email)}" ${c.email === it.to ? 'selected' : ''}>${esc(c.name ? `${c.name} <${c.email}>` : c.email)}${c.verified ? ' (verified)' : c.likely ? ' (guess: check before sending)' : ''}</option>`).join('')}</select>` : `<input id="oto" value="${esc(it.to)}" placeholder="name@company.com" data-testid="out-to">`}</label>
-          ${O.kind === 'email' ? `<label class="wide">Subject<input id="osubj" value="${esc(d.subject)}" data-testid="out-subject"></label>` : ''}</div>` : ''}
-        <textarea id="obody" class="obody" rows="${O.kind === 'letter' ? 18 : 14}" data-testid="out-body">${esc(d.body)}</textarea>
-        ${sendable || O.kind === 'answer' ? `<p class="note">Your signature${sendable ? ', mailing address and a one-line “no thanks” opt-out are' : ' is'} added below when it sends.</p>` : ''}
-        ${(() => { const facts = (d.check || []).filter(x => !/^Also in an email to another firm/.test(x)), dup = (d.check || []).filter(x => /^Also in an email to another firm/.test(x));
-          return `${facts.length ? `<p class="warnline" data-testid="out-check">Check before sending: ${facts.map(esc).join(', ')} ${facts.length === 1 ? 'isn’t' : 'aren’t'} in what AION found about them.</p>` : ''}${dup.length ? `<p class="warnline" data-testid="out-dup">Make it more personal: ${dup.map(x => esc(x.replace(/^Also in an email to another firm: /, ''))).join(' · ')} also appears in an email to another firm.</p>` : ''}`; })()}
-        <div class="oacts">
-          <button class="ghost" id="osave">Save edits</button>
-          ${sendable ? `<button id="osend" ${pf?.ok ? '' : 'disabled'} data-testid="out-send">Send…</button><button class="ghost" id="ogdraft" ${pf?.problems?.some(p => /connect|address|recipient/i.test(p)) ? 'disabled' : ''}>Save to Gmail Drafts</button>` : ''}
-          ${O.kind === 'answer' ? `<button id="oansend" data-testid="out-answer-send">Send reply…</button>` : ''}
-          ${O.kind === 'letter' ? `<a class="btnlink" href="/api/outreach/pdf?id=${encodeURIComponent(it.id)}&kind=letter" data-testid="out-letter-pdf">Download letter PDF</a>` : ''}
-          ${O.kind === 'form' && it.contacts.other.find(c => c.kind === 'contact_page') ? `<a class="btnlink" href="${safeUrl(it.contacts.other.find(c => c.kind === 'contact_page').value)}" target="_blank" rel="noreferrer" data-testid="out-formlink">Open their contact form</a>` : ''}${manual ? `<button class="ghost" id="ocopy">Copy</button><button id="omark" data-testid="out-mark">${O.kind === 'letter' ? 'Mark letter mailed' : O.kind === 'call' ? 'Mark called' : 'Mark form sent'}</button>` : ''}
-        </div>
-        ${SCHEDULABLE.includes(O.kind) && !sent ? (it.scheduled?.[O.kind] ? `<p class="oschedule" data-testid="out-scheduled">⏱ Scheduled for <b>${esc(when(it.scheduled[O.kind].at))}</b> from ${esc(it.sender)}${it.scheduled[O.kind].held ? ` <span class="warnline sm">On hold: ${esc(it.scheduled[O.kind].held)}</span>` : ''} <button class="ghost sm" id="ounsched">Cancel</button></p>`
-          : `<p class="oschedule"><label>Or send later <input type="datetime-local" id="oat" value="${defaultAt(it, O.kind, O.st?.settings?.followUpDays)}" data-testid="out-at"></label> <button class="ghost sm" id="osched" data-testid="out-schedule">Schedule…</button> <span class="note">${O.kind === 'email' ? 'Approve now; it sends then.' : 'Cancelled by itself if they reply.'}</span></p>`) : ''}
-        ${sendable && pf?.warn ? `<p class="warnline sm" data-testid="out-warn">${esc(pf.warn)}</p>` : ''}
-        ${sendable && pf && !pf.ok ? `<ul class="oprob" data-testid="out-problems">${pf.problems.map(p => `<li>${esc(p)}</li>`).join('')}</ul>` : ''}` : '<p class="empty">No draft for this.</p>'}
-      </section>
-      <aside class="card osig" data-testid="out-signals"><h2 class="h2">What AION knows <span class="h2s">${it.signals.length} signals · ${used.size} used here</span></h2>
-        <p class="note">Every message is built only from these. Highlighted ones are used in this draft.</p>
-        <ul>${it.signals.map((x, i) => `<li class="${used.has(x.id) ? 'used' : ''}" ${i >= 10 && !used.has(x.id) && !O.allSig ? 'hidden' : ''}><span class="tagx">${esc(x.kind)}</span> ${esc(x.text)}${x.source ? ` <a href="${safeUrl(x.source)}" target="_blank" rel="noreferrer">source</a>` : ''}</li>`).join('')}</ul>
-        ${it.signals.filter((x, i) => i >= 10 && !used.has(x.id)).length && !O.allSig ? `<button class="ghost sm more" id="oallsig">Show all ${it.signals.length}</button>` : ''}
-        ${it.contacts.people.length || it.contacts.other.length ? `<h3>Contacts</h3><ul>${it.contacts.people.map(p => `<li>${esc(p.name)}${p.title ? `, ${esc(p.title)}` : ''}</li>`).join('')}${it.contacts.other.map(c => `<li>${esc(c.kind.replace('_', ' '))}: ${/^https?:/.test(c.value) ? `<a href="${safeUrl(c.value)}" target="_blank" rel="noreferrer">${esc(c.value)}</a>` : esc(c.value)}</li>`).join('')}</ul>` : ''}
-        <h3>History</h3><ul class="olog">${it.log.slice().reverse().map(l => `<li><span class="note">${day(l.at)}</span> ${esc(l.text)}</li>`).join('')}</ul>
-        ${it.messages.some(m => m.sentAt) ? `<button class="ghost sm" id="ofinish">Finish (no more follow-ups)</button>` : `<button class="ghost sm" id="odel">Delete this outreach</button>`}
-      </aside>
-    </div></div>`;
+    <details class="card odet2" data-testid="out-signals"><summary>Why this company · what AION found <span class="note">${it.signals.length} facts with sources · ${used.size} used in this draft</span></summary>
+      ${it.why ? `<p>${esc(it.why)}</p>` : ''}
+      <ul class="osiglist">${it.signals.map((x, i) => `<li class="${used.has(x.id) ? 'used' : ''}" ${i >= 10 && !used.has(x.id) && !O.allSig ? 'hidden' : ''}><span class="tagx">${esc(x.kind)}</span> ${esc(x.text)}${x.source ? ` <a href="${safeUrl(x.source)}" target="_blank" rel="noreferrer">source</a>` : ''}</li>`).join('')}</ul>
+      ${it.signals.filter((x, i) => i >= 10 && !used.has(x.id)).length && !O.allSig ? `<button class="ghost sm more" id="oallsig">Show all ${it.signals.length}</button>` : ''}
+      ${it.contacts.people.length || it.contacts.other.length ? `<h3>Contacts</h3><ul>${it.contacts.people.map(p => `<li>${esc(p.name)}${p.title ? `, ${esc(p.title)}` : ''}</li>`).join('')}${it.contacts.other.map(c => `<li>${esc(c.kind.replace('_', ' '))}: ${/^https?:/.test(c.value) ? `<a href="${safeUrl(c.value)}" target="_blank" rel="noreferrer">${esc(c.value)}</a>` : esc(c.value)}</li>`).join('')}</ul>` : ''}</details>
+    ${it.qc ? `<details class="card odet2" data-testid="out-qc"><summary>Quality check ${it.qc.avg ? `${it.qc.avg}/5` : ''} <span class="note">a second reader’s scores and suggestions${it.qc.lowConfidence ? ' · low confidence' : ''}</span></summary>
+      ${it.qc.lowConfidence ? '<p class="warnline sm">Low confidence: AION found too little that is specific to them. Add a real detail you know, or research more before sending.</p>' : ''}
+      ${it.qc.scores ? `<p class="note">${Object.entries(it.qc.scores).map(([k, v]) => `${esc(k)} ${+v}`).join(' · ')}</p>` : ''}${(it.qc.issues || []).length ? `<ul>${it.qc.issues.map(x => `<li>${esc(x)}</li>`).join('')}</ul>` : ''}
+      ${it.type ? `<p class="note">Kind of note: <b>${esc(TYPE_LABEL[it.type] || it.type)}</b></p>` : ''}</details>` : ''}
+    <details class="card odet2" data-testid="out-history"><summary>History <span class="note">${it.log.length} events · sends from ${esc(it.sender || 'no inbox yet')}</span></summary><ul class="olog">${it.log.slice().reverse().map(l => `<li><span class="note">${day(l.at)}</span> ${esc(l.text)}</li>`).join('')}</ul></details>
+  </div>`;
   const q = s => O.main.querySelector(s), $$ = s => O.main.querySelectorAll(s);
+  const act = async (fn, ok) => { try { await fn(); if (ok) toast(ok); drawItem(); } catch (e) { toast(e.message, 'err'); drawItem(); } };
+  // ---- edits save themselves: "Saving…", then "Draft saved 2:31 PM"; a failed save keeps your text and says so ----
+  O.savedAt ||= {}; O.unsaved ||= {};
+  const key = it.id + O.kind, line = q('#osaved'); let tmr = null;
+  const setLine = (t, err) => { if (line) { line.textContent = t; line.className = 'note' + (err ? ' err' : ''); } };
+  const edits = () => ({ id: it.id, kind: O.kind, body: q('#obody')?.value, ...(q('#osubj') ? { subject: q('#osubj').value } : {}), ...(q('#oto') ? { to: q('#oto').value } : {}), ...(q('#ofrom') ? { sender: q('#ofrom').value } : {}) });
+  const saveEdits = async () => { clearTimeout(tmr); if (!q('#obody')) return; setLine('Saving…');
+    try { await api('outreach/edit', edits()); delete O.unsaved[key]; O.savedAt[key] = Date.now(); setLine(`Draft saved ${clock(Date.now())}`); }
+    catch (e) { O.unsaved[key] = q('#obody').value; setLine(`Couldn’t save (${e.message}). Your text is kept here; it tries again as you type.`, true); throw e; } };
+  O.flush = () => (tmr || O.unsaved[key] !== undefined ? saveEdits().catch(() => {}) : Promise.resolve());
+  O.pendingSave = () => !!tmr || O.unsaved[key] !== undefined;
+  ['#obody', '#osubj'].forEach(sel => q(sel) && q(sel).addEventListener('input', () => { setLine('Unsaved changes…'); clearTimeout(tmr); tmr = setTimeout(() => saveEdits().catch(() => {}), 800); }));
+  if (O.unsaved[key] !== undefined) setLine('Not saved yet: your earlier edits are kept here. Keep typing to save them.', true);
+  const leave = async fn => { await O.flush(); fn(); };
   // one confirm flow at a time: a second click while the first is still checking or waiting for your OK does nothing
   const guard = fn => async ev => { const el = ev.currentTarget; if (el.disabled) return; el.disabled = true; try { await fn(ev); } finally { el.disabled = false; } };
-  const act = async (fn, ok) => { try { await fn(); if (ok) toast(ok); drawItem(); } catch (e) { toast(e.message, 'err'); drawItem(); } };
-  q('#oback').onclick = back;
-  q('#onextq') && (q('#onextq').onclick = () => { O.id = nextQ; O.kind = null; O.slots = null; drawItem(); });
+  q('#oback').onclick = () => leave(back);
+  q('#onextq') && (q('#onextq').onclick = () => leave(() => { O.id = nextQ; O.kind = null; O.slots = null; drawItem(); }));
   $$('[data-pitch]').forEach(b => b.onclick = () => { if (b.classList.contains('on')) return; act(() => api('outreach/rewrite', { id: it.id, pitch: b.dataset.pitch }), `Rewriting every draft as ${PITCH[b.dataset.pitch].toLowerCase()}`); });
-  q('#orewrite') && (q('#orewrite').onclick = () => act(() => api('outreach/rewrite', { id: it.id }), 'Writing the drafts again'));
+  ['#orewrite', '#orewrite2'].forEach(sel => q(sel) && (q(sel).onclick = () => { if (sel === '#orewrite2' && !confirm('Write every draft for this company again? Your edits to the current drafts will be replaced.')) return; act(() => api('outreach/rewrite', { id: it.id }), 'Writing the drafts again: this takes about a minute'); }));
   q('#oallsig') && (q('#oallsig').onclick = () => { O.allSig = true; drawItem(); });
-  $$('[data-kind]').forEach(b => b.onclick = () => { O.kind = b.dataset.kind; drawItem(); });
-  const edits = () => ({ id: it.id, kind: O.kind, body: q('#obody')?.value, ...(q('#osubj') ? { subject: q('#osubj').value } : {}), ...(q('#oto') ? { to: q('#oto').value } : {}), ...(q('#ofrom') ? { sender: q('#ofrom').value } : {}) });
-  const saveEdits = async () => { if (q('#obody')) { await api('outreach/edit', edits()); O.dirty = false; } };
-  // unsaved typing in a draft: the browser asks before a reload or close throws it away
-  O.dirty = false; ['#obody', '#osubj'].forEach(s => q(s) && q(s).addEventListener('input', () => { O.dirty = true; }));
-  q('#osave') && (q('#osave').onclick = () => act(saveEdits, 'Saved'));
+  $$('[data-kind]').forEach(b => b.onclick = () => leave(() => { O.kind = b.dataset.kind; drawItem(); }));
+  q('#oletter') && q('#oletter').addEventListener('click', () => { setTimeout(() => drawItem(), 1500); toast('Letter PDF downloaded. It is not marked as mailed until you press “Mark letter as mailed”.'); });
   q('#osched') && (q('#osched').onclick = guard(async () => {
     try { await saveEdits(); const at = q('#oat').value; const p = await api('outreach/confirm', { id: it.id, action: 'schedule', kind: O.kind, at }); if (!p.ok) { toast(p.problems[0], 'err'); return drawItem(); }
       if (!confirm(`Schedule this for ${when(p.at)}?\n\nFrom: ${p.from}\nTo: ${p.to}\nSubject: ${p.subject}\n\n${p.body}`)) return;
@@ -233,7 +275,8 @@ async function drawItem() {
       await api('outreach/send', { id: it.id, kind: O.kind, confirmed: true, token: p.token }); toast(`Sent to ${p.to}`); O.kind = null; if (nextQ) O.id = nextQ; drawItem(); } catch (e) { toast(e.message, 'err'); }
   }));
   q('#ogdraft') && (q('#ogdraft').onclick = () => act(async () => { await saveEdits(); await api('outreach/send', { id: it.id, kind: O.kind, confirmed: true, saveOnly: true }); }, `Saved to ${q('#ofrom')?.value || it.sender} Gmail Drafts. Nothing was sent.`));
-  q('#ocopy') && (q('#ocopy').onclick = async () => { await navigator.clipboard.writeText(q('#obody').value).catch(() => {}); toast('Copied'); });
+  q('#ogoset') && (q('#ogoset').onclick = async () => { back(); for (let i = 0; i < 40; i++) { const d = document.querySelector('[data-testid="out-senders"]'); if (d) { d.open = true; d.scrollIntoView({ behavior: 'smooth', block: 'start' }); document.querySelector('#onew')?.focus({ preventScroll: true }); return; } await new Promise(r => setTimeout(r, 100)); } });
+  q('#ocopy') && (q('#ocopy').onclick = async () => { const subj = q('#osubj')?.value; await navigator.clipboard.writeText((subj ? `Subject: ${subj}\n\n` : '') + q('#obody').value).catch(() => {}); toast(subj ? 'Copied the subject and the email' : 'Copied'); });
   q('#omark') && (q('#omark').onclick = () => { const note = prompt(O.kind === 'call' ? 'How did the call go? (optional)' : 'Any note? (optional)'); if (note === null) return; act(async () => { await saveEdits(); await api('outreach/done', { id: it.id, kind: O.kind, note }); }, 'Marked done'); });
   q('#oanswer') && (q('#oanswer').onclick = ev => { ev.target.disabled = true; ev.target.textContent = 'Writing…'; act(async () => { await api('outreach/answer', { id: it.id }); O.kind = 'answer'; }); });
   q('#oansend') && (q('#oansend').onclick = async () => { try { await saveEdits(); const p = await api('outreach/confirm', { id: it.id, action: 'answer' }); if (!p.ok) { toast(p.problems[0], 'err'); return drawItem(); } if (!confirm(`Send your reply now?\n\nFrom: ${p.from}\nTo: ${p.to}\nSubject: ${p.subject}\n\n${p.body.slice(0, 1200)}`)) return; q('#oansend').disabled = true; await api('outreach/answer-send', { id: it.id, confirmed: true, token: p.token }); O.kind = null; toast('Reply sent'); drawItem(); } catch (e) { toast(e.message, 'err'); } });
@@ -244,7 +287,7 @@ async function drawItem() {
     if (!start) return toast('Show your open times and pick one, or type another time.', 'err');
     let p; try { p = await api('outreach/confirm', { id: it.id, action: 'invite', start }); } catch (e) { return toast(e.message, 'err'); } if (!p.ok) return toast(p.problems[0], 'err');
     if (!confirm(`Send a calendar invite to ${p.to} from ${p.from} for ${when(start)} (${S.settings.callMinutes || 30} minutes, with a Google Meet link)?`)) return;
-    await act(async () => { await api('outreach/book', { id: it.id, start, confirmed: true, token: p.token }); O.slots = null; }, 'Invite sent');
+    act(async () => { await api('outreach/book', { id: it.id, start, confirmed: true, token: p.token }); O.slots = null; }, 'Invite sent');
   }));
   $$('[data-stage]').forEach(b => b.onclick = () => { const note = prompt('Note for the deal history (optional)'); if (note === null) return; act(() => api('outreach/stage', { id: it.id, stage: b.dataset.stage, note }), 'Deal stage updated'); });
   $$('[data-docmake]').forEach(b => b.onclick = () => { b.disabled = true; b.textContent = 'Writing…'; act(() => api('outreach/doc', { id: it.id, kind: b.dataset.docmake })); });
@@ -265,6 +308,5 @@ async function drawItem() {
   q('#ofinish') && (q('#ofinish').onclick = async () => { await api('outreach/finish', { id: it.id, why: 'Finished by you' }); back(); });
   q('#odel') && (q('#odel').onclick = async () => { if (!confirm('Delete this outreach and its drafts?')) return; await api('outreach/delete', { id: it.id }); back(); });
 }
-function back() { if (O.dirty && !confirm('Leave this draft? Your unsaved edits will be lost.')) return; O.dirty = false; O.view = 'board'; O.id = null; O.allSig = false; O.slots = null; O.queue = null; draw(); }
-
-window.addEventListener('beforeunload', e => { if (typeof O !== 'undefined' && O.dirty) { e.preventDefault(); e.returnValue = ''; } });
+window.addEventListener('beforeunload', e => { if (typeof O !== 'undefined' && O.pendingSave?.()) { e.preventDefault(); e.returnValue = ''; } });
+function back() { O.view = 'board'; O.id = null; O.allSig = false; O.slots = null; O.queue = null; draw(); }

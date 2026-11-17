@@ -17,7 +17,7 @@ export async function outreachRoute(req, res, url, p, ctx) {
       if (req.method === 'GET' && p === 'outreach/attachment') { try { const buf = await OUT.getAttachment(url.searchParams.get('id'), url.searchParams.get('m'), url.searchParams.get('a')); return send(res, 200, { data: buf.toString('base64') }); } catch (e) { return send(res, 400, { error: e.message }); } }
       if (req.method === 'GET' && p === 'outreach/print') { try { const html = letterHtml(url.searchParams.get('id'), url.searchParams.get('kind')); res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' }); return res.end(html); } catch (e) { return send(res, 404, { error: e.message }); } } // build the page before the headers go out, so an error can still be reported
       if (req.method === 'GET' && p === 'outreach/pdf') {
-        try { const kind = url.searchParams.get('kind'), it = OUT.get(url.searchParams.get('id')); const buf = await outreachPdf(it.id, kind);
+        try { const kind = url.searchParams.get('kind'), it = OUT.get(url.searchParams.get('id')); const buf = await outreachPdf(it.id, kind); if (kind === 'letter') { try { OUT.noteDownloaded(it.id, 'letter'); } catch {} }
           res.writeHead(200, { 'Content-Type': 'application/pdf', 'Content-Disposition': `attachment; filename="${(kind === 'letter' ? 'Letter' : it.docs?.[kind]?.title || kind).replace(/[^\w ()-]+/g, '')} - ${it.name.replace(/[^\w &-]+/g, '')}.pdf"` }); return res.end(buf); } catch (e) { return send(res, 400, { error: e.message }); }
       }
       if (req.method === 'GET' && p === 'outreach/item') { try { return send(res, 200, OUT.item(url.searchParams.get('id'))); } catch (e) { return send(res, 404, { error: e.message }); } }

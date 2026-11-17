@@ -21,9 +21,9 @@ const api = async (p, b) => {
 let DL = { deals: [] };
 async function refresh(go) { V = await api('state'); DL = await api('deals'); if (go) page = go; render(); }
 
-// four steps: Upload → Real profit → Price & returns → Questions (the existing pages, grouped)
+// four steps: Upload → Adjusted profit → Price & returns → Questions (the existing pages, grouped)
 const STEPS = [
-  ['upload', 'Upload', 1], ['map', 'Real profit · sort the accounts', 2], ['earnings', 'Real profit · owner pay and one-offs', 2], ['ops', 'Price & returns · team and workload', 3], ['levers', 'Price & returns · ways to raise profit', 3], ['plan', 'Questions · plan and questions for the seller', 4],
+  ['upload', 'Upload', 1], ['map', 'Adjusted profit · sort the accounts', 2], ['earnings', 'Adjusted profit · owner pay and one-offs', 2], ['ops', 'Price & returns · team and workload', 3], ['levers', 'Price & returns · ways to raise profit', 3], ['plan', 'Questions · plan and questions for the seller', 4],
 ];
 const ORDER = ['upload', 'map', 'earnings', 'ops', 'levers'];
 function unlocked(k) {
@@ -154,7 +154,7 @@ function pMap() {
   const opts = sel => Object.entries(C).map(([k, v]) => `<option value="${k}" ${k === sel ? 'selected' : ''}>${esc(v.label)}</option>`).join('');
   const ttmLike = a => a.total;
   const revCheck = S.accounts.filter(a => C[S.mapping?.[a.account]]?.group === 'revenue').reduce((s, a) => s + a.total, 0);
-  $('#main').innerHTML = `<h1>Step 2 · Real profit: check how each account is sorted</h1>
+  $('#main').innerHTML = `<h1>Step 2 · Adjusted profit: check how each account is sorted</h1>
   <p class="lede">AI suggested a category for every account (sales, staff pay, rent and so on). You have the final say: change any you disagree with. Nothing after this step runs until you confirm.</p>
   ${jobBox()}
   ${!S.mapping ? `<div class="callout warn">Accounts not sorted yet. <span class="link" id="cl">Sort them with AI</span></div>` : `
@@ -195,16 +195,16 @@ function pnlTable(d) {
 function pEarnings() {
   const S = V.state, d = V.derived, n = d.normalization, q = d.quality;
   const ab = S.addbacks || [], vd = S.vendors || [], fl = S.flags || [];
-  $('#main').innerHTML = `<h1>Step 2 · Real profit: profit in the books → real profit</h1>
-  <p class="lede">Software adds up profit from the accounts you sorted: profit before interest, tax and depreciation (EBITDA). Then it works out <b>real profit</b> (“normalized EBITDA”): it adds back the owner’s pay and one-off costs a new owner won’t have (“add-backs”), and takes off the salary of a manager hired to replace the owner. AI suggests add-backs; each amount is the sum of the real payments it points to, and none counts until you tick it.</p>
+  $('#main').innerHTML = `<h1>Step 2 · Adjusted profit: profit in the books → adjusted profit</h1>
+  <p class="lede">Software adds up profit from the accounts you sorted: profit before interest, tax and depreciation (EBITDA). Then it works out <b>adjusted profit</b> (“normalized EBITDA”): it adds back the owner’s pay and one-off costs a new owner won’t have (“add-backs”), and takes off the salary of a manager hired to replace the owner. AI suggests add-backs; each amount is the sum of the real payments it points to, and none counts until you tick it.</p>
   ${jobBox()}
   <div class="grid4">
     <div class="panel kpi"><small>Sales, last 12 months</small><b>${kfmt(d.pnl.TTM.revenue)}</b></div>
     <div class="panel kpi"><small>Profit in the books (EBITDA)</small><b>${kfmt(n.reported)}</b><span>${pct(n.reported / (d.pnl.TTM.netRevenue ?? d.pnl.TTM.revenue), 1)} of ${d.pnl.TTM.byCat?.rev_passthrough > 0 ? 'sales without pass-through' : 'sales'}</span></div>
     <div class="panel kpi"><small>One-off costs added back</small><b>${kfmt(n.addbacks)}</b><span>${kfmt(n.unaccepted)} more suggested, not ticked</span></div>
-    <div class="panel kpi hi"><small>Real profit (normalized EBITDA)</small><b>${kfmt(n.normalized)}</b><span>${pct(n.normalized / (d.pnl.TTM.netRevenue ?? d.pnl.TTM.revenue), 1)} of sales</span></div>
+    <div class="panel kpi hi"><small>Adjusted profit (normalized EBITDA)</small><b>${kfmt(n.normalized)}</b><span>${pct(n.normalized / (d.pnl.TTM.netRevenue ?? d.pnl.TTM.revenue), 1)} of sales</span></div>
   </div>
-  <h2>From profit in the books to real profit</h2>
+  <h2>From profit in the books to adjusted profit</h2>
   <p class="howline"><b>How this works:</b> start from profit in the books, add what a new owner won’t pay, then pay whoever runs the firm after closing (the seller if they stay, or a hired manager) a market salary. Change the salary or the number of leaders and everything updates.</p>
   <div class="panel"><table>
     <tr><td>Profit in the books (EBITDA)</td><td class="num">${money(n.reported)}</td></tr>
@@ -212,8 +212,8 @@ function pEarnings() {
     <tr><td>+ Owner’s pay found in the books <span class="note">(owner pay accounts${S.owner.extraOwnerComp ? ' + the amount you typed below' : ''})</span></td><td class="num">${money(n.ownerActual)}</td></tr>
     <tr><td>− Market salary for whoever runs it after closing (the seller or a hire) <span class="badge ass">your guess</span> $<input type="number" id="mc" value="${S.owner.marketComp}" step="5000"> × <input type="number" id="oc" value="${S.owner.count}" min="1" step="1" style="width:60px"> leaders</td><td class="num">${money(-n.replacement)}</td></tr>
     <tr><td>Owner’s pay booked in other accounts (type it in, $) <input type="number" id="xo" value="${S.owner.extraOwnerComp}" step="1000"></td><td></td></tr>
-    <tr class="tot"><td>Real profit (normalized EBITDA)</td><td class="num">${money(n.normalized)}</td></tr>
-  </table><p class="note">This is not the seller’s “cash flow” or SDE (seller’s discretionary earnings), which leave the owner’s pay in. Real profit here already pays someone to run the business.</p></div>
+    <tr class="tot"><td>Adjusted profit (normalized EBITDA)</td><td class="num">${money(n.normalized)}</td></tr>
+  </table><p class="note">This is not the seller’s “cash flow” or SDE (seller’s discretionary earnings), which leave the owner’s pay in. Adjusted profit here already pays someone to run the business.</p></div>
 
   <h2>AI review of costs and risks <span class="badge">${esc(V.models.analysis)}</span></h2>
   ${!S.addbacks ? `<div class="panel row"><span class="note">Sends the last 12 months’ profit and loss by category, customer statistics, and cost totals by account and payee (the top 160, up to eight memos each). No customer names.</span><div class="spacer"></div><button id="ab">Find one-off costs and risks with AI</button></div>` : `
@@ -238,7 +238,7 @@ function pEarnings() {
   : `<p class="note">PDF statements show totals only. The customer, invoice and payment-speed view needs a General Ledger with every payment.</p>`}
 
   <h2>Profit and loss by year</h2><div class="panel">${pnlTable(d)}</div>
-  <div class="row" style="margin-top:16px"><button class="ok" id="conf">${S.normConfirmed ? 'Real profit confirmed ✓ — continue' : 'Confirm real profit and continue →'}</button><span class="note">Next: the team and workload, then price and returns.</span></div>`;
+  <div class="row" style="margin-top:16px"><button class="ok" id="conf">${S.normConfirmed ? 'Adjusted profit confirmed ✓ — continue' : 'Confirm adjusted profit and continue →'}</button><span class="note">Next: the team and workload, then price and returns.</span></div>`;
 
   const post = async b => { V = await api('earnings', { ...b, confirm: false }); render(); };
   $('#mc').onchange = e => post({ owner: { marketComp: e.target.value } });
@@ -308,12 +308,12 @@ const AS = [
 function pLevers() {
   const S = V.state, d = V.derived, L = d.levers, six = L.six, a = S.assumptions, n = d.normalization;
   const bridge = [
-    ['Real profit', n.normalized, 'abs'], ['Prices', L.nonAI.pricing], ['Write-offs', L.nonAI.writeoffs], ['Suppliers', L.nonAI.vendors],
+    ['Adjusted profit', n.normalized, 'abs'], ['Prices', L.nonAI.pricing], ['Write-offs', L.nonAI.writeoffs], ['Suppliers', L.nonAI.vendors],
     ['AI: more work', L.growth], ['AI: cost cut', six.cashSavings], ['AI software', -six.costs.software], ['Running AI', -six.costs.ongoing], ['With changes', d.proForma, 'end']];
   $('#main').innerHTML = `<h1>Step 3 · Price & returns: ways to raise profit</h1>
   <p class="lede">Each change (a “lever”) is worked out from the books, the team numbers you confirmed, and the guesses on this page, which you can change. Hours that AI frees up are counted once only: for more work, for spending you will really cut, or not at all. An hour saved never counts as cash unless you type in real spending to cut.</p>
   <div class="grid4">
-    <div class="panel kpi"><small>Real profit today (normalized EBITDA)</small><b>${kfmt(n.normalized)}</b></div>
+    <div class="panel kpi"><small>Adjusted profit today (normalized EBITDA)</small><b>${kfmt(n.normalized)}</b></div>
     <div class="panel kpi hi"><small>Extra profit a year, once running</small><b>${kfmt(L.runRate)}</b><span>once every counted change is in place</span></div>
     <div class="panel kpi"><small>Year 1, after one-time setup</small><b class="${L.year1 < 0 ? 'neg' : ''}">${kfmt(L.year1)}</b><span>year 1 gets ${pct(a.year1_ramp)} of the full gain</span></div>
     <div class="panel kpi"><small>Return on investment (ROI) · pays back in</small><b>${L.roi == null ? '—' : L.roi.toFixed(1) + 'x'}</b><span>${L.paybackMonths == null ? 'never pays back at these numbers' : num(L.paybackMonths, 1) + ' months'}</span></div>
@@ -351,7 +351,7 @@ function waterfall(items) {
   const vals = pts.flatMap(p => [p.a, p.b]); const max = Math.max(...vals, 1), min = Math.min(0, ...vals);
   const y = v => bot - (v - min) / (max - min) * (bot - top);
   const slot = W / pts.length, bw = slot * .58;
-  return `<b>From real profit to profit with every change, in a full year</b><svg viewBox="0 0 ${W} ${H}" width="100%">${pts.map((p, i) => {
+  return `<b>From adjusted profit to profit with every change, in a full year</b><svg viewBox="0 0 ${W} ${H}" width="100%">${pts.map((p, i) => {
     const x = i * slot + (slot - bw) / 2, y0 = y(Math.max(p.a, p.b)), y1 = y(Math.min(p.a, p.b));
     const fill = p.k === 'abs' ? '#9C978C' : p.k === 'end' ? '#2F5D50' : p.k === 'up' ? '#7FA493' : '#C98B7C';
     const val = p.k === 'abs' || p.k === 'end' ? p.b : p.b - p.a;
@@ -437,18 +437,18 @@ function simple() {
     return;
   }
   if (!S.file) {
-    main.innerHTML = `<div class="sw center"><p class="kicker">For AION and its investors · ecommerce consulting firms: real profit, price and how to grow it</p><h1>See a company’s real profit, and how to grow it.</h1><p class="lede">EBITDA (profit before interest, tax and depreciation) is a company’s yearly profit from running the business, the number buyers price it on. This tool finds what it really is and how to raise it. For anyone buying, owning or investing in a business, in any industry. Answers in about a minute from a ledger, a few minutes from a PDF.</p>
+    main.innerHTML = `<div class="sw center"><p class="kicker">For AION and its investors · ecommerce consulting firms: adjusted profit, price and how to grow it</p><h1>See a company’s adjusted profit, and how to grow it.</h1><p class="lede">EBITDA (profit before interest, tax and depreciation) is a company’s yearly profit from running the business, the number buyers price it on. This tool finds what it really is and how to raise it. For anyone buying, owning or investing in a business, in any industry. Answers in about a minute from a ledger, a few minutes from a PDF.</p>
       <div class="why3"><div><b>The problem</b><span>The profit a seller reports often includes the owner’s own pay and personal costs, so it can look better or worse than it really is.</span></div>
         <div><b>Why it matters</b><span>Small firms usually sell for about 3–5 years of profit (the “multiple”). So every $1 of yearly profit found or added makes the company worth about $3–5 more.</span></div>
-        <div><b>What this does</b><span>It reads the company’s own records, works out the real profit, finds the 3 changes most likely to raise it, and checks whether the price makes sense.</span></div></div>
+        <div><b>What this does</b><span>It reads the company’s own records, works out the adjusted profit, finds the 3 changes most likely to raise it, and checks whether the price makes sense.</span></div></div>
       <div class="drop big" id="drop"><b>Drop the company’s books here</b><div class="note">QuickBooks General Ledger (.xlsx or .csv) or a PDF · or click to choose</div><input type="file" id="file" accept=".xlsx,.xls,.csv,.pdf" hidden></div>
-      <ol class="how3s"><li><b>1</b><span>Drop in the books</span><small>the record of every payment in and out (a QuickBooks General Ledger)</small></li><li><b>2</b><span>Watch it work</span><small>about a minute for a ledger, one step at a time</small></li><li><b>3</b><span>Get the plan</span><small>real profit, top 3 actions, first 100 days</small></li></ol>
+      <ol class="how3s"><li><b>1</b><span>Drop in the books</span><small>the record of every payment in and out (a QuickBooks General Ledger)</small></li><li><b>2</b><span>Watch it work</span><small>about a minute for a ledger, one step at a time</small></li><li><b>3</b><span>Get the plan</span><small>adjusted profit, top 3 actions, first 100 days</small></li></ol>
       <p class="note"><label><input type="checkbox" id="mask" ${S.maskNames === false ? '' : 'checked'}> Hide customer and staff names from the AI</label></p></div>`;
     $('#mask').onchange = async e => { V = await api('mask', { on: e.target.checked }); };
     wireDrop(); return;
   }
   if (!S.plan || !d.levers) {
-    main.innerHTML = `<div class="sw"><h1>${esc(S.name || S.file.name)}</h1><p class="lede">The books are uploaded but not analyzed yet. Analyzing reads every payment, works out real profit, finds the changes most likely to raise it and checks the price. About a minute for a ledger, a few minutes for a PDF.</p><div class="row" style="margin-top:16px"><button id="go">Analyze the books</button><span class="link" id="again">Close this deal</span></div></div>`;
+    main.innerHTML = `<div class="sw"><h1>${esc(S.name || S.file.name)}</h1><p class="lede">The books are uploaded but not analyzed yet. Analyzing reads every payment, works out adjusted profit, finds the changes most likely to raise it and checks the price. About a minute for a ledger, a few minutes for a PDF.</p><div class="row" style="margin-top:16px"><button id="go">Analyze the books</button><span class="link" id="again">Close this deal</span></div></div>`;
     $('#go').onclick = startAll; $('#again').onclick = resetAll; return;
   }
   const n = d.normalization, L = d.levers, D = d.deal;
@@ -465,7 +465,7 @@ function simple() {
 
   // waterfall rows: seller → real → each action → AI costs → could reach
   const rows = [{ key: 'seller', lab: S.file?.kind === 'pdf' ? 'Reported profit' : 'What the seller says', sm: S.file?.kind === 'pdf' ? 'from the published statements' : 'profit in their books', cls: 'seller', a: 0, b: n.reported, v: k$(n.reported) },
-    { key: 'real', lab: 'Real profit', sm: [n.ownerActual ? `+${k$(n.ownerActual)} owner pay` : '', n.addbacks ? `+${k$(n.addbacks)} one-off costs` : '', n.replacement ? `−${k$(n.replacement)} to pay whoever runs it` : ''].filter(Boolean).join(', ') || 'what a new owner can count on', cls: 'real', a: 0, b: n.normalized, v: k$(n.normalized) }, { div: 1 }];
+    { key: 'real', lab: 'Adjusted profit', sm: [n.ownerActual ? `+${k$(n.ownerActual)} owner pay` : '', n.addbacks ? `+${k$(n.addbacks)} one-off costs` : '', n.replacement ? `−${k$(n.replacement)} to pay whoever runs it` : ''].filter(Boolean).join(', ') || 'after owner pay, one-off costs and a manager’s salary', cls: 'real', a: 0, b: n.normalized, v: k$(n.normalized) }, { div: 1 }];
   let run = n.normalized;
   top.forEach((x, i) => { if (x.pending) return; rows.push({ key: x.id, n: i + 1, lab: x.short, cls: 'up', a: run, b: run + x.value, v: '+' + k$(x.value) }); run += x.value; });
   const restV = rest.filter(x => !x.pending).reduce((s, x) => s + x.value, 0);
@@ -477,11 +477,12 @@ function simple() {
   const wf = rows.map(r => { if (r.div) return '<div class="wdiv"></div>'; const g = geo(r), p = PREV_GEO[r.key] || g; return `<div class="wl ${r.end ? 'end' : ''}">${r.n ? `<span class="wn ${r.cost ? 'cost' : ''}">${r.n}</span>` : ''}<span>${esc(r.lab)}${r.sm ? `<small>${esc(r.sm)}</small>` : ''}</span></div><div class="wt"><span class="wb ${r.cls}" data-g="${r.key}" style="left:${p.l}%;width:${p.w}%"></span><span class="wv ${r.cls}" data-gv="${r.key}" style="left:calc(${p.t}% + 8px)">${r.v}</span></div>`; }).join('');
   const NEXT = {}; rows.forEach(r => { if (!r.div) NEXT[r.key] = geo(r); });
 
-  const card = (x, i) => `<article class="acard ${x.pending ? 'pending' : ''} ${x.id === pick ? 'pick' : ''}"><div class="arow"><span class="anum">${i + 1}</span>${x.kind === 'AI' ? '<span class="atag ai">AI</span>' : x.kind === 'Industry' ? `<span class="atag ind" title="${esc(cap(V.profile?.name || ''))}">Industry move</span>` : ''}${x.id === pick ? '<span class="atag start">Start here</span>' : ''}${x.pending ? '<span class="atag wait">Not counted yet</span>' : ''}</div>
-    <div class="aamt">${x.pending ? 'up to ' : ''}+${k$(x.value)}<small>${x.pending ? 'a year, once the seller confirms it' : `more profit a year${x.extra ? ` · ${x.extra}` : ''}`}</small>${D && !x.pending ? `<small class="ev">≈ +${k$(x.value * D.multiple)} in company value, at ${D.multiple} years of profit</small>` : ''}</div>
+  const card = (x, i) => `<article class="acard ${x.pending ? 'pending' : ''} ${x.id === pick ? 'pick' : ''}" data-testid="vc-card"><div class="arow"><span class="anum">${i + 1}</span>${x.kind === 'AI' ? '<span class="atag ai">AI</span>' : x.kind === 'Industry' ? `<span class="atag ind" title="${esc(cap(V.profile?.name || ''))}">Industry move</span>` : ''}${x.id === pick ? '<span class="atag start">Start here</span>' : ''}${x.pending ? '<span class="atag">Needs the seller</span>' : ''}</div>
     <h3>${esc(x.title)}</h3>
-    ${x.proof ? `<div class="aproof">From ${x.src || 'the books'}: ${x.proof}</div>` : ''}
-    <div class="ameta"><span><small>Owner</small>${esc(x.owner || '')}</span><span title="${esc(x.sureWhy || '')}"><small>How sure</small><i class="sure ${/^From|Confirmed/.test(x.sure) ? 'hi' : x.sure === 'Benchmark gap' ? 'mid' : 'lo'}"></i>${esc(x.sure || '')}</span></div>
+    <div class="aamt">${x.cashOnly ? `${k$(d.cashRelease || 0)}<small>of cash freed once · not added to profit</small>` : `${x.pending ? 'up to ' : ''}+${k$(x.value)}<small>${x.pending ? 'a year, once the seller confirms it' : 'more profit a year (estimate)'}</small>`}</div>
+    <div class="ameta"><span title="${esc(x.sureWhy || '')}"><small>Confidence</small><i class="sure ${confOf(x) === 'High' ? 'hi' : confOf(x) === 'Medium' ? 'mid' : 'lo'}"></i>${esc(confOf(x))}</span><span><small>Effort</small>${esc(effortTxt(x, d))}</span><span><small>Owner</small>${esc(x.owner || '')}</span></div>
+    ${(x.steps || [])[0] ? `<p class="anext"><b>Next step:</b> ${esc(String(x.steps[0]).replace(/^[^:]{0,30}:\s*/, ''))}</p>` : ''}
+    <details class="adet"><summary>How this was worked out</summary>${x.proof ? `<p class="aproof">From ${x.src || 'the books'}: ${x.proof}</p>` : ''}<p class="note">${esc(x.sureWhy || '')}${x.extra && !x.cashOnly ? ` · ${esc(x.extra)}` : ''}</p>${D && !x.pending && x.value > 0 ? `<p class="note">≈ +${k$(x.value * D.multiple)} in company value at ${D.multiple}× profit, if it works.</p>` : ''}</details>
     ${x.pending ? `<button class="acount" data-k="vendors" data-v="1">Count it in the plan</button>` : ''}<button class="abuild" data-build="${x.id}">How to do it</button></article>`;
 
   const dmax = D ? Math.max(D.base.net.moic, D.none.net.moic, D.downside.net.moic, 1) * 1.1 : 1;
@@ -490,20 +491,21 @@ function simple() {
   main.innerHTML = `<div class="sw r2" data-show="${tab}">
     <div class="rhead"><button class="ichip" id="ind" title="Change the kind of business"><i></i>${esc(cap(V.profile?.name || 'business'))}<span>${V.profile?.subsectorLabel ? esc(V.profile.subsectorLabel) + (SUBSECTORS[V.profile.subsector]?.legacy ? ' (outside the buy box)' : '') + ' · ' : V.profile ? (V.state?.industry ? 'outside the buy box · ' : 'kind of business not set · ') : ''}change</span></button><div class="spacer" style="display:block;flex:1"></div>
       <button class="ghost" id="rp">▶ Replay</button><button class="ghost" id="pdf">1-page PDF</button><button class="ghost" id="xls">Excel</button></div>
-    <nav class="dtabs">${[['overview', 'Real profit'], ['deal', 'Price & returns'], ['plan', 'Plan'], ['details', 'Questions & checks']].map(([k, l]) => `<button data-tab-btn="${k}" class="${tab === k ? 'on' : ''}">${l}</button>`).join('')}</nav>
+    <nav class="dtabs">${[['overview', 'Adjusted profit'], ['deal', 'Price & returns'], ['plan', 'Plan'], ['details', 'Questions & checks']].map(([k, l]) => `<button data-tab-btn="${k}" class="${tab === k ? 'on' : ''}">${l}</button>`).join('')}</nav>
 
     <section class="hero2" data-tab="overview">
-      <h1>${Math.round(d.proForma) > Math.round(n.normalized) ? `Profit can grow from <span>${k$(n.normalized)}</span> to <span>${k$(d.proForma)}</span> a year` : `Real profit is <span>${k$(n.normalized)}</span> a year`}</h1>
-      ${guide(S, d, top, pick, big)}
-      ${S.file?.kind === 'pdf' ? `<p class="howline"><b>How this works:</b> profit here is EBITDA: operating profit from the published statements, before interest, tax and non-cash charges like depreciation. Each green bar is one change, priced from the company’s own accounts${aiCost ? '; the red bar is what the AI tools would cost' : ''}.</p>` : `<p class="howline"><b>How this works:</b> profit here is EBITDA (before interest, tax and depreciation). Real profit = profit in the books + the owner’s pay and one-off costs − the salary of a hired manager. Each green bar is one change, priced from the books${aiCost ? '; the red bar is what the AI tools would cost' : ''}.</p>`}
-      <div class="wf">${wf}</div>
+      <h1>Adjusted profit: about <span>${k$(n.normalized)}</span> a year</h1>
+      ${lead(S, d, acts, pick, big)}
+      <details class="more2 wfbox"><summary>How the numbers add up <span class="note">from profit in the books to what the changes could reach</span></summary>
+      ${S.file?.kind === 'pdf' ? `<p class="howline">Profit here is EBITDA: operating profit from the published statements, before interest, tax and non-cash charges like depreciation. Each green bar is one change, priced from the company’s own accounts.</p>` : `<p class="howline">Profit here is EBITDA (before interest, tax and depreciation). Adjusted profit = profit in the books + the owner’s pay and one-off costs − the salary of a hired manager. Each green bar is one change, priced from the books.</p>`}
+      <div class="wf">${wf}</div></details>
       ${checksStrip(S, d)}
     </section>
 
     ${big ? `<section class="unk" data-tab="overview"><div><b>Biggest unknown: is the ${k$(big.amount)} “${esc(big.account)}” the owner’s own pay?</b><span>${big.current ? 'Counted now as owner pay, so it’s added back to profit. Click No to see the difference.' : 'Counted now as staff pay. Click Yes to see profit if it’s the owner’s.'}</span></div>
       <div class="yn2"><button class="${big.current ? 'on' : ''}" data-k="${esc(big.key)}" data-v="1">Yes</button><button class="${!big.current ? 'on' : ''}" data-k="${esc(big.key)}" data-v="0">No</button></div></section>` : ''}
 
-    <section data-tab="overview"><h2 class="h2">${top.length === 1 ? 'Your easiest win' : `Your ${top.length} easiest wins`} <span class="h2s">most profit for the least work; full list in Plan</span></h2><p class="howline"><b>How this works:</b> ranked by extra profit a year per week of work. “How sure” says where the number comes from: the books, an uploaded file, or a comparison with similar companies. <b>What to do:</b> start with the card marked “Start here”; “How to do it” gives the steps and a ready AI prompt.</p><div class="acards">${top.map(card).join('')}</div></section>
+    <section data-tab="overview"><h2 class="h2">${top.length === 1 ? 'Your easiest win' : `Your ${top.length} easiest wins`} <span class="h2s">most profit for the least work; full list in Plan</span></h2><p class="note" data-testid="vc-confscale">Confidence: <b>High</b> = confirmed (for example by supplier quotes) · <b>Medium</b> = the cost is measured in the books, the saving is an assumption · <b>Low</b> = a comparison with similar companies. Every amount is an estimate until it happens.</p><p class="howline"><b>How this works:</b> ranked by extra profit a year per week of work. “How sure” says where the number comes from: the books, an uploaded file, or a comparison with similar companies. <b>What to do:</b> start with the card marked “Start here”; “How to do it” gives the steps and a ready AI prompt.</p><div class="acards">${top.map(card).join('')}</div></section>
 
     ${sharper(S, d)}
 
@@ -514,7 +516,7 @@ function simple() {
     ${fitTab(S, d)}
     ${trendsTab(S, d)}
     ${dealMetrics(S, d)}
-    ${D ? `<section class="deal2" data-tab="deal"><h2 class="h2">Is it a good deal for investors?</h2><p class="howline"><b>How this works:</b> the price is a number of years of real profit (the “multiple”). Part is paid with a bank loan at today’s rate; the rest is the buyer’s or investors’ own money. Then five years are run three ways: the plan works, nothing changes, profit falls 15%. All returns are after fees. <b>What to do:</b> pick who is buying below; the numbers update.</p>
+    ${D ? `<section class="deal2" data-tab="deal"><h2 class="h2">Is it a good deal for investors?</h2><p class="howline"><b>How this works:</b> the price is a number of years of adjusted profit (the “multiple”). Part is paid with a bank loan at today’s rate; the rest is the buyer’s or investors’ own money. Then five years are run three ways: the plan works, nothing changes, profit falls 15%. All returns are after fees. <b>What to do:</b> pick who is buying below; the numbers update.</p>
       <div class="veh">${Object.entries(V.vehicles || {}).map(([k, v]) => `<button class="${D.vehicle === k ? 'on' : ''}" data-veh="${k}"><b>${esc(v.label)}</b><span>${esc(v.sub)}</span></button>`).join('')}</div>
       ${D.sba ? '' : `<div class="veh stake">${[[1, 'Full buyout', 'AION buys all of it'], [0.7, 'Majority stake', 'AION buys 70%, the owner keeps 30%']].map(([k, l, t]) => `<button class="${Math.abs((D.stake ?? 1) - k) < 0.01 ? 'on' : ''}" data-stake="${k}"><b>${l}</b><span>${t}</span></button>`).join('')}</div>`}
       <p>Buy ${(D.stake ?? 1) < 1 ? `<b>${Math.round(D.stake * 100)}%</b> of the company, valued at` : 'it for'} <b>${k$(D.price)}</b> (${D.multiple} years of profit). Paid with a <b>${k$(D.senior)}</b> bank loan, <b>${k$(D.seller)}</b> paid to the seller over the next few years (a seller note), ${(D.stake ?? 1) < 1 ? `<b>${k$(D.rollover)}</b> the owner keeps in the company (their ${Math.round((1 - D.stake) * 100)}%), ` : ''}and <b>${k$(D.investorEquity ?? D.equity)}</b> from ${D.sba ? 'the buyer' : 'investors'}. The seller gets about <b>${k$(D.sellerCashAtClose ?? (D.price - D.seller))}</b> in cash at closing. After 5 years, each $1 ${D.sba ? 'the buyer puts' : 'investors put'} in becomes:</p>
@@ -577,13 +579,30 @@ function simple() {
   $('#again').onclick = resetAll;
 }
 
+// how sure each change is, in one word: measured in the books or a file = high; a benchmark gap = medium; an estimate = low
+const confOf = x => x.pending ? 'Needs the seller' : x.sure === 'Confirmed' ? 'High' : /^From/.test(x.sure || '') ? 'Medium' : 'Low'; // High = confirmed (e.g. supplier quotes); Medium = the cost is measured in the books, the saving is assumed; Low = a benchmark gap or estimate
+// the four things to know first: adjusted profit, possible improvement (an estimate), where to start, what still needs confirming
+function lead(S, d, acts, pick, big) {
+  const n = d.normalization, L = d.levers, D = d.deal, x = acts.find(a => a.id === pick), counted = acts.filter(a => !a.pending && a.value > 0);
+  const need = [];
+  if (big) need.push(`Is the ${k$(big.amount)} “${big.account}” the owner’s own pay? (answer below)`);
+  const pend = acts.filter(a => a.pending); if (pend.length) need.push(`${pend.length} saving${pend.length > 1 ? 's' : ''} not counted until the seller confirms ${pend.length > 1 ? 'them' : 'it'}`);
+  need.push('An accountant’s check of the books before any offer');
+  return `<div class="lead4" data-testid="vc-lead">
+    <div class="lt"><small>Adjusted yearly profit (EBITDA)</small><b>${k$(n.normalized)}</b><span>Estimate from the books: ${k$(n.reported)} reported${n.ownerActual ? `, + ${k$(n.ownerActual)} owner pay` : ''}${n.addbacks ? `, + ${k$(n.addbacks)} one-off costs` : ''}${n.replacement ? `, − ${k$(n.replacement)} manager’s salary` : ''}</span></div>
+    <div class="lt"><small>Possible improvement · estimate</small><b>${L.runRate > 0 ? `+${k$(L.runRate)}` : 'None counted yet'}</b><span>${L.runRate > 0 ? `a year from ${counted.length} change${counted.length === 1 ? '' : 's'}, if they work${D ? `; about ${k$(L.runRate * D.multiple)} in company value at ${D.multiple}× profit` : ''}` : 'ideas count once the seller confirms them'}</span></div>
+    <div class="lt"><small>Start with</small><b class="sm">${x ? esc(x.title) : 'Answer the questions below'}</b><span>${x ? x.cashOnly ? `frees ${k$(d.cashRelease || 0)} of cash once (not profit)` : `+${k$(x.value)} a year · ${confOf(x).toLowerCase()} confidence · ${esc(effortTxt(x, d))}` : ''}</span></div>
+    <div class="lt"><small>Needs confirming</small><ul>${need.slice(0, 3).map(c => `<li>${esc(c)}</li>`).join('')}</ul></div>
+  </div>`;
+}
+function effortTxt(x, d) { try { const e = effortOf(x, d); return e?.weeks ? `about ${e.weeks} week${e.weeks === 1 ? '' : 's'} of work` : 'effort not sized'; } catch { return 'effort not sized'; } }
 let PREV_GEO = {};
 // the guide: what the tool did, what it found, what to do next — built from the numbers, no AI
 function guide(S, d, top, pick, big) {
   const n = d.normalization, L = d.levers, D = d.deal, rows = (S.accounts || []).reduce((a, x) => a + x.count, 0);
   const counted = top.filter(x => !x.pending), sum = counted.reduce((t, x) => t + x.value, 0), pi = top.findIndex(x => x.id === pick);
   const ask = big && !big.current ? `Then answer one question below: it could change profit by ${k$(big.amount)}.` : '';
-  return `<div class="guide"><p>I read <b>${S.file?.kind === 'pdf' ? `${num(S.accounts?.length)} statement lines` : `${num(rows)} payments`}</b> from this ${esc(V.profile?.name || 'business')}. Real profit is <b>${k$(n.normalized)}</b> a year.</p>
+  return `<div class="guide"><p>I read <b>${S.file?.kind === 'pdf' ? `${num(S.accounts?.length)} statement lines` : `${num(rows)} payments`}</b> from this ${esc(V.profile?.name || 'business')}. Adjusted profit is <b>${k$(n.normalized)}</b> a year.</p>
     ${L.runRate > 0 ? `<p>I found ways to add <b>${k$(L.runRate)}</b> a year${D ? `, about <b>${k$(L.runRate * D.multiple)}</b> in company value` : ''}. Each green bar below is one of them.</p>` : `<p>No extra profit is counted yet${top.some(x => x.pending) ? ': the ideas below count once the seller confirms them' : ''}.</p>`}
     ${pi >= 0 ? `<p>Start with <b>#${pi + 1}</b>: the most profit for the least work. ${ask}</p>` : ask ? `<p>${ask}</p>` : ''}</div>`;
 }
@@ -661,8 +680,8 @@ function topActions(S, d) {
   }
   if (L.nonAI.writeoffs > 0 || d.cashRelease > 0) {
     const bad = d.pnl.TTM.byCat?.bad_debt || 0;
-    out.push({ id: 'billing', kind: 'Business', owner: 'Office manager', sure: 'From the books', sureWhy: 'write-offs and payment times come straight from the books', kpis: ['Days to get paid', 'Money owed over 45 days', 'Write-offs'], value: L.nonAI.writeoffs || 0, score: (L.nonAI.writeoffs || 0) + ((L.nonAI.writeoffs || 0) ? 0 : (d.cashRelease || 0) * 0.15), short: 'Bill on time, chase late invoices', title: 'Bill on time and chase late invoices',
-      extra: d.cashRelease ? `plus ${k$(d.cashRelease)} cash, once` : '',
+    out.push({ id: 'billing', kind: 'Business', owner: 'Office manager', sure: 'From the books', sureWhy: 'write-offs and payment times come straight from the books', kpis: ['Days to get paid', 'Money owed over 45 days', 'Write-offs'], value: L.nonAI.writeoffs || 0, score: (L.nonAI.writeoffs || 0) + ((L.nonAI.writeoffs || 0) ? 0 : (d.cashRelease || 0) * 0.15), cashOnly: !(L.nonAI.writeoffs > 0), short: L.nonAI.writeoffs > 0 ? 'Fewer unpaid invoices written off' : 'Collect invoices faster (cash, not profit)', title: L.nonAI.writeoffs > 0 ? 'Write off fewer unpaid invoices' : 'Collect invoices faster',
+      extra: d.cashRelease ? `collecting faster also frees ${k$(d.cashRelease)} of cash once; that is cash flow, not added to profit` : '',
       proof: [d.dso != null ? `clients take about <b>${Math.round(d.dso)} days</b> to pay` : '', bad ? `<b>${k$(bad)}</b> written off last year` : ''].filter(Boolean).join(' · '),
       steps: LEVER_STEPS.billing, gate: lev('writeoffs')?.human_gate, ...BUILDS.billing });
   }
@@ -828,8 +847,8 @@ function howBlock(S, d) {
   else li.push(`<li>AI software and running costs → <b>−${k$(L.six.costs.software + L.six.costs.ongoing)}</b></li>`);
   return `<div class="how3">
     <div><b>Profit today ${k$(n.reported)}</b><p>Money in, last 12 months: ${k$(t.revenue)}<br>Money spent: −${k$(ev.costsTotal)}<br>= <b>${k$(n.reported)}</b> profit</p><p class="note">Biggest costs: ${(ev.topCosts || []).slice(0, 3).map(c => `${esc(c.label)} ${k$(c.amount)}`).join(' · ')}</p></div>
-    <div><b>Real profit ${k$(n.normalized)}</b><p>Profit today ${k$(n.reported)}<br>${n.ownerActual ? `+ owner’s pay, taken out ${k$(n.ownerActual)}<br>` : ''}${n.addbacks ? `+ costs a new owner won’t pay ${k$(n.addbacks)}<br>` : ''}${n.replacement ? `− market salary of whoever runs it ${k$(n.replacement)}<br>` : ''}= <b>${k$(n.normalized)}</b></p><p class="note">What a new owner can count on.</p></div>
-    <div><b>Could grow to ${k$(d.proForma)}</b><p>Real profit ${k$(n.normalized)}, plus:</p><ul>${li.join('')}</ul><p>= <b>${k$(d.proForma)}</b> a year</p></div>
+    <div><b>Adjusted profit ${k$(n.normalized)}</b><p>Profit today ${k$(n.reported)}<br>${n.ownerActual ? `+ owner’s pay, taken out ${k$(n.ownerActual)}<br>` : ''}${n.addbacks ? `+ costs a new owner won’t pay ${k$(n.addbacks)}<br>` : ''}${n.replacement ? `− market salary of whoever runs it ${k$(n.replacement)}<br>` : ''}= <b>${k$(n.normalized)}</b></p><p class="note">What a new owner can count on.</p></div>
+    <div><b>Could grow to ${k$(d.proForma)}</b><p>Adjusted profit ${k$(n.normalized)}, plus:</p><ul>${li.join('')}</ul><p>= <b>${k$(d.proForma)}</b> a year</p></div>
   </div>`;
 }
 
@@ -945,7 +964,7 @@ function bucketsHTML(S, d, acts) {
     <div class="tblw"><table class="tcheck"><tr><th>Part</th><th class="num">Profit a year</th><th>Levers</th><th>Difficulty</th><th>Time to impact</th><th class="num">Investment</th><th>Confidence</th><th>Downside risk</th></tr>
     <tr><td><b>${esc(B.base.label)}</b></td><td class="num">${B.base.value != null ? k$(B.base.value) : '—'}</td><td class="note" colspan="6">${esc(B.base.note)}</td></tr>
     ${parts.map(k => { const b = B[k]; return `<tr><td><b>${esc(b.label)}</b></td><td class="num ${b.value ? 'pos' : ''}">${b.value ? '+' + k$(b.value) : '<span class="st na">NEEDS DATA</span>'}</td><td class="ev">${b.items.length ? esc(b.items.slice(0, 4).join(' · ')) + (b.items.length > 4 ? ` · +${b.items.length - 4} more` : '') : '—'}${b.why ? `<div class="note">${esc(b.why)}</div>` : ''}</td><td>${esc(b.difficulty)}</td><td class="nowrap">${b.weeks ? `about ${b.weeks} weeks` : '—'}</td><td class="num">${b.investment != null ? k$(b.investment) : '—'}</td><td class="note">${esc(b.confidence)}</td><td class="note">${esc(b.risk)}</td></tr>`; }).join('')}
-    <tr class="tot"><td>Counted</td><td class="num">${B.base.value != null ? k$(B.base.value + counted) : '—'}</td><td class="note" colspan="6">Today’s real profit plus the commercial and operational changes sized from data. AI time savings and buying other companies never count until they are measured.</td></tr></table></div></section>`;
+    <tr class="tot"><td>Counted</td><td class="num">${B.base.value != null ? k$(B.base.value + counted) : '—'}</td><td class="note" colspan="6">Today’s adjusted profit plus the commercial and operational changes sized from data. AI time savings and buying other companies never count until they are measured.</td></tr></table></div></section>`;
 }
 function hundredHTML(S, d, acts) {
   const A = d.aion; if (!A) return '';
@@ -1094,10 +1113,10 @@ function trendsTab(S, d) {
     <div class="panel"><b class="pt">Customers coming and going</b>${F ? `<p>Since ${mon(F.split)}: <b>${F.lostCount}</b> stopped buying (${k$(F.lostRevenue)} before), <b>${F.freshCount}</b> new (${k$(F.freshRevenue)}).</p>${F.lost.length ? `<p class="note">Stopped: ${F.lost.slice(0, 3).map(x => `${esc(x.name)} (${k$(x.revenue)})`).join(', ')}</p>` : ''}${F.fresh.length ? `<p class="note">New: ${F.fresh.slice(0, 3).map(x => `${esc(x.name)} (${k$(x.revenue)})`).join(', ')}</p>` : ''}` : '<p class="note">Needs at least 4 months of data.</p>'}</div></div></section>`;
 }
 function dealMetrics(S, d) {
-  const D = d.deal, n = d.normalization, t = d.pnl.TTM; if (!D) return d.unpriceable && d.unpriceableWhy === 'short' ? `<section data-tab="deal" class="panel2"><h2 class="h2">Not priceable yet</h2><p class="lead2">The books cover only <b>${d.monthsCovered} month${d.monthsCovered === 1 ? '' : 's'}</b>. A price is a number of years of profit, so it needs a full 12 months. Ask the seller for the last 12 months (ideally 3 years) and upload them.</p></section>` : d.unpriceable ? `<section data-tab="deal" class="panel2"><h2 class="h2">Not priceable yet</h2><p class="lead2">Real profit is <b>${k$(n.normalized)}</b> a year, so the business loses money. Buyers price a business at a number of years of profit (the “multiple”), so there is no sensible price until it is profitable. The Plan tab shows the changes that would get it there. Or <span class="link" id="price-rev">price it on sales instead</span>.</p></section>` : '';
-  const tiles = [['Sales', k$(t.revenue), 'last 12 months'], ['Real profit (EBITDA)', k$(n.normalized), `${pct(n.normalized / (t.netRevenue ?? t.revenue))} of ${t.byCat?.rev_passthrough > 0 ? 'sales without pass-through' : 'sales'}`], ['Could reach', k$(d.proForma), `+${pct(d.levers.runRate / n.normalized)}`],
+  const D = d.deal, n = d.normalization, t = d.pnl.TTM; if (!D) return d.unpriceable && d.unpriceableWhy === 'short' ? `<section data-tab="deal" class="panel2"><h2 class="h2">Not priceable yet</h2><p class="lead2">The books cover only <b>${d.monthsCovered} month${d.monthsCovered === 1 ? '' : 's'}</b>. A price is a number of years of profit, so it needs a full 12 months. Ask the seller for the last 12 months (ideally 3 years) and upload them.</p></section>` : d.unpriceable ? `<section data-tab="deal" class="panel2"><h2 class="h2">Not priceable yet</h2><p class="lead2">Adjusted profit is <b>${k$(n.normalized)}</b> a year, so the business loses money. Buyers price a business at a number of years of profit (the “multiple”), so there is no sensible price until it is profitable. The Plan tab shows the changes that would get it there. Or <span class="link" id="price-rev">price it on sales instead</span>.</p></section>` : '';
+  const tiles = [['Sales', k$(t.revenue), 'last 12 months'], ['Adjusted profit (EBITDA)', k$(n.normalized), `${pct(n.normalized / (t.netRevenue ?? t.revenue))} of ${t.byCat?.rev_passthrough > 0 ? 'sales without pass-through' : 'sales'}`], ['Could reach', k$(d.proForma), `+${pct(d.levers.runRate / n.normalized)}`],
     ['Bank loan at purchase', n.normalized > 0 ? (D.senior / n.normalized).toFixed(1) + '×' : '—', 'years of profit borrowed'], ['Bad-year loan cover', D.downside.minDscr == null ? 'No loan' : D.downside.minDscr.toFixed(1) + '×', 'profit ÷ loan payments; banks want 1.25×'], ['Each $1 becomes', '$' + D.base.net.moic.toFixed(2), 'after fees, 5 years (MOIC)'], ['Yearly return', Math.round((D.base.net.irr || 0) * 100) + '%', 'after fees (IRR)']];
-  return `<section data-tab="deal"><p class="howline"><b>How this works:</b> sales and real profit come from the books; “could reach” adds the plan. Loan and return figures come from the deal model below: returns assume the plan works, loan cover assumes a bad year. MOIC = money back per $1 invested; IRR = the same return as a yearly rate.</p><div class="mtiles">${tiles.map(([a, b, c]) => `<div><small>${a}</small><b>${b}</b><span>${c}</span></div>`).join('')}</div></section>`;
+  return `<section data-tab="deal"><p class="howline"><b>How this works:</b> sales and adjusted profit come from the books; “could reach” adds the plan. Loan and return figures come from the deal model below: returns assume the plan works, loan cover assumes a bad year. MOIC = money back per $1 invested; IRR = the same return as a yearly rate.</p><div class="mtiles">${tiles.map(([a, b, c]) => `<div><small>${a}</small><b>${b}</b><span>${c}</span></div>`).join('')}</div></section>`;
 }
 function dealExtras(S, d) {
   const D = d.deal; if (!D) return '';
