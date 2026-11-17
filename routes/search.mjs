@@ -31,7 +31,9 @@ const SIG = {}; // searches whose data signals are being refreshed
 let SCAN = null; // the brand radar scan running now
 // one background job per search at a time (a full check, a signals update or the intent scan): each holds its own copy
 // and saves it whole, so two at once would undo each other's results
-const jobOn = (SRUN, id) => SRUN[id] ? 'This search is still running.' : SIG[id] ? 'This search is already being updated.' : INTENT?.ids?.has(id) ? 'The deal-intent scan is reading this search’s firms. Try again when it finishes.' : null;
+const jobOn = (SRUN, id) => SRUN[id] ? 'This search is still running.' : SIG[id] ? 'This search is already being updated.' : INTENT?.ids?.has(id) ? 'The deal-intent scan is reading this search’s firms. Try again when it finishes.'
+  // founder research saves into the same search file: an update now would overwrite it when it finishes
+  : Object.entries(RESEARCH).some(([k, v]) => v.running && k.startsWith(`${id}|`)) ? 'Founder research is still running on a firm in this search. Try again in a few minutes.' : null;
 
 export const SEARCH_POST = new Set(['search/start', 'search/contacts', 'search/archive', 'search/signals', 'search/more', 'search/intent-scan', 'radar/scan', 'finders/key', 'search/stage', 'search/decide', 'search/watch', 'search/watchrun', 'search/research']);
 

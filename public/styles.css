@@ -884,3 +884,7 @@ input[type=search]{font:inherit;font-size:14px;padding:8px 12px;border:1px solid
 .pillb.on{background:var(--ink,#0F2E26);color:#fff;border-color:transparent}
 .assume input[type=checkbox]{width:auto;margin:0 4px 0 6px;vertical-align:middle}
 .dwarn{color:var(--warn,#8a4b14);border-left:3px solid currentColor;padding-left:8px}
+/* long text never widens the page; wide tables scroll inside their box on a phone */
+.note,.found li,.h2s{overflow-wrap:anywhere}
+.tblw{overflow-x:auto;-webkit-overflow-scrolling:touch}
+@media (max-width:600px){.tblw table{min-width:520px}}

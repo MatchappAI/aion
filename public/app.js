@@ -524,7 +524,7 @@ function simple() {
       <p class="dnote">${vehNote(D)}</p>
       ${D.sba ? '' : dealTerms(S, D)}
       ${(D.warn || []).map(w => `<p class="dnote dwarn">${esc(w)}</p>`).join('')}
-      <p class="dnext"><b>Offer about ${k$(D.price)}</b> once an accountant confirms the profit. ${(S.assumptions.vehicle || 'holdco') === 'holdco' ? `<b>Walk away above ${k$(n.normalized * PRICE.cap)}</b> (${PRICE.cap} years of profit, AION’s limit). Anything more is paid only as an earnout: later, and only if profit holds.${marketRange(n.normalized) ? ` <span class="note">${esc(marketRange(n.normalized).note)}</span>` : ''}` : `<b>Walk away above ${k$(n.normalized * 5)}</b> (5 years of profit, the top of the usual range for a business this size).`}</p>
+      <p class="dnext"><b>Offer about ${k$(D.price)}</b> once an accountant confirms the profit. ${['holdco', 'aion'].includes(S.assumptions.vehicle || 'holdco') ? `<b>Walk away above ${k$(n.normalized * PRICE.cap)}</b> (${PRICE.cap} years of profit, AION’s limit). Anything more is paid only as an earnout: later, and only if profit holds.${marketRange(n.normalized) ? ` <span class="note">${esc(marketRange(n.normalized).note)}</span>` : ''}` : `<b>Walk away above ${k$(n.normalized * 5)}</b> (5 years of profit, the top of the usual range for a business this size).`}</p>
       </section>` : ''}
 
     ${dealExtras(S, d)}

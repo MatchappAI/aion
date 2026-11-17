@@ -104,7 +104,8 @@ export async function dealRoute(req, res, url, p, ctx) {
     case 'industry': { const name = String(b.name || '').trim().slice(0, 60); if (!name) return send(res, 400, { error: 'Type the kind of business, e.g. civil engineering firm.' }); const kind = kindOf(name); st.S.industry = { name, kind, subsector: detectSubsector(name) || (kind === 'staffing' ? 'talent' : null), byUser: true }; persist(); return send(res, 200, view()); }
     case 'subsector': {
       // the user's choice of subsector; kind follows it so the playbook wording matches. Revenue and delivery notes are kept.
-      if (!st.CUR || !st.S.industry) return send(res, 400, { error: 'Analyze a company first.' });
+      if (!st.CUR || !(st.S.industry || st.S.mappingConfirmed || st.S.plan)) return send(res, 400, { error: 'Analyze a company first.' });
+      st.S.industry ??= { name: 'business', kind: 'general' };
       const sub = b.subsector === 'none' ? null : Object.hasOwn(SUBSECTORS, String(b.subsector)) ? b.subsector : undefined; if (sub === undefined) return send(res, 400, { error: 'Unknown subsector.' });
       st.S.industry = { ...st.S.industry, subsector: sub, subsectorSet: true, kind: sub ? kindFor(sub) : 'general' }; persist();
       return send(res, 200, view());

@@ -695,7 +695,7 @@ const hashInputs = () => JSON.stringify([S.ops, S.assumptions, S.owner, (S.addba
 
 // ---------- http ----------
 const MIME = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript', '.css': 'text/css', '.png': 'image/png', '.svg': 'image/svg+xml', '.json': 'application/json' };
-const send = (res, code, body, type = 'application/json') => { res.writeHead(code, { 'Content-Type': type, 'Cache-Control': 'no-store' }); res.end(type === 'application/json' ? JSON.stringify(body) : body); };
+const send = (res, code, body, type = 'application/json') => { res.writeHead(code, { 'Content-Type': type, 'Cache-Control': 'no-store', 'X-Frame-Options': 'DENY', 'Content-Security-Policy': "frame-ancestors 'none'", 'X-Content-Type-Options': 'nosniff' }); res.end(type === 'application/json' ? JSON.stringify(body) : body); };
 const body = req => new Promise((ok, bad) => { let b = ''; req.on('data', d => { b += d; if (b.length > 120e6) { bad(new Error('File too large')); req.destroy(); } }); req.on('end', () => { try { const v = b ? JSON.parse(b) : {}; ok(v && typeof v === 'object' && !Array.isArray(v) ? v : {}); } catch (e) { bad(e); } }); });
 
 // what routes/outreach.mjs needs; the open deal is read live (loadDeal replaces S and CUR)
