@@ -19,7 +19,7 @@ test('thesis constants: sector, size and language', () => {
   assert.equal(THESIS.sector, 'Ecommerce Consulting');
   assert.deepEqual(THESIS.segments.map(s => s.key), ['retail_placement', 'marketplace', 'strategy']);
   assert.deepEqual(ACTIVE_SUBSECTORS, ['ecommerce']);
-  assert.deepEqual([THESIS.ebitda.min, THESIS.ebitda.max, THESIS.ebitda.priorityMin, THESIS.ebitda.priorityMax], [500e3, 5e6, 500e3, 2e6]);
+  assert.deepEqual([THESIS.ebitda.min, THESIS.ebitda.max, THESIS.ebitda.priorityMin, THESIS.ebitda.priorityMax], [500e3, 5e6, 500e3, 1.5e6]);
   assert.ok(!/general services/i.test(THESIS.long + THESIS.short));
   assert.deepEqual(Object.keys(SUBSECTORS), ['engineering', 'supply_chain', 'compliance', 'testing', 'implementation', 'talent', 'ecommerce']);
 });

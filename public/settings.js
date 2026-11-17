@@ -46,7 +46,7 @@ function wire() {
   }));
   S.main.querySelectorAll('[data-key]').forEach(b => b.onclick = async () => {
     const id = b.dataset.key, v = $('#key-' + id).value.trim(); if (!v) return msg(id, 'Paste a key first.');
-    if (!(id === 'anthropic' ? /^sk-ant-/ : /^sk-/).test(v)) return msg(id, `That doesn’t look like ${id === 'anthropic' ? 'an Anthropic key (it starts with sk-ant-)' : 'an OpenAI key (it starts with sk-)'}.`);
+    if (!(id === 'anthropic' ? /^sk-ant-/ : /^sk-(?!ant-)/).test(v)) return msg(id, `That doesn’t look like ${id === 'anthropic' ? 'an Anthropic key (it starts with sk-ant-)' : 'an OpenAI key (it starts with sk-; an sk-ant- key is an Anthropic key)'}.`);
     await busy(b, 'Saving…', async () => { try { await api('engine/key', { which: id, key: v }); S.msg[id] = 'Key saved. Press Test to check it.'; draw(); } catch (e) { msg(id, e.message); } });
   });
   if ($('#save-hunter')) $('#save-hunter').onclick = () => busy($('#save-hunter'), 'Checking…', async () => { const v = $('#key-hunter').value.trim(); if (!v) return msg('hunter', 'Paste your Hunter.io key first.'); try { const r = await api('finders/key', { key: v }); S.msg.hunter = `Key saved and checked${r.left != null ? `: ${r.left} lookups left this month` : ''}.`; draw(); } catch (e) { msg('hunter', e.message); } });

@@ -15,7 +15,7 @@ const TROUBLE = [
 export function mountHelp(main) {
   main.innerHTML = `<div class="ps help">
     <h1>How to use AION</h1>
-    <p class="lede2">AION buys US ecommerce consulting firms (retail placement, marketplace agencies, strategy and analytics) that make about $500K–$5M a year in profit. Use it to find owners, write to them, and turn a firm’s books into a plan. Everything stays on this computer.</p>
+    <p class="lede2">AION buys US ecommerce consulting firms (retail placement, marketplace agencies, strategy and analytics) that make about $500K–$5M a year in profit (first deal $500K–$1.5M). Use it to find owners, write to them, and turn a firm’s books into a plan. Everything stays on this computer.</p>
     <div class="helpgrid">
       <section class="panel"><h3>1. Find owners <span class="note">Search &amp; Outreach</span></h3><ol>
         <li><b>Owners to contact</b> lists only strong fits: a clear, sourced sign from the last 18 months that the owner wants to sell (said so, retirement, succession, the founder stepping back or having died) or asked for an investor. Seller intent reads <b>Confirmed</b>, <b>Documented transition</b> or <b>Speculative</b>; it is never a made-up probability.</li>

@@ -37,7 +37,7 @@ export async function outreachRoute(req, res, url, p, ctx) {
   if (p === 'outreach/done' && !DONE_KINDS.includes(b.kind)) return send(res, 400, { error: 'Only letters, calls and contact-form notes are marked done by hand.' });
   if (p === 'outreach/confirm' && ((b.action === 'step' || b.action == null) && !STEP_KINDS.includes(b.kind) || b.action === 'doc' && !DOC_KINDS.includes(b.kind))) return send(res, 400, { error: 'Unknown send.' });
   switch (p) {
-        case 'outreach/settings': return send(res, 200, OUT.setSettings(b));
+        case 'outreach/settings': { try { return send(res, 200, OUT.setSettings(b)); } catch (e) { return send(res, 400, { error: e.message }); } }
         case 'outreach/connect': { try { return send(res, 200, GMAIL.connectUrl(PORT, String(b.email || '').trim())); } catch (e) { return send(res, 400, { error: e.message }); } }
         case 'outreach/disconnect': GMAIL.disconnect(b.email); return send(res, 200, { ok: true });
         case 'outreach/create': {

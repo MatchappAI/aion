@@ -153,7 +153,7 @@ input.mult{width:64px}
 .tab{background:transparent;color:var(--mute);border:1px solid transparent;border-bottom:none;border-radius:8px 8px 0 0;padding:8px 14px;font-size:13px;white-space:nowrap}
 .tab:hover{color:var(--ink)}
 .tab.on{background:var(--panel);color:var(--ink);border-color:var(--line);font-weight:600;margin-bottom:-1px}
-.tab.new{color:var(--acc)}
+.tab.new{color:var(--acc);position:sticky;right:0;background:var(--bg);box-shadow:-12px 0 12px -6px var(--bg)}.tab.new.on{background:var(--panel)}
 
 .how3{display:grid;grid-template-columns:1fr 1fr 1.4fr;gap:12px}
 .how3>div{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:14px 16px;font-size:13px}
@@ -875,3 +875,7 @@ body[data-firstrun="1"] #psown{order:-1}
 /* draft quality check and scheduled sends */
 .oqc{margin:8px 0;padding:8px 12px;border-radius:10px;background:var(--card2,#f5f5f7)}.oqc.low{outline:1px solid #e0a400}.oqc ul{margin:4px 0 0 18px}
 .oschedule{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin:8px 0}.oschedule input{margin-left:6px}
+/* QA polish 2026-11-16: search boxes match the other inputs; draft tabs wrap instead of hiding the last one */
+input[type=search]{font:inherit;font-size:14px;padding:8px 12px;border:1px solid var(--line2);border-radius:10px;background:#fff;color:var(--ink);width:210px}
+.psbar:has(> .seg){flex-wrap:wrap}.psbar > .seg{flex-wrap:wrap}.psbar > .seg button{white-space:nowrap}
+.ogrid .dtabs{flex-wrap:wrap;border-radius:18px}
