@@ -309,6 +309,7 @@ test('no owner email: the discreet note can go to info@, the selling email never
   OUT.editItem(item.id, { to: 'info@northfield.test' });
   assert.ok(!OUT.preflight(item.id, 'email').ok, 'selling email to a shared inbox stays blocked');
   assert.match(OUT.board().find(x => x.id === item.id).status, /Not the owner’s own address/, 'the list must not call a blocked draft ready');
+  assert.match(OUT.item(item.id).status, /Not the owner’s own address/, 'nor the draft header');
   const pf = OUT.preflight(item.id, 'form');
   assert.ok(pf.ok, pf.problems.join('; ')); assert.match(pf.subject, /^For Jane/); assert.match(pf.warn, /discreet note/);
   const r = await OUT.sendStep(item.id, 'form', { confirmed: true });

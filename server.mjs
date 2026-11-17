@@ -331,8 +331,8 @@ function outreachReady() {
   return out.slice(0, 80);
 }
 /** Everything you saved, any kind (firms, brands, people), with its outreach status: the "Saved" section. */
-function savedAll() {
-  const { list, marketed, R, ss } = ownerList(), B = OUT.board(), byKey = new Map(B.map(x => [`${x.search}|${x.entity}`, x])), byName = new Map(B.map(x => [`${x.mode}|${normName(x.name)}`, x])), seen = new Set(), out = [];
+function savedAll(pre) {
+  const { list, marketed, R, ss } = pre || ownerList(), B = OUT.board(), byKey = new Map(B.map(x => [`${x.search}|${x.entity}`, x])), byName = new Map(B.map(x => [`${x.mode}|${normName(x.name)}`, x])), seen = new Set(), out = [];
   const firms = new Map([...list, ...marketed, ...R.outside.map(x => ({ ...x, scores: x.scores }))].map(x => [`${x.search}|${x.entity}`, x]));
   for (const s2 of ss) for (const e of (s2.entities || []).filter(e => e.scored && ['saved', 'priority'].includes(e.decision))) {
     const name = s2.mode === 'candidate' ? e.name : e.company, k = `${s2.mode}|${normName(name)}`; if (seen.has(k)) continue; seen.add(k);
@@ -680,7 +680,7 @@ const body = req => new Promise((ok, bad) => { let b = ''; req.on('data', d => {
 // what routes/outreach.mjs needs; the open deal is read live (loadDeal replaces S and CUR)
 const OUTCTX = { savedAll: () => savedAll(), send, body, OUT, GMAIL, CONFIRM, ownerList: () => ownerList(), outreachReady: () => outreachReady(), letterHtml: (...a) => letterHtml(...a), outreachPdf: (...a) => outreachPdf(...a), PORT, SRUN, loadSearch, MODELS, ROOTWS, finderKeys: () => finderKeys(), busy: () => busy(), loadDeal: id => loadDeal(id), derive: () => derive(), persist: () => persist(), deal: { cur: () => CUR, S: () => S } };
 // what routes/search.mjs and routes/deal.mjs need; the open deal (S, ROWS, CHECK, CUR) and the running AI step are read and written live
-const SEARCHCTX = { savedAll: () => savedAll(), send, body, SRUN, JOB_ERR, jobFailed, ROOTWS, ownerList: () => ownerList(), startSearch: a => startSearch(a), cityOf, finderKeys: () => finderKeys(), saveFinderKeys: k => saveFinderKeys(k) };
+const SEARCHCTX = { savedAll: pre => savedAll(pre), send, body, SRUN, JOB_ERR, jobFailed, ROOTWS, ownerList: () => ownerList(), startSearch: a => startSearch(a), cityOf, finderKeys: () => finderKeys(), saveFinderKeys: k => saveFinderKeys(k) };
 const st = Object.defineProperties({}, Object.fromEntries(Object.entries({
   S: [() => S, v => { S = v; }], ROWS: [() => ROWS, v => { ROWS = v; }], CHECK: [() => CHECK, v => { CHECK = v; }], CUR: [() => CUR, v => { CUR = v; }], CURJ: [() => CURJ, v => { CURJ = v; }], FRESH: [() => FRESH, v => { FRESH = v; }],
 }).map(([k, [get, set]]) => [k, { get, set, enumerable: true }])));

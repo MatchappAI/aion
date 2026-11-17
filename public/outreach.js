@@ -214,7 +214,9 @@ async function drawItem() {
   q('#oallsig') && (q('#oallsig').onclick = () => { O.allSig = true; drawItem(); });
   $$('[data-kind]').forEach(b => b.onclick = () => { O.kind = b.dataset.kind; drawItem(); });
   const edits = () => ({ id: it.id, kind: O.kind, body: q('#obody')?.value, ...(q('#osubj') ? { subject: q('#osubj').value } : {}), ...(q('#oto') ? { to: q('#oto').value } : {}), ...(q('#ofrom') ? { sender: q('#ofrom').value } : {}) });
-  const saveEdits = async () => { if (q('#obody')) await api('outreach/edit', edits()); };
+  const saveEdits = async () => { if (q('#obody')) { await api('outreach/edit', edits()); O.dirty = false; } };
+  // unsaved typing in a draft: the browser asks before a reload or close throws it away
+  O.dirty = false; ['#obody', '#osubj'].forEach(s => q(s) && q(s).addEventListener('input', () => { O.dirty = true; }));
   q('#osave') && (q('#osave').onclick = () => act(saveEdits, 'Saved'));
   q('#osched') && (q('#osched').onclick = guard(async () => {
     try { await saveEdits(); const at = q('#oat').value; const p = await api('outreach/confirm', { id: it.id, action: 'schedule', kind: O.kind, at }); if (!p.ok) { toast(p.problems[0], 'err'); return drawItem(); }
@@ -263,4 +265,6 @@ async function drawItem() {
   q('#ofinish') && (q('#ofinish').onclick = async () => { await api('outreach/finish', { id: it.id, why: 'Finished by you' }); back(); });
   q('#odel') && (q('#odel').onclick = async () => { if (!confirm('Delete this outreach and its drafts?')) return; await api('outreach/delete', { id: it.id }); back(); });
 }
-function back() { O.view = 'board'; O.id = null; O.allSig = false; O.slots = null; O.queue = null; draw(); }
+function back() { if (O.dirty && !confirm('Leave this draft? Your unsaved edits will be lost.')) return; O.dirty = false; O.view = 'board'; O.id = null; O.allSig = false; O.slots = null; O.queue = null; draw(); }
+
+window.addEventListener('beforeunload', e => { if (typeof O !== 'undefined' && O.dirty) { e.preventDefault(); e.returnValue = ''; } });
