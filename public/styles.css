@@ -933,3 +933,34 @@ input[type=search]{font:inherit;font-size:14px;padding:8px 12px;border:1px solid
 .r2 .rhead{flex-wrap:wrap}
 table.tcheck{max-width:100%}table.tcheck td,table.tcheck th{overflow-wrap:anywhere}
 @media (max-width:1000px){table.tcheck{display:block;overflow-x:auto}}
+
+/* ===== Search & Outreach tabs: one job on screen at a time ===== */
+.pstabs{display:flex;gap:4px;max-width:972px;margin:8px auto 0;padding:4px;background:rgba(41,40,35,.06);border-radius:999px;width:max-content}
+.pstabs button{background:none;border:0;border-radius:999px;padding:8px 18px;font-size:14.5px;font-weight:500;color:var(--mute);display:flex;align-items:center;gap:6px}
+.pstabs button.on{background:var(--panel);color:var(--ink);font-weight:600;box-shadow:0 1px 3px rgba(41,40,35,.12)}
+.pstabs .h2n:empty{display:none}.pstabs .h2n{margin-left:2px;vertical-align:0}
+body[data-pstab="out"]:not([data-psview="search"]):not([data-psview="network"]) #psown{display:none}
+body[data-pstab="companies"] #psout,body[data-pstab="find"] #psout{display:none}
+body[data-pstab="companies"]:not([data-psview="search"]):not([data-psview="network"]) #psown .findmore{display:none}
+body[data-pstab="find"]:not([data-psview="search"]):not([data-psview="network"]):not([data-firstrun="1"]) #psown>.ps>:not(.findmore):not(.callout){display:none}
+body[data-pstab="find"] #psown .findmore>summary{pointer-events:none;list-style:none}
+body[data-pstab="find"] #psown .findmore>summary::-webkit-details-marker{display:none}
+body[data-outview="item"] .pstabs,body[data-psview="search"] .pstabs,body[data-psview="network"] .pstabs{display:none}
+
+/* ===== Get set up: one checklist until AI, Gmail and the mailing address are connected ===== */
+#pssetup{max-width:972px;margin:12px auto 0;padding:0 24px}
+.setup{background:var(--panel);border:1px solid var(--line2);border-radius:18px;padding:16px 20px}
+.setup h2{margin:0 0 8px;font-size:19px}.setup h2 .note{font-weight:400;margin-left:8px}
+.setup ol{list-style:none;margin:0;padding:0}
+.setup li{display:grid;grid-template-columns:28px 1fr auto;gap:12px;align-items:center;padding:10px 0;border-top:1px solid var(--line)}
+.setup li:first-child{border-top:0}
+.setup .sicon{width:22px;height:22px;border-radius:50%;border:2px solid var(--line2);display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:700}
+.setup li.ok .sicon{background:var(--acc);border-color:var(--acc);color:#fff}
+.setup li b{display:block;font-size:15px}.setup li .note{font-size:13px}
+.setup .sact{display:flex;gap:8px;align-items:center}
+.setup .sact input{font:inherit;font-size:14px;padding:8px 10px;border:1px solid var(--line2);border-radius:10px;width:240px;background:#fff}
+.setdone{font-size:13.5px;color:var(--acc);margin:4px 0 0}
+@media (max-width:1000px){.setup li{grid-template-columns:28px 1fr}.setup .sact{grid-column:2}}
+.setup h2{text-transform:none;letter-spacing:-.01em;color:var(--ink);font-weight:650}
+#main:has(.setup) [data-testid="out-setup-gap"]{display:none}
+@media (max-width:600px){#pssetup{padding:0 12px}.setup .sact{flex-wrap:wrap}.setup .sact input{width:100%;min-width:0}.pstabs{width:auto;max-width:calc(100% - 24px);overflow-x:auto}}

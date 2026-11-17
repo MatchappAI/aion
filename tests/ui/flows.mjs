@@ -135,7 +135,7 @@ if (pick) {
 // ================= load errors and failed actions =================
 await go(APP, 'ps');
 block = /\/api\/search\/radar/; await cmd('Page.reload'); await sleep(3000);
-ok('A list that fails to load says so, with Try again', /Couldn’t load the brand radar/.test(await text()) && await ev(`!!document.querySelector('#ps-retry')`), (await text()).slice(0, 120));
+await ev(`document.querySelector('[data-pstab=companies]')?.click()`); await sleep(400); ok('A list that fails to load says so, with Try again', /Couldn’t load the brand radar/.test(await text()) && await ev(`!!document.querySelector('#ps-retry')`), (await text()).slice(0, 120));
 ok('The other lists still show when one fails', await ev(`!!document.querySelector('#psown')`) && !(await ev(`document.body.dataset.firstrun === '1'`)));
 block = null; await click('#ps-retry', 2500);
 ok('Try again clears the message once it loads', !/Couldn’t load/.test(await text()));

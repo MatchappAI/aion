@@ -54,11 +54,41 @@ function nav() {
 
 // Search & Outreach: one page. Outreach (every draft, send and reply, with the inbox each one uses) on top, then the
 // owner list and the searches. Opening a firm's outreach or a search takes the whole page; Back returns here.
-function mountPS() {
-  $('#main').innerHTML = '<div id="psout"></div><div id="psown"></div>';
-  mountOutreach($('#psout'), { embedded: true }); mountSearch($('#psown'));
+// Three tabs, one job each: Outreach (drafts, sends, replies), Companies (the ranked list), Find more companies (a new search).
+// It opens on whatever needs you: drafts to review or replies → Outreach; otherwise Companies; a fresh install → Find more.
+let psTab = null, psPicked = false; // psPicked: she chose a tab herself, so the counts arriving never switch it
+const setPsTab = t => { psTab = t; document.body.dataset.pstab = t; document.querySelectorAll('[data-pstab]').forEach(b => { b.classList.toggle('on', b.dataset.pstab === t); b.setAttribute('aria-selected', b.dataset.pstab === t); }); if (t === 'find') { const d = document.querySelector('[data-testid="find-more"]'); if (d) d.open = true; } };
+// One checklist until everything is connected: which AI, which Gmail sends, the mailing address the law requires.
+async function setupBox() {
+  const box = document.getElementById('pssetup'); if (!box) return;
+  const [eng, st] = await Promise.all([api('engine').catch(() => null), api('outreach/state').catch(() => null)]);
+  const ai = eng?.active ? (eng.list || []).find(x => x.id === eng.active) : null, acc = (st?.accounts || []).filter(a => !a.error), addr = st?.settings?.address;
+  const steps = [
+    { ok: !!ai, t: ai ? `AI: using ${ai.label}` : 'Turn on the AI', d: ai ? 'Searches, research and drafts run on it.' : 'Paste an Anthropic API key (or log in to Claude Code) in Settings.', btn: ai ? '' : '<button class="sm" data-setgo="settings">Open Settings</button>' },
+    { ok: acc.length > 0, t: acc.length ? `Email: sending from ${acc.map(a => a.email).join(', ')}` : 'Connect the Gmail you send from', d: acc.length ? 'Every email goes from this account, after your OK; replies are tracked here.' : 'Google opens in your browser; pick the account you send from. Only that confirmed account is used.', btn: acc.length ? '' : `<input id="setmail" type="email" placeholder="you@yourcompany.com" aria-label="Gmail address"><button class="sm" id="setconn" ${st?.gmailReady ? '' : 'disabled title="Gmail sign-in isn’t switched on in this copy"'}>Connect Gmail</button>` },
+    { ok: !!addr, t: addr ? 'Mailing address saved' : 'Add your mailing address', d: addr ? esc(addr) : 'US email law requires a postal address on outreach emails.', btn: addr ? '' : '<input id="setaddr" placeholder="Street, city, state ZIP" aria-label="Mailing address"><button class="sm" id="setsave">Save</button>' },
+  ];
+  const left = steps.filter(x => !x.ok).length;
+  if (!left) { box.innerHTML = `<p class="setdone" data-testid="setup-done">✓ All set: ${esc(steps.map(x => x.t).join(' · '))}. Sends, replies (checked every 10 minutes while the app is open), follow-ups and deal stages are tracked under Outreach.</p>`; return; }
+  box.innerHTML = `<section class="setup" data-testid="setup"><h2>Get set up <span class="note">${3 - left} of 3 done · once</span></h2><ol>${steps.map(x => `<li class="${x.ok ? 'ok' : ''}"><span class="sicon">${x.ok ? '✓' : ''}</span><div><b>${x.t}</b><span class="note">${x.d}</span></div><div class="sact">${x.btn}</div></li>`).join('')}</ol></section>`;
+  box.querySelectorAll('[data-setgo]').forEach(b => b.onclick = () => document.querySelector(`[data-app="${b.dataset.setgo}"]`)?.click());
+  const conn = box.querySelector('#setconn'); if (conn) conn.onclick = async () => { const email = box.querySelector('#setmail').value.trim(); if (!email) return toast('Type the Gmail address you send from first.', 'err'); conn.disabled = true; conn.textContent = 'Opening Google…';
+    try { const r = await api('outreach/connect', { email }); if (r.url) { window.open(r.url, '_blank'); conn.textContent = 'Waiting for Google…'; let n = 0; const t = setInterval(async () => { const s2 = await api('outreach/state').catch(() => null); if ((s2?.accounts || []).some(a => !a.error) || ++n > 100) { clearInterval(t); setupBox(); mountOutreach($('#psout'), { embedded: true }); } }, 3000); } else { setupBox(); mountOutreach($('#psout'), { embedded: true }); } }
+    catch (e) { toast(e.message, 'err'); conn.disabled = false; conn.textContent = 'Connect Gmail'; } };
+  const sv = box.querySelector('#setsave'); if (sv) sv.onclick = async () => { const address = box.querySelector('#setaddr').value.trim(); if (address.length < 10) return toast('Type the full street, city, state and ZIP.', 'err'); sv.disabled = true; sv.textContent = 'Saving…'; try { await api('outreach/settings', { address }); toast('Mailing address saved'); setupBox(); } catch (e) { toast(e.message, 'err'); sv.disabled = false; sv.textContent = 'Save'; } };
 }
-window.addEventListener('aion:outopen', () => { if (appMode !== 'ps') { appMode = 'ps'; render(); } else mountOutreach($('#psout'), { embedded: true }); window.scrollTo(0, 0); });
+async function mountPS() {
+  $('#main').innerHTML = `<div id="pssetup"></div><nav class="pstabs" role="tablist" aria-label="Search and outreach"><button data-pstab="out" role="tab">Outreach <span class="h2n" id="pst-out"></span></button><button data-pstab="companies" role="tab">Companies <span class="h2n" id="pst-co"></span></button><button data-pstab="find" role="tab">Find more companies</button></nav><div id="psout"></div><div id="psown"></div>`;
+  document.querySelectorAll('[data-pstab]').forEach(b => b.onclick = () => { psPicked = true; setPsTab(b.dataset.pstab); window.scrollTo(0, 0); });
+  setPsTab(psTab || 'companies'); // one tab on screen straight away; the counts below may pick a better one
+  mountOutreach($('#psout'), { embedded: true }); mountSearch($('#psown')); setupBox();
+  const [st, inn] = await Promise.all([api('outreach/state').catch(() => null), api('search/intent').catch(() => null)]);
+  const needs = (st?.board || []).filter(x => ['review', 'replied'].includes(x.phase)).length, cos = new Set([...(inn?.list || []), ...(inn?.marketed || []), ...(inn?.outsideList || [])].map(x => String(x.name || "").toLowerCase().replace(/[^a-z0-9]+/g, ""))).size;
+  if ($('#pst-out')) $('#pst-out').textContent = needs ? `${needs} to review` : (st?.board || []).length || '';
+  if ($('#pst-co')) $('#pst-co').textContent = cos || '';
+  if (!psPicked) setPsTab(needs ? 'out' : cos ? 'companies' : 'find');
+}
+window.addEventListener('aion:outopen', () => { psTab = 'out'; psPicked = true; if (appMode !== 'ps') { appMode = 'ps'; render(); } else { setPsTab('out'); mountOutreach($('#psout'), { embedded: true }); } window.scrollTo(0, 0); });
 document.querySelectorAll('[data-app]').forEach(b => b.onclick = () => { if (appMode === b.dataset.app) return; appMode = b.dataset.app; try { localStorage.setItem('aion.app', appMode); } catch {}
   // Outreach can open a seller's books (a new deal) while you are away: re-read the open deal before showing Value Creation
   if (appMode === 'vc' && !running && !replay) return Promise.all([api('state'), api('deals')]).then(([v, dl]) => { const was = DL.current; V = v; DL = dl; if (DL.current !== was) { const st = V.derived.stage; page = st === 'levers' ? 'levers' : st; mode = 'simple'; } render(); if (DL.busyJob) pollAll(DL.busyJob); }).catch(() => render());
@@ -67,7 +97,7 @@ function render() {
   document.querySelectorAll('[data-app]').forEach(b => b.classList.toggle('on', b.dataset.app === appMode));
   document.body.classList.toggle('psmode', ['ps', 'docs', 'settings', 'help'].includes(appMode));
   if (appMode === 'out' || appMode === 'docs') appMode = 'ps'; // Outreach lives in Search & Outreach; Documents was removed
-  if (appMode !== 'ps') { leaveOutreach(); delete document.body.dataset.outview; delete document.body.dataset.psview; }
+  if (appMode !== 'ps') { leaveOutreach(); delete document.body.dataset.outview; delete document.body.dataset.psview; delete document.body.dataset.pstab; }
   if (appMode === 'settings' || appMode === 'help') { leaveSearch(); document.body.classList.add('simple'); $('#tabs').innerHTML = ''; return appMode === 'settings' ? mountSettings($('#main')) : mountHelp($('#main')); }
   leaveSettings();
   if (appMode === 'ps') { document.body.classList.add('simple'); $('#tabs').innerHTML = ''; return mountPS(); }
