@@ -468,7 +468,8 @@ function wireIntent(IN) {
   P.main.querySelectorAll('[data-insave],[data-unsave]').forEach(b => b.onclick = async ev => { ev.stopPropagation(); const [id, entity] = (b.dataset.insave || b.dataset.unsave).split('|'); b.disabled = true;
     try { await api('search/decide', { id, entity, decision: b.dataset.insave ? 'saved' : null }); draw(); } catch (e) { toast(e.message, 'err'); b.disabled = false; } });
   if ($('#in-all')) $('#in-all').onclick = () => { P.inAll = !P.inAll; draw(); };
-  P.main.querySelectorAll('[data-stop]').forEach(a => a.onclick = ev => ev.stopPropagation());
+  // adds stopPropagation without replacing a button's own click handler (Save also carries data-stop)
+  P.main.querySelectorAll('[data-stop]').forEach(a => a.addEventListener('click', ev => ev.stopPropagation()));
   P.main.querySelectorAll('[data-outopen]').forEach(a => a.onclick = ev => { ev.stopPropagation(); try { localStorage.setItem('aion.outOpen', a.dataset.outopen); } catch {} window.dispatchEvent(new Event('aion:outopen')); });
   P.main.querySelectorAll('[data-outwrite]').forEach(b => b.onclick = async ev => { ev.stopPropagation(); const [search, entity] = b.dataset.outwrite.split('|'); b.disabled = true; b.textContent = 'Writing…';
     try { const r = await api('outreach/create', { search, entity }); try { localStorage.setItem('aion.outOpen', r.id); } catch {} window.dispatchEvent(new Event('aion:outopen')); } catch (e) { toast(e.message, 'err'); b.disabled = false; b.textContent = 'Write outreach'; } });
