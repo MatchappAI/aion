@@ -20,7 +20,7 @@ test('excluded: DTC growth, automation shops, ops advisory, recruiters, software
   assert.equal(segmentOf('Workforce productivity and operational management consulting (retail, supply chain). Not retail placement.'), 'supply_chain'); // consulting: second tier (2026-11-08)
   assert.equal(segmentOf('3PL fulfillment services and warehousing'), 'ops'); // an operator: still out
   assert.equal(segmentOf('Lean manufacturing consulting for plants'), 'manufacturing');
-  assert.equal(segmentOf('Revenue growth management and trade promotion consulting for CPG brands'), 'cpg');
+  assert.equal(segmentOf('Revenue growth management and trade promotion consulting for CPG brands'), 'strategy');
   assert.equal(segmentOf('Executive recruiting for retail and consumer brands'), 'staffing');
   assert.equal(segmentOf('Retail/CPG analytics and collaboration software. It is not a placement consulting firm.'), 'software');
   assert.equal(segmentOf(''), null);

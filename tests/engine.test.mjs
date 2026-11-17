@@ -20,3 +20,13 @@ test('Claude Code usage-limit wording hands the request to the backup AI', async
   for (const m of ['Response was not valid JSON', 'Timed out after 120s', 'The firm has a 5-person limit on new clients'])
     assert.equal(noteLimit('test-engine', new Error(m)), false, m);
 });
+
+test('an Anthropic key pasted into the OpenAI slot is refused', async () => {
+  const fs = await import('node:fs'), os = await import('node:os'), path = await import('node:path');
+  const { initEngine, setKey } = await import('../lib/engine.mjs');
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'aion-eng-')); initEngine(dir);
+  assert.throws(() => setKey('openai', 'sk-ant-abc123'), /Anthropic key/);
+  assert.throws(() => setKey('anthropic', 'sk-abc123'), /sk-ant-/);
+  setKey('openai', 'sk-proj-abc123'); assert.equal(JSON.parse(fs.readFileSync(path.join(dir, 'keys.json'), 'utf8')).openai, 'sk-proj-abc123');
+  fs.rmSync(dir, { recursive: true, force: true });
+});

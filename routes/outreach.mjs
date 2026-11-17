@@ -17,7 +17,7 @@ export async function outreachRoute(req, res, url, p, ctx) {
       if (req.method === 'GET' && p === 'outreach/attachment') { try { const buf = await OUT.getAttachment(url.searchParams.get('id'), url.searchParams.get('m'), url.searchParams.get('a')); return send(res, 200, { data: buf.toString('base64') }); } catch (e) { return send(res, 400, { error: e.message }); } }
       if (req.method === 'GET' && p === 'outreach/print') { try { const html = letterHtml(url.searchParams.get('id'), url.searchParams.get('kind')); res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' }); return res.end(html); } catch (e) { return send(res, 404, { error: e.message }); } } // build the page before the headers go out, so an error can still be reported
       if (req.method === 'GET' && p === 'outreach/pdf') {
-        try { const kind = url.searchParams.get('kind'), it = OUT.get(url.searchParams.get('id')); const buf = await outreachPdf(it.id, kind);
+        try { const kind = url.searchParams.get('kind'), it = OUT.get(url.searchParams.get('id')); const buf = await outreachPdf(it.id, kind); if (kind === 'letter') { try { OUT.noteDownloaded(it.id, 'letter'); } catch {} }
           res.writeHead(200, { 'Content-Type': 'application/pdf', 'Content-Disposition': `attachment; filename="${(kind === 'letter' ? 'Letter' : it.docs?.[kind]?.title || kind).replace(/[^\w ()-]+/g, '')} - ${it.name.replace(/[^\w &-]+/g, '')}.pdf"` }); return res.end(buf); } catch (e) { return send(res, 400, { error: e.message }); }
       }
       if (req.method === 'GET' && p === 'outreach/item') { try { return send(res, 200, OUT.item(url.searchParams.get('id'))); } catch (e) { return send(res, 404, { error: e.message }); } }
@@ -37,7 +37,7 @@ export async function outreachRoute(req, res, url, p, ctx) {
   if (p === 'outreach/done' && !DONE_KINDS.includes(b.kind)) return send(res, 400, { error: 'Only letters, calls and contact-form notes are marked done by hand.' });
   if (p === 'outreach/confirm' && ((b.action === 'step' || b.action == null) && !STEP_KINDS.includes(b.kind) || b.action === 'doc' && !DOC_KINDS.includes(b.kind))) return send(res, 400, { error: 'Unknown send.' });
   switch (p) {
-        case 'outreach/settings': return send(res, 200, OUT.setSettings(b));
+        case 'outreach/settings': { try { return send(res, 200, OUT.setSettings(b)); } catch (e) { return send(res, 400, { error: e.message }); } }
         case 'outreach/connect': { try { return send(res, 200, GMAIL.connectUrl(PORT, String(b.email || '').trim())); } catch (e) { return send(res, 400, { error: e.message }); } }
         case 'outreach/disconnect': GMAIL.disconnect(b.email); return send(res, 200, { ok: true });
         case 'outreach/create': {

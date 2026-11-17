@@ -308,6 +308,8 @@ test('no owner email: the discreet note can go to info@, the selling email never
   const item = OUT.get(JSON.parse(fs.readFileSync(path.join(dir, 'outreach.json'), 'utf8')).items.find(x => x.name === 'Northfield Brokers').id);
   OUT.editItem(item.id, { to: 'info@northfield.test' });
   assert.ok(!OUT.preflight(item.id, 'email').ok, 'selling email to a shared inbox stays blocked');
+  assert.match(OUT.board().find(x => x.id === item.id).status, /Not the owner’s own address/, 'the list must not call a blocked draft ready');
+  assert.match(OUT.item(item.id).status, /Not the owner’s own address/, 'nor the draft header');
   const pf = OUT.preflight(item.id, 'form');
   assert.ok(pf.ok, pf.problems.join('; ')); assert.match(pf.subject, /^For Jane/); assert.match(pf.warn, /discreet note/);
   const r = await OUT.sendStep(item.id, 'form', { confirmed: true });
@@ -432,4 +434,17 @@ test('scheduled sends: approved now, sent when due; a follow-up waits for the fi
   OUT.editItem(it6.id, { kind: 'email', body: 'A different body written after approving.' });
   assert.equal(await OUT.runScheduled(new Date(Date.now() + 10 * 60_000)), 0);
   assert.match(OUT.get(it6.id).scheduled.email.held, /Edited after you approved/);
+});
+
+test('outreach settings refuse a typo instead of turning it into 1 day or 1 email', () => {
+  const before = structuredClone(OUT.settings());
+  assert.throws(() => OUT.setSettings({ followUpDays: [null] }), /Follow-up days/);
+  assert.throws(() => OUT.setSettings({ followUpDays: [] }), /Follow-up days/);
+  assert.throws(() => OUT.setSettings({ followUpDays: [4, 10, 20] }), /Follow-up days/);
+  assert.throws(() => OUT.setSettings({ dailyCap: -5, name: 'Changed' }), /Emails a day/);
+  assert.deepEqual(OUT.settings().followUpDays, before.followUpDays); assert.equal(OUT.settings().dailyCap, before.dailyCap);
+  assert.equal(OUT.settings().name, before.name, 'nothing is half-saved when one field is wrong');
+  assert.deepEqual(OUT.setSettings({ followUpDays: [10, 4], dailyCap: '25' }).followUpDays, [4, 10]);
+  assert.equal(OUT.settings().dailyCap, 25);
+  OUT.setSettings({ followUpDays: before.followUpDays, dailyCap: before.dailyCap });
 });

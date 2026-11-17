@@ -313,7 +313,7 @@ function ownerList() {
   const find = x => { const s2 = ss.find(y => y.id === x.search); return [s2, s2?.entities.find(y => y.id === x.entity)]; };
   const slim = x => { const [s2, e] = find(x), o = s2 && e ? outOf(s2, e) : null;
     return { search: x.search, entity: x.entity, rank: x.rank, name: x.name, website: x.website, place: x.place, industry: x.industry, fit: x.fit, fitRecounted: !!x.fitRecounted, niche: x.niche, focus: x.focus, segment: x.segment, segmentLabel: x.segmentLabel, rankScore: x.score, parts: x.parts, size: x.size, offer: x.offer, offerWhy: x.offerWhy, email: x.email || '', box: x.box, kinds: x.kinds, approach: x.approach, approachText: APPROACH[x.approach], owner: x.owner, emails: x.emails, phone: x.phone, warmIntro: x.warmIntro, contacted: !!o, why: x.why, intent: x.intent, strongFit: !!x.strongFit || o?.replied?.kind === 'interested', strength: x.strength, marketed: !!x.marketed, segmentTier: ['retail_placement', 'marketplace', 'strategy'].includes(x.segment) ? 1 : 2,
-      scores: o?.replied?.kind === 'interested' ? { ...x.scores, intent: { ...x.scores.intent, label: 'Confirmed', category: 'confirmed', explicit: true, evidence: [{ label: 'Replied interested', text: `Replied to your email (${String(o.replied.at || '').slice(0, 10)})`, url: '', date: String(o.replied.at || '').slice(0, 7) }, ...x.scores.intent.evidence] } } : x.scores,
+      scores: o?.replied?.kind === 'interested' ? { ...x.scores, intent: { ...x.scores.intent, label: 'Confirmed', category: 'confirmed', explicit: true, evidence: [{ label: 'Replied interested', text: `Replied to your email (${o.replied.at ? new Date(o.replied.at).toLocaleDateString('en-CA') : ''})`, url: '', date: String(o.replied.at || '').slice(0, 7) }, ...x.scores.intent.evidence] } } : x.scores,
       outreach: o ? { id: o.id, phase: o.phase, status: o.status, sentAt: o.sentAt, sender: o.sender, to: o.to } : null, decision: e?.decision || '',
       deal: s2 && e ? dealOf(s2, e)?.stage || '' : '',
       clients: (e?.clientBook?.clients || []).map(c => c.company || c.name || c).filter(Boolean).slice(0, 30), researched: e?.founderProfile?.at || null, firstSeen: e?.firstSeen || s2?.created || null,
@@ -331,8 +331,8 @@ function outreachReady() {
   return out.slice(0, 80);
 }
 /** Everything you saved, any kind (firms, brands, people), with its outreach status: the "Saved" section. */
-function savedAll() {
-  const { list, marketed, R, ss } = ownerList(), B = OUT.board(), byKey = new Map(B.map(x => [`${x.search}|${x.entity}`, x])), byName = new Map(B.map(x => [`${x.mode}|${normName(x.name)}`, x])), seen = new Set(), out = [];
+function savedAll(pre) {
+  const { list, marketed, R, ss } = pre || ownerList(), B = OUT.board(), byKey = new Map(B.map(x => [`${x.search}|${x.entity}`, x])), byName = new Map(B.map(x => [`${x.mode}|${normName(x.name)}`, x])), seen = new Set(), out = [];
   const firms = new Map([...list, ...marketed, ...R.outside.map(x => ({ ...x, scores: x.scores }))].map(x => [`${x.search}|${x.entity}`, x]));
   for (const s2 of ss) for (const e of (s2.entities || []).filter(e => e.scored && ['saved', 'priority'].includes(e.decision))) {
     const name = s2.mode === 'candidate' ? e.name : e.company, k = `${s2.mode}|${normName(name)}`; if (seen.has(k)) continue; seen.add(k);
@@ -591,7 +591,7 @@ async function runAll(j) {
     tick(`Could earn ${$k(L.runRate)} more a year`);
     set(4, 'Building the playbook');
     S.answers = {}; S.plan = libraryPlan({ d, S }); S.planAt = new Date().toISOString(); S.planInputsHash = hashInputs(); persist();
-    if (!d.deal) { detail(`Real profit is ${$k(d.normalization.normalized)}: the business loses money, so it can’t be priced on a multiple of profit. The plan shows how to get it back to profit first.`); tick('Not priceable yet: the business loses money'); }
+    if (!d.deal) { detail(`Adjusted profit is ${$k(d.normalization.normalized)}: the business loses money, so it can’t be priced on a multiple of profit. The plan shows how to get it back to profit first.`); tick('Not priceable yet: the business loses money'); }
     else {
     if (d.rates) detail(`Loan rate today: ${(d.deal.rate * 100).toFixed(2)}% (prime ${(d.rates.prime * 100).toFixed(2)}% from the Federal Reserve, ${d.rates.date})`);
     detail(`Tested a price of ${d.deal.multiple}× ${d.deal.basis === 'revenue' ? 'revenue' : 'profit'} (${$k(d.deal.price)}): ${d.deal.senior + d.deal.seller > 0 ? `bank lends ${$k(d.deal.senior)}, seller carries ${$k(d.deal.seller)}, ` : 'no loan, '}investors put in ${$k(d.deal.equity)}`);
@@ -630,7 +630,7 @@ function checkinAnalysis(d) {
 function actionList(d) {
   const L = d.levers, a = S.assumptions, lev = k => (S.plan?.levers || []).find(l => l.key === k), out = [];
   if (L.nonAI.pricing > 0) out.push({ title: 'Raise prices on new work to close half the margin gap to peers', value: L.nonAI.pricing, basis: L.nonAI.pricingBasis, owner: 'Owner and sales lead', sure: 'Benchmark gap', steps: lev('pricing')?.steps, kpis: [`Average fee per ${profile(S).job || 'client'}`, 'Win rate on proposals'] });
-  if (L.nonAI.writeoffs > 0) out.push({ title: 'Bill on time and chase late invoices', value: L.nonAI.writeoffs, basis: 'Ledger write-offs × reduction (assumption)', owner: 'Office manager', sure: 'From the books', steps: ['Send every bill the day the work is done', 'Automatic reminders at 15 and 30 days', 'Weekly review of anything over 45 days'], kpis: ['Days to get paid', 'Write-offs'] });
+  if (L.nonAI.writeoffs > 0) out.push({ title: 'Fewer unpaid invoices written off', value: L.nonAI.writeoffs, basis: 'Ledger write-offs × reduction (assumption); faster collection frees cash, not counted as profit', owner: 'Office manager', sure: 'From the books', steps: ['Send every bill the day the work is done', 'Automatic reminders at 15 and 30 days', 'Weekly review of anything over 45 days'], kpis: ['Days to get paid', 'Write-offs'] });
   if (L.nonAI.vendors > 0) out.push({ title: 'Cut supplier and tool costs', value: L.nonAI.vendors, basis: 'Ledger spend × saving (confirmed)', owner: 'Owner', sure: 'Confirmed', steps: lev('vendors')?.steps, kpis: ['Supplier spend as a share of sales'] });
   for (const x of d.extraLevers || []) out.push(x.id === 'discounts' ? { title: `Bring ${x.basis.count} customers up to normal prices`, value: x.value, basis: 'Sales file: half the measured price gap', owner: 'Owner', sure: 'From the sales file', steps: ['Review each discounted account with the owner', 'Move to normal prices at renewal, with notice', 'Approve any discount left in writing'], kpis: ['Average price vs. normal price'] } : { title: 'Cut overtime with better scheduling', value: x.value, basis: 'Payroll file: overtime × share moved to regular hours', owner: 'Operations lead', sure: 'From the payroll file', steps: ['See who works the most overtime, and why', 'Plan the week ahead and spread the work', 'Approve overtime in advance'], kpis: ['Overtime pay per month'] });
   for (const x of (d.industryLevers || []).filter(y => y.value > 0)) out.push({ title: x.title, value: x.value, basis: x.basis, owner: x.owner, sure: x.sure, steps: x.steps, kpis: x.kpis });
@@ -680,7 +680,7 @@ const body = req => new Promise((ok, bad) => { let b = ''; req.on('data', d => {
 // what routes/outreach.mjs needs; the open deal is read live (loadDeal replaces S and CUR)
 const OUTCTX = { savedAll: () => savedAll(), send, body, OUT, GMAIL, CONFIRM, ownerList: () => ownerList(), outreachReady: () => outreachReady(), letterHtml: (...a) => letterHtml(...a), outreachPdf: (...a) => outreachPdf(...a), PORT, SRUN, loadSearch, MODELS, ROOTWS, finderKeys: () => finderKeys(), busy: () => busy(), loadDeal: id => loadDeal(id), derive: () => derive(), persist: () => persist(), deal: { cur: () => CUR, S: () => S } };
 // what routes/search.mjs and routes/deal.mjs need; the open deal (S, ROWS, CHECK, CUR) and the running AI step are read and written live
-const SEARCHCTX = { savedAll: () => savedAll(), send, body, SRUN, JOB_ERR, jobFailed, ROOTWS, ownerList: () => ownerList(), startSearch: a => startSearch(a), cityOf, finderKeys: () => finderKeys(), saveFinderKeys: k => saveFinderKeys(k) };
+const SEARCHCTX = { savedAll: pre => savedAll(pre), send, body, SRUN, JOB_ERR, jobFailed, ROOTWS, ownerList: () => ownerList(), startSearch: a => startSearch(a), cityOf, finderKeys: () => finderKeys(), saveFinderKeys: k => saveFinderKeys(k) };
 const st = Object.defineProperties({}, Object.fromEntries(Object.entries({
   S: [() => S, v => { S = v; }], ROWS: [() => ROWS, v => { ROWS = v; }], CHECK: [() => CHECK, v => { CHECK = v; }], CUR: [() => CUR, v => { CUR = v; }], CURJ: [() => CURJ, v => { CURJ = v; }], FRESH: [() => FRESH, v => { FRESH = v; }],
 }).map(([k, [get, set]]) => [k, { get, set, enumerable: true }])));

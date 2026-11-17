@@ -22,7 +22,7 @@ async function draw() {
     ${!act ? '<p class="callout warn">No AI is ready. Log in to Claude Code or Codex in a terminal, or save an API key below.</p>' : ''}
     <div class="engines">${E.list.map(x => `<div class="eng ${x.ready ? 'ready' : ''} ${act === x.id ? 'active' : ''}">
       <div class="row"><b>${esc(x.label)}</b>${act === x.id ? '<span class="pill2 done">In use</span>' : x.ready ? '<span class="pill2">Ready</span>' : ''}<div class="spacer"></div>
-        ${x.ready ? `<button class="ghost sm" data-test="${x.id}">Test</button>` : ''}${x.ready && act !== x.id ? `<button class="sm" data-use="${x.id}">Use this</button>` : ''}</div>
+        ${x.ready ? `<button class="ghost sm" data-test="${x.id}">Test</button>` : ''}${x.ready && act !== x.id ? `<button class="sm" data-use="${x.id}">Use ${esc(x.label)}</button>` : ''}</div>
       <p class="note">${esc(x.detail)} · ${esc(x.billing)}</p>${E.limits?.[x.id] ? `<p class="callout warn">Hit its usage limit, so the next ready AI is used for now: ${esc(E.limits[x.id].message)}</p>` : ''}<p class="note">${esc(HOW[x.id])}</p>
       ${x.kind === 'api' ? `<div class="row"><input type="password" autocomplete="off" spellcheck="false" id="key-${x.id}" aria-label="${x.id === 'anthropic' ? 'Anthropic' : 'OpenAI'} API key" placeholder="${x.id === 'anthropic' ? 'sk-ant-…' : 'sk-…'}"><button class="sm" data-key="${x.id}">Save key</button>${x.ready ? `<button class="ghost sm" data-rmkey="${x.id}">Remove</button>` : ''}</div>` : ''}
       <p class="note" id="msg-${x.id}">${esc(S.msg[x.id] || '')}</p></div>`).join('')}</div>
@@ -46,7 +46,7 @@ function wire() {
   }));
   S.main.querySelectorAll('[data-key]').forEach(b => b.onclick = async () => {
     const id = b.dataset.key, v = $('#key-' + id).value.trim(); if (!v) return msg(id, 'Paste a key first.');
-    if (!(id === 'anthropic' ? /^sk-ant-/ : /^sk-/).test(v)) return msg(id, `That doesn’t look like ${id === 'anthropic' ? 'an Anthropic key (it starts with sk-ant-)' : 'an OpenAI key (it starts with sk-)'}.`);
+    if (!(id === 'anthropic' ? /^sk-ant-/ : /^sk-(?!ant-)/).test(v)) return msg(id, `That doesn’t look like ${id === 'anthropic' ? 'an Anthropic key (it starts with sk-ant-)' : 'an OpenAI key (it starts with sk-; an sk-ant- key is an Anthropic key)'}.`);
     await busy(b, 'Saving…', async () => { try { await api('engine/key', { which: id, key: v }); S.msg[id] = 'Key saved. Press Test to check it.'; draw(); } catch (e) { msg(id, e.message); } });
   });
   if ($('#save-hunter')) $('#save-hunter').onclick = () => busy($('#save-hunter'), 'Checking…', async () => { const v = $('#key-hunter').value.trim(); if (!v) return msg('hunter', 'Paste your Hunter.io key first.'); try { const r = await api('finders/key', { key: v }); S.msg.hunter = `Key saved and checked${r.left != null ? `: ${r.left} lookups left this month` : ''}.`; draw(); } catch (e) { msg('hunter', e.message); } });

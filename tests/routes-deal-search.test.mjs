@@ -122,6 +122,11 @@ test('upload books, then every deal edit route works on the open deal', async ()
   r = await post('assumptions', { assumptions: { stake: 0.8, deal_form: 'stock', fee_rate: 0.1, vehicle: 'bogus' } });
   assert.equal(r.status, 200); assert.equal(r.json.state.assumptions.stake, 0.8); assert.equal(r.json.state.assumptions.deal_form, 'stock'); assert.equal(r.json.state.assumptions.fee_rate, 0.1); assert.notEqual(r.json.state.assumptions.vehicle, 'bogus');
   r = await post('assumptions', { assumptions: { stake: 0.2 } }); assert.equal(r.json.state.assumptions.stake, 0.8);
+  // a typo or a negative number never replaces a good value (a price multiple of 0 or below blanked every Value Creation tab)
+  const em = r.json.state.assumptions.entry_multiple;
+  for (const bad of [-3, 0, 'abc', '']) { r = await post('assumptions', { assumptions: { entry_multiple: bad } }); assert.equal(r.json.state.assumptions.entry_multiple, em, `entry_multiple ${bad}`); }
+  r = await post('assumptions', { assumptions: { pricing_uplift: -0.5 } }); assert.ok(r.json.state.assumptions.pricing_uplift >= 0);
+  r = await post('assumptions', { assumptions: { entry_multiple: 4 } }); assert.equal(r.json.state.assumptions.entry_multiple, 4);
   r = await post('assumptions', { reset: true }); assert.equal(r.status, 200);
   r = await post('ops', { ops: { billable_staff: 6 }, confirm: true }); assert.equal(r.status, 200, r.text); assert.equal(r.json.state.opsConfirmed, true);
   r = await post('mask', { on: true }); assert.equal(r.json.state.maskNames, true);

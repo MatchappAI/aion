@@ -32,7 +32,7 @@ const veh=D?((V.vehicles||{})[D.vehicle]||{}):{};
 // improvements: one list, biggest first, matching the screen
 const rows=[];
 if(L.nonAI.pricing>0)rows.push(['Raise prices on new work to close half the margin gap to peers','Compare prices with the standard price list; set a rule for discounts',L.nonAI.pricing]);
-if(L.nonAI.writeoffs>0)rows.push(['Bill on time and chase late invoices','Send every bill the day the work is done; reminders at 15 and 30 days',L.nonAI.writeoffs]);
+if(L.nonAI.writeoffs>0)rows.push(['Fewer unpaid invoices written off','Bill the day the work is done; reminders at 15 and 30 days (faster collection itself frees cash, not profit)',L.nonAI.writeoffs]);
 if(L.nonAI.vendors>0)rows.push(['Cut supplier and tool costs','Get competing quotes for the biggest three; cancel overlaps',L.nonAI.vendors]);
 if(!L.aiSkipped&&L.ai>0)rows.push(['Use AI for routine paperwork','AI drafts; people check and send',L.ai-L.six.costs.software-L.six.costs.ongoing]);
 for(const x of d.extraLevers||[])rows.push(x.id==='discounts'?[`Bring ${x.basis.count} ${cu} up to normal prices`,'Review each discounted account; move to normal prices at renewal',x.value]:['Cut overtime with better scheduling','Plan the week ahead; approve overtime in advance',x.value]);
@@ -43,7 +43,7 @@ const adj=[n.ownerActual?`+${k(n.ownerActual)} owner pay`:'',n.addbacks?`+${k(n.
 const pct=v=>Math.round(v*100)+'%';
 document.getElementById('r').innerHTML=`<div class="top"><div><img src="/assets/aion-logo-clear.png"><div style="font-size:8px;color:#9C978C;letter-spacing:.05em">Proprietary · Made by Mohil Gupta</div><div style="font-size:9.5px;color:#6B675E;margin-top:2px">PE value creation: EBITDA improvement. What this company really earns, how to grow it, and whether the price makes sense, from its own records.</div></div><span>${e(cap(P.name||'business'))} · ${e(S.file.name)} · ${new Date(S.planAt).toLocaleDateString()} · Confidential</span></div>
 <div class="hero"><div><small>${S.file.kind==='pdf'?'Reported profit':'What the seller says'}</small><b>${k(n.reported)}</b><span>${S.file.kind==='pdf'?'from the published statements':'profit a year, from their books'}</span></div>
-<div><small>Real profit</small><b>${k(n.normalized)}</b><span>${e(adj||'what a new owner can count on')}</span></div>
+<div><small>Adjusted profit</small><b>${k(n.normalized)}</b><span>${e(adj||'after owner pay, one-off costs and a manager’s salary')}</span></div>
 <div class="hi"><small>Could grow to</small><b>${k(d.proForma)}</b><span>+${k(L.runRate)} a year if the changes below work</span></div></div>
 ${(()=>{const c=[],net=(S.accounts||[]).reduce((x,a)=>x+a.total,0),ex=S.extra||{},near=(a,b)=>b&&Math.abs(a/b-1)<0.03,w=['comp_producers','comp_admin','comp_owner'].reduce((x,q)=>x+(t.byCat?.[q]||0),0);
 if(S.file?.kind==='gl')c.push(Math.abs(net)<1?'✓ Books balance to the cent':'⚠ Books don’t balance');
@@ -58,7 +58,7 @@ return `<div style="font-size:9px;color:#2F5D50;margin:0 0 6px">${c.join(' &nbsp
 <div>Sales ${k(t.revenue)} a year${t.byCat?.rev_passthrough>0?` (${k(t.netRevenue)} without ad spend passed through to clients)`:''}${q?` · ${q.customersTTM} ${cu} · the biggest is ${pc(q.top1)} of sales`:''}${d.dso!=null?` · ${cu} pay in about ${Math.round(d.dso)} days`:''}</div>
 <h2>How to grow profit, biggest first</h2><table><tr><th>Change</th><th>First steps</th><th class="n">Profit a year</th></tr>${rows.map(r=>`<tr><td><b>${e(r[0])}</b></td><td>${e(r[1])}</td><td class="n">+${k(r[2])}</td></tr>`).join('')}</table>
 <div class="cols"><div><h2>What could go wrong</h2><table>${flags.map(f=>`<tr><td><b>${f.severity==='high'?'Important':'Check'}</b></td><td><b>${e(f.title)}.</b> ${e(String(f.detail).split(/(?<=\.)\s/)[0])}</td></tr>`).join('')}</table></div>
-<div>${!D?`<h2>Is it a good deal for investors?</h2><p>${d.unpriceableWhy==='short'?`Not priceable yet: the books cover only ${d.monthsCovered} months, and a price needs a full year of profit.`:`Not priceable yet: real profit is ${k(n.normalized)}, so the business loses money. Fix profit first; see the plan.`}</p>`:''}${D?`<h2>Is it a good deal for investors?</h2><table>
+<div>${!D?`<h2>Is it a good deal for investors?</h2><p>${d.unpriceableWhy==='short'?`Not priceable yet: the books cover only ${d.monthsCovered} months, and a price needs a full year of profit.`:`Not priceable yet: adjusted profit is ${k(n.normalized)}, so the business loses money. Fix profit first; see the plan.`}</p>`:''}${D?`<h2>Is it a good deal for investors?</h2><table>
 <tr><td>${D.stake<1?`Buy ${Math.round(D.stake*100)}%; whole company valued at`:'Buy it for'}</td><td class="n">${k(D.price)} (${(+(D.ebitdaMultiple??D.multiple)).toFixed(2)} years of profit)</td></tr>
 <tr><td>Bank loan · paid to the seller later · investors${D.stake<1?' · owner keeps':''}</td><td class="n">${k(D.senior)} · ${k(D.seller)} · ${k(D.investorEquity??D.equity)}${D.stake<1?` · ${k(D.rollover)}`:''}</td></tr>
 <tr><td>Type of owner</td><td class="n">${e(veh.label||'')}, ${e(veh.sub||'')}</td></tr>

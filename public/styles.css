@@ -153,7 +153,7 @@ input.mult{width:64px}
 .tab{background:transparent;color:var(--mute);border:1px solid transparent;border-bottom:none;border-radius:8px 8px 0 0;padding:8px 14px;font-size:13px;white-space:nowrap}
 .tab:hover{color:var(--ink)}
 .tab.on{background:var(--panel);color:var(--ink);border-color:var(--line);font-weight:600;margin-bottom:-1px}
-.tab.new{color:var(--acc)}
+.tab.new{color:var(--acc);position:sticky;right:0;background:var(--bg);box-shadow:-12px 0 12px -6px var(--bg)}.tab.new.on{background:var(--panel)}
 
 .how3{display:grid;grid-template-columns:1fr 1fr 1.4fr;gap:12px}
 .how3>div{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:14px 16px;font-size:13px}
@@ -875,3 +875,92 @@ body[data-firstrun="1"] #psown{order:-1}
 /* draft quality check and scheduled sends */
 .oqc{margin:8px 0;padding:8px 12px;border-radius:10px;background:var(--card2,#f5f5f7)}.oqc.low{outline:1px solid #e0a400}.oqc ul{margin:4px 0 0 18px}
 .oschedule{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin:8px 0}.oschedule input{margin-left:6px}
+/* QA polish 2026-11-16: search boxes match the other inputs; draft tabs wrap instead of hiding the last one */
+input[type=search]{font:inherit;font-size:14px;padding:8px 12px;border:1px solid var(--line2);border-radius:10px;background:#fff;color:var(--ink);width:210px}
+.psbar:has(> .seg){flex-wrap:wrap}.psbar > .seg{flex-wrap:wrap}.psbar > .seg button{white-space:nowrap}
+.ogrid .dtabs{flex-wrap:wrap;border-radius:18px}
+
+/* ===== Outreach company screen: one task, one status, one main action ===== */
+.oitem{max-width:860px}
+.otop{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:6px}
+.oprog{font-size:13.5px;font-weight:600;color:var(--ink);background:var(--line);padding:4px 12px;border-radius:999px}
+.oitem .pshead h1{margin-bottom:4px}
+.ocontact{margin:0 0 10px;font-size:14px}
+.ostatus{display:inline-block;margin:0 0 10px;padding:5px 12px;border-radius:999px;font-weight:600;font-size:14px;background:var(--line);color:var(--ink)}
+.ostatus.act{background:var(--warn-bg);color:var(--warn)}
+.ostatus.ok{background:var(--acc-bg);color:var(--acc)}
+.ostatus.bad{background:#F6E1DC;color:var(--neg)}
+.owhy{margin:0;font-size:15.5px;line-height:1.5;color:var(--ink);max-width:720px}
+.omsg{margin-top:18px}
+.omsghead{display:flex;align-items:center;justify-content:space-between;gap:12px}
+.omsghead .h2{margin:0}
+.oissue{background:var(--warn-bg);border-radius:12px;padding:12px 14px;margin:12px 0;font-size:14.5px;line-height:1.5;color:var(--ink)}
+.oissue p{margin:6px 0 0}.oissue ul{margin:6px 0 0;padding-left:18px}
+.omore{position:relative}
+.omore>summary{list-style:none;cursor:pointer;font-size:14px;font-weight:500;color:var(--mute);padding:7px 14px;border-radius:999px;background:rgba(41,40,35,.06)}
+.omore>summary::-webkit-details-marker{display:none}
+.omore>summary::after{content:' ▾'}
+.omore[open]>summary{color:var(--ink)}
+.omenu{position:absolute;right:0;top:calc(100% + 6px);z-index:20;min-width:300px;background:var(--panel);border:1px solid var(--line2);border-radius:14px;box-shadow:0 12px 32px rgba(41,40,35,.16);padding:10px 12px;display:flex;flex-direction:column;align-items:flex-start;gap:6px}
+.omenu .note{margin:6px 0 0;font-size:11.5px;text-transform:uppercase;letter-spacing:.06em}
+.omenu .note:first-child{margin-top:0}
+.osaveline{display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap;margin:6px 0 10px}
+.note.err,.osaveline .err{color:var(--neg)}
+.oprimary{position:sticky;bottom:0;background:var(--panel);padding:10px 0;z-index:5;border-top:1px solid var(--line)}
+.btnlink.primary{background:var(--ink);color:#fff;border-radius:999px;padding:9px 18px;font-weight:600;text-decoration:none}
+.odet2{margin-top:14px}
+.odet2>summary{cursor:pointer;font-weight:600;font-size:15px}
+.odet2>summary .note{font-weight:400;margin-left:6px}
+.osiglist{list-style:none;padding:0}.osiglist li{padding:6px 8px;border-radius:8px;font-size:14px}.osiglist li.used{background:var(--acc-bg)}
+:focus-visible{outline:2px solid var(--acc);outline-offset:2px}
+.ps details.omore{border:0;background:none;padding:0;margin:0;box-shadow:none}
+
+/* ===== Value Creation lead: four facts first ===== */
+.lead4{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px;margin:18px 0 10px}
+.lead4 .lt{background:var(--panel);border:1px solid var(--line);border-radius:16px;padding:14px 16px;display:flex;flex-direction:column;gap:6px;text-align:left}
+.lead4 small{font-size:12px;text-transform:uppercase;letter-spacing:.05em;color:var(--mute);font-weight:600}
+.lead4 b{font-size:26px;letter-spacing:-.02em;color:var(--ink)}
+.lead4 b.sm{font-size:16px;line-height:1.3}
+.lead4 span{font-size:13px;line-height:1.45;color:var(--mute)}
+.lead4 ul{margin:0;padding-left:16px;font-size:13px;line-height:1.45;color:var(--ink)}
+@media (max-width:1100px){.lead4{grid-template-columns:repeat(2,minmax(0,1fr))}}
+.wfbox{margin-top:8px;text-align:left}
+.anext{margin:8px 0 4px;font-size:14px;line-height:1.45}
+.adet{margin:6px 0 8px;font-size:13.5px}.adet>summary{cursor:pointer;color:var(--acc);font-weight:500}
+
+/* Value Creation top bar: wraps on a narrow window instead of pushing PDF/Excel off screen */
+.rhead{flex-wrap:wrap;row-gap:10px}.rhead .ichip{max-width:100%;white-space:normal;text-align:left}
+.r2 .rhead{flex-wrap:wrap}
+table.tcheck{max-width:100%}table.tcheck td,table.tcheck th{overflow-wrap:anywhere}
+@media (max-width:1000px){table.tcheck{display:block;overflow-x:auto}}
+
+/* ===== Search & Outreach tabs: one job on screen at a time ===== */
+.pstabs{display:flex;gap:4px;max-width:972px;margin:8px auto 0;padding:4px;background:rgba(41,40,35,.06);border-radius:999px;width:max-content}
+.pstabs button{background:none;border:0;border-radius:999px;padding:8px 18px;font-size:14.5px;font-weight:500;color:var(--mute);display:flex;align-items:center;gap:6px}
+.pstabs button.on{background:var(--panel);color:var(--ink);font-weight:600;box-shadow:0 1px 3px rgba(41,40,35,.12)}
+.pstabs .h2n:empty{display:none}.pstabs .h2n{margin-left:2px;vertical-align:0}
+body[data-pstab="out"]:not([data-psview="search"]):not([data-psview="network"]) #psown{display:none}
+body[data-pstab="companies"] #psout,body[data-pstab="find"] #psout{display:none}
+body[data-pstab="companies"]:not([data-psview="search"]):not([data-psview="network"]) #psown .findmore{display:none}
+body[data-pstab="find"]:not([data-psview="search"]):not([data-psview="network"]):not([data-firstrun="1"]) #psown>.ps>:not(.findmore):not(.callout){display:none}
+body[data-pstab="find"] #psown .findmore>summary{pointer-events:none;list-style:none}
+body[data-pstab="find"] #psown .findmore>summary::-webkit-details-marker{display:none}
+body[data-outview="item"] .pstabs,body[data-psview="search"] .pstabs,body[data-psview="network"] .pstabs{display:none}
+
+/* ===== Get set up: one checklist until AI, Gmail and the mailing address are connected ===== */
+#pssetup{max-width:972px;margin:12px auto 0;padding:0 24px}
+.setup{background:var(--panel);border:1px solid var(--line2);border-radius:18px;padding:16px 20px}
+.setup h2{margin:0 0 8px;font-size:19px}.setup h2 .note{font-weight:400;margin-left:8px}
+.setup ol{list-style:none;margin:0;padding:0}
+.setup li{display:grid;grid-template-columns:28px 1fr auto;gap:12px;align-items:center;padding:10px 0;border-top:1px solid var(--line)}
+.setup li:first-child{border-top:0}
+.setup .sicon{width:22px;height:22px;border-radius:50%;border:2px solid var(--line2);display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:700}
+.setup li.ok .sicon{background:var(--acc);border-color:var(--acc);color:#fff}
+.setup li b{display:block;font-size:15px}.setup li .note{font-size:13px}
+.setup .sact{display:flex;gap:8px;align-items:center}
+.setup .sact input{font:inherit;font-size:14px;padding:8px 10px;border:1px solid var(--line2);border-radius:10px;width:240px;background:#fff}
+.setdone{font-size:13.5px;color:var(--acc);margin:4px 0 0}
+@media (max-width:1000px){.setup li{grid-template-columns:28px 1fr}.setup .sact{grid-column:2}}
+.setup h2{text-transform:none;letter-spacing:-.01em;color:var(--ink);font-weight:650}
+#main:has(.setup) [data-testid="out-setup-gap"]{display:none}
+@media (max-width:600px){#pssetup{padding:0 12px}.setup .sact{flex-wrap:wrap}.setup .sact input{width:100%;min-width:0}.pstabs{width:auto;max-width:calc(100% - 24px);overflow-x:auto}}

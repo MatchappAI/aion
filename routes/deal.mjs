@@ -171,7 +171,7 @@ export async function dealRoute(req, res, url, p, ctx) {
         else if (k === 'price_basis') { if (['ebitda', 'revenue'].includes(v)) st.S.assumptions.price_basis = v; }
         else if (k === 'deal_form') { if (['asset', 'stock', 'f_reorg'].includes(v)) st.S.assumptions.deal_form = v; }
         else if (k === 'fee_rate') { const x = +v; if (x >= 0 && x <= 0.3) st.S.assumptions.fee_rate = x; }
-        else if (k in DEFAULT_ASSUMPTIONS) st.S.assumptions[k] = +v || 0;
+        else if (k in DEFAULT_ASSUMPTIONS) { const x = +v; if (Number.isFinite(x) && x >= 0 && !(/_multiple$/.test(k) && x <= 0)) st.S.assumptions[k] = x; } // a typo or a negative number keeps the last good value; a price multiple must be above 0
       }
       if (b.reset) st.S.assumptions = structuredClone(DEFAULT_ASSUMPTIONS);
       persist(); return send(res, 200, view());

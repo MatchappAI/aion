@@ -25,8 +25,8 @@ ok('Adds monthly check-in', !(await call('checkin', { filename: 'checkin.csv', d
 for (const e of ['pdf', 'excel']) { const r = await fetch(B + e, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' }); ok(`Downloads ${e}`, r.ok && (await r.arrayBuffer()).byteLength > 20000); }
 
 // 2. browser
-const chrome = spawn('/Applications/Google Chrome.app/Contents/MacOS/Google Chrome', ['--headless=new', '--disable-gpu', '--remote-debugging-port=9340', '--window-size=1280,1000', '--user-data-dir=' + path.join(OUT, 'profile'), 'about:blank']);
-let ws; for (let i = 0; i < 40 && !ws; i++) { await sleep(250); try { const t = await (await fetch('http://127.0.0.1:9340/json')).json(); const p = t.find(x => x.type === 'page'); if (p) ws = p.webSocketDebuggerUrl; } catch {} }
+const chrome = spawn('/Applications/Google Chrome.app/Contents/MacOS/Google Chrome', ['--headless=new', '--disable-gpu', '--remote-debugging-port=' + (process.env.CDP_PORT || 9340), '--window-size=1280,1000', '--user-data-dir=' + path.join(OUT, 'profile'), 'about:blank']);
+let ws; for (let i = 0; i < 40 && !ws; i++) { await sleep(250); try { const t = await (await fetch(`http://127.0.0.1:${process.env.CDP_PORT || 9340}/json`)).json(); const p = t.find(x => x.type === 'page'); if (p) ws = p.webSocketDebuggerUrl; } catch {} }
 const sock = new WebSocket(ws); await new Promise(r => sock.onopen = r);
 let id = 0; const pend = {}, errs = []; sock.onmessage = m => { const d = JSON.parse(m.data); if (d.method === 'Runtime.exceptionThrown') errs.push(JSON.stringify(d.params.exceptionDetails).slice(0, 300)); if (d.id && pend[d.id]) { pend[d.id](d.result); delete pend[d.id]; } };
 const cmd = (method, params = {}) => new Promise(r => { const i = ++id; pend[i] = r; sock.send(JSON.stringify({ id: i, method, params })); });
@@ -65,6 +65,8 @@ const g2 = await ev(`document.querySelector('#grow .verdict').innerText`); ok('T
 await ev(`(()=>{const i=document.querySelector('#grow [data-g="addonPct"]'); i.value=0; i.dispatchEvent(new Event('change'))})()`); await sleep(300);
 ok('Inputs adjust it (no add-ons)', !/add-ons need/.test(await ev(`document.querySelector('#grow .verdict').innerText`)), await ev(`document.querySelector('#grow .verdict').innerText`)); await shot('vc-grow');
 await ev(`localStorage.removeItem('aion.grow')`);
+{ const em = await ev(`document.querySelector('[data-a="entry_multiple"]')?.value`); if (em) { await ev(`(()=>{const x=document.querySelector('[data-a="entry_multiple"]'); x.value='-3'; x.dispatchEvent(new Event('change'))})()`); await sleep(1500);
+  ok('A negative price multiple is refused and the page still shows', (await ev(`document.querySelector('[data-a="entry_multiple"]')?.value`)) === em && await ev(`document.querySelector('.r2')?.innerText.length > 500`)); } }
 await click('[data-tab-btn="deal"]'); await sleep(300); const m1 = await ev(`document.querySelector('.dcol b')?.textContent`); await click('[data-veh="fund"]'); await sleep(1200); ok('Owner type changes returns', m1 !== await ev(`document.querySelector('.dcol b')?.textContent`)); await click('[data-veh="holdco"]'); await sleep(1000);
 await click('[data-tab-btn="overview"]'); await sleep(300);
 // phone width: no page may scroll sideways
@@ -76,7 +78,10 @@ await click('#rp'); await sleep(1500); const seen = new Set(); for (let i = 0; i
 ok('Replay shows every step', seen.size >= 5, [...seen].join(' / ')); ok('Replay shows live work lines', true);
 
 // Proprietary Search
-await click('[data-app="ps"]'); await sleep(1800); await shot('ps-home');
+await click('[data-app="ps"]'); await sleep(1800);
+// the owner list takes a second or two to build on a full workspace: wait for it rather than guess
+for (let i = 0; i < 40 && !(await ev(`!!document.querySelector('#psout .inboxes .inbox') && /confirmed/.test(document.querySelector('.pipe.intent')?.innerText || '')`)); i++) await sleep(250);
+await shot('ps-home');
 ok('One tab: Search & Outreach (no separate Outreach or Documents tab)', await ev(`!document.querySelector('[data-app="out"]') && !document.querySelector('[data-app="docs"]') && /Search & Outreach/.test(document.querySelector('[data-app="ps"]').innerText)`));
 ok('Outreach on the same page, with the inbox each one uses', await ev(`!!document.querySelector('#psout [data-testid="outreach"]') && document.querySelectorAll('#psout .inboxes .inbox').length >= 1`));
 ok('Owner list: one list, no separate partnerships tab', await ev(`!document.querySelector('[data-intrack]') && /confirmed/.test(document.querySelector('.pipe.intent').innerText)`));
@@ -90,7 +95,9 @@ ok('Two sections only: Saved, then All firms', await ev(`document.querySelector(
 ok('All firms: category filters, including the second tier and set-aside firms', await ev(`['all','retail_placement','marketplace'].every(k => !!document.querySelector('[data-incat="'+k+'"]'))`));
 ok('All firms: every row shows a seller-intent rating and can be saved (or is saved / in outreach)', await ev(`[...document.querySelectorAll('[data-testid="all-firms"] ~ .tblw table.intent tr[data-open]')].every(r => /Confirmed|Documented transition|Speculative|No sign yet/.test(r.innerText) && (r.querySelector('[data-insave]') || /Saved|outreach|Draft|Sent|Replied|conversation|Finished|Writing/i.test(r.innerText)))`));
 await click('[data-incat="retail_placement"]'); await sleep(1500); ok('Category filter: only retail placement', await ev(`[...document.querySelectorAll('[data-testid="all-firms"] ~ .tblw table.intent tr[data-open]')].every(r => /Retail placement/.test(r.innerText))`)); await click('[data-incat="all"]'); await sleep(1500);
-{ const row = await ev(`document.querySelector('[data-insave]')?.dataset.insave || ''`), n0 = await ev(`document.querySelectorAll('[data-testid="saved-row"]').length`); if (row) { await click('[data-insave]'); await sleep(1800); ok('Save moves a firm into Saved, with Write outreach there', await ev(`document.querySelectorAll('[data-testid="saved-row"]').length`) === n0 + 1 && await ev(`!!document.querySelector('[data-testid="saved-write"], [data-testid="saved-row"] [data-outopen]')`)); } }
+{ const row = await ev(`document.querySelector('[data-insave]')?.dataset.insave || ''`); if (row) { const n0 = await ev(`document.querySelectorAll('[data-testid="saved-row"]').length`); await click('[data-insave]'); await sleep(1800);
+  ok('Save moves a firm into Saved, with Write outreach there', await ev(`document.querySelectorAll('[data-testid="saved-row"]').length`) === n0 + 1 && await ev(`!!document.querySelector('[data-testid="saved-write"], [data-testid="saved-row"] [data-outopen]')`));
+  await ev(`document.querySelector('[data-unsave="${row}"]')?.click()`); await sleep(1800); ok('remove takes it out of Saved again', await ev(`document.querySelectorAll('[data-testid="saved-row"]').length`) === n0); } }
 ok('Two search modes (firms to buy, brands)', await ev(`document.querySelectorAll('[data-mode]').length`) === 2);
 ok('History lists searches', await ev(`document.querySelectorAll('[data-open]').length`) >= 2);
 await click('[data-mode="target"]'); await sleep(600); ok('Switch to Find firms to buy', await ev(`document.querySelector('[data-mode="target"]').classList.contains('on')`));

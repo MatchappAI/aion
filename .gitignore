@@ -12,3 +12,7 @@ tests/ui/server.log
 NOTES.md
 # AION's private negotiating numbers, playbook and internal docs (see private.example.json). Never committed.
 private/
+
+# local QA pass 2026-11-16: screenshots and notes show real firms, owners and your settings; keep off the public repo
+qa-evidence/
+QA_REPORT.md

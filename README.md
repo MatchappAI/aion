@@ -2,7 +2,7 @@
 
 AION is a permanent-capital holding company that buys founder-owned **ecommerce consulting** firms, buyout first (the whole firm, or a majority stake). This app is its working tool: it finds firms **before** they are marketed for sale, ranks the owners, writes personal outreach that you approve one email at a time, and turns a seller's books into real profit, a price and a plan.
 
-**Buy box (`lib/thesis.mjs`):** US, founder- or family-owned, about $500K–$5M yearly profit (EBITDA; first deals $500K–$2M), roughly 5–150 people. Three segments, in order:
+**Buy box (`lib/thesis.mjs`):** US, founder- or family-owned, about $500K–$5M yearly profit (EBITDA; first deal $500K–$1.5M), roughly 5–150 people. Three segments, in order:
 
 1. **Retail placement:** food and consumer-goods brokers, sales agencies and retail-entry consultants who get brands onto shelves.
 2. **Marketplace agencies:** firms that run brands on Amazon, Walmart.com, Target Plus, TikTok Shop and other marketplaces.

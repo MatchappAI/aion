@@ -15,7 +15,7 @@ const TROUBLE = [
 export function mountHelp(main) {
   main.innerHTML = `<div class="ps help">
     <h1>How to use AION</h1>
-    <p class="lede2">AION buys US ecommerce consulting firms (retail placement, marketplace agencies, strategy and analytics) that make about $500K–$5M a year in profit. Use it to find owners, write to them, and turn a firm’s books into a plan. Everything stays on this computer.</p>
+    <p class="lede2">AION buys US ecommerce consulting firms (retail placement, marketplace agencies, strategy and analytics) that make about $500K–$5M a year in profit (first deal $500K–$1.5M). Use it to find owners, write to them, and turn a firm’s books into a plan. Everything stays on this computer.</p>
     <div class="helpgrid">
       <section class="panel"><h3>1. Find owners <span class="note">Search &amp; Outreach</span></h3><ol>
         <li><b>Owners to contact</b> lists only strong fits: a clear, sourced sign from the last 18 months that the owner wants to sell (said so, retirement, succession, the founder stepping back or having died) or asked for an investor. Seller intent reads <b>Confirmed</b>, <b>Documented transition</b> or <b>Speculative</b>; it is never a made-up probability.</li>
@@ -35,7 +35,7 @@ export function mountHelp(main) {
       <section class="panel"><h3>3. Check a firm’s numbers <span class="note">Value Creation</span></h3><ol>
         <li>Drop in the books: a QuickBooks General Ledger works best; a Profit and Loss or a PDF also works.</li>
         <li>AION shows the firm’s real yearly profit and the changes that would raise it, easiest first.</li>
-        <li>Four tabs: Real profit, Price &amp; returns, Plan, and Questions &amp; checks (the fit with what AION buys and what to ask the seller).</li>
+        <li>Four tabs: Adjusted profit, Price &amp; returns, Plan, and Questions &amp; checks (the fit with what AION buys and what to ask the seller).</li>
         <li>Download a 1-page PDF or Excel file.</li></ol><button class="ghost sm" data-go="vc">Open Value Creation</button></section>
       <section class="panel"><h3>Settings: which AI</h3><ul>
         <li>AION uses Claude Code first. If it runs out, the next option you set up takes over.</li>
