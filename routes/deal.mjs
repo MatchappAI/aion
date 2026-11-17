@@ -22,7 +22,7 @@ export async function dealRoute(req, res, url, p, ctx) {
     if (req.method === 'GET' && p === 'state') return send(res, 200, view());
     if (req.method === 'GET' && p === 'log') return send(res, 200, st.CUR ? readLog(LOGF()).reverse() : []);
     if (req.method === 'GET' && p === 'deals') return send(res, 200, { current: st.CUR, deals: listDeals(), busy: busy(), busyJob: Object.values(jobs).find(j => j.status === 'running' && j.name === 'Analyze')?.id || null });
-    if (req.method === 'GET' && p.startsWith('job/')) return send(res, 200, jobs[p.slice(4)] || { status: 'unknown' });
+    if (req.method === 'GET' && p.startsWith('job/')) return send(res, 200, (Object.hasOwn(jobs, p.slice(4)) && jobs[p.slice(4)]) || { status: 'unknown' });
     // ---- AI engine: whatever the person already has (Claude Code, Codex, or their own API key) ----
     if (req.method === 'GET' && p === 'engine') { const list = await detectEngines(); return send(res, 200, { list, active: await resolveEngine(true), settings: engineSettings(), limits: engineLimits() }); }
     if (req.method === 'GET' && p === 'rows') {
@@ -39,12 +39,17 @@ export async function dealRoute(req, res, url, p, ctx) {
   }
   if (req.method !== 'POST' || !DEAL_POST.has(p)) return false;
   const b = await body(req);
+  // the page says which deal it shows; a change to the open deal from a page showing another one (two tabs) is refused
+  const shown = req.headers['x-aion-deal'];
+  if (shown !== undefined && shown !== (st.CUR || '') && !['deals/select', 'deals/new', 'upload', 'engine/choose', 'engine/key', 'engine/test'].includes(p)) return send(res, 409, { error: 'Another tab opened a different deal. Reload this page to see the deal that is open now.' });
   switch (p) {
     case 'engine/choose': { try { chooseEngine(String(b.engine || 'auto')); } catch (e) { return send(res, 400, { error: e.message }); } return send(res, 200, { active: await resolveEngine(true), settings: engineSettings() }); }
     case 'engine/key': { try { setKey(b.which, b.key); } catch (e) { return send(res, 400, { error: e.message }); } return send(res, 200, { list: await detectEngines(), active: await resolveEngine(true), settings: engineSettings() }); }
-    case 'engine/test': { if (!ENGINES[b.engine]) return send(res, 400, { error: 'Unknown engine' }); try { return send(res, 200, await testEngine(b.engine)); } catch (e) { return send(res, 200, { ok: false, error: String(e.message || e).slice(0, 400) }); } }
+    case 'engine/test': { if (!Object.hasOwn(ENGINES, String(b.engine))) return send(res, 400, { error: 'Unknown engine' }); try { return send(res, 200, await testEngine(b.engine)); } catch (e) { return send(res, 200, { ok: false, error: String(e.message || e).slice(0, 400) }); } }
     case 'upload': {
-      const buf = Buffer.from(b.data, 'base64'); const ext = path.extname(b.filename || '').toLowerCase();
+      const ext = path.extname(String(b.filename || '')).toLowerCase();
+      if (typeof b.data !== 'string' || !b.data) return send(res, 400, { error: 'No file came with the upload. Choose the file again.' });
+      const buf = Buffer.from(b.data, 'base64');
       if (!['.xlsx', '.xls', '.csv', '.pdf'].includes(ext)) return send(res, 400, { error: 'Upload a QuickBooks GL / P&L Detail export (.xlsx, .xls, .csv) or PDF financial statements.' });
       if (busy()) return send(res, 409, { error: 'An analysis is still running. Wait for it to finish, then upload.' });
       const stored = 'upload' + ext;
@@ -99,14 +104,14 @@ export async function dealRoute(req, res, url, p, ctx) {
     case 'subsector': {
       // the user's choice of subsector; kind follows it so the playbook wording matches. Revenue and delivery notes are kept.
       if (!st.CUR || !st.S.industry) return send(res, 400, { error: 'Analyze a company first.' });
-      const sub = b.subsector === 'none' ? null : SUBSECTORS[b.subsector] ? b.subsector : undefined; if (sub === undefined) return send(res, 400, { error: 'Unknown subsector.' });
+      const sub = b.subsector === 'none' ? null : Object.hasOwn(SUBSECTORS, String(b.subsector)) ? b.subsector : undefined; if (sub === undefined) return send(res, 400, { error: 'Unknown subsector.' });
       st.S.industry = { ...st.S.industry, subsector: sub, subsectorSet: true, kind: sub ? kindFor(sub) : 'general' }; persist();
       return send(res, 200, view());
     }
     case 'diligence': {
       // a diligence answer recorded by the user, dated; shown as "From diligence" evidence in the thesis check and tool fit
       if (!st.CUR || !st.S.file) return send(res, 400, { error: 'Open a deal first.' });
-      const Q = DILIGENCE[b.key]; if (!Q) return send(res, 400, { error: 'Unknown question.' });
+      const Q = Object.hasOwn(DILIGENCE, String(b.key)) ? DILIGENCE[b.key] : null; if (!Q) return send(res, 400, { error: 'Unknown question.' });
       st.S.diligence ??= {};
       if (b.value === '' || b.value == null) delete st.S.diligence[b.key];
       else { let v = b.value; if (Q.kind === 'pct') v = Math.min(1, Math.max(0, (+v || 0) / 100)); else if (Q.kind === 'num') v = Math.max(0, +v || 0); else if (!Q.options.some(o => o[0] === v)) return send(res, 400, { error: 'Unknown answer.' });
@@ -129,15 +134,17 @@ export async function dealRoute(req, res, url, p, ctx) {
     }
     case 'answer': {
       const { key, value } = b; const yes = value === true || value === 1 || value === '1';
+      if (typeof key !== 'string' || key.length > 300 || !/^(map:|ops:|owner_acct:)|^(owner_leaving|addbacks|vendors)$/.test(key)) return send(res, 400, { error: 'Unknown question.' });
       st.S.answers = { ...(st.S.answers || {}), [key]: key.startsWith('map:') || key.startsWith('ops:') ? value : yes };
+      if (key.startsWith('ops:') && (value === '' || value == null)) return send(res, 200, view()); // an emptied box changes nothing
       if (key.startsWith('ops:')) {
         const v = Math.max(0, +value || 0); st.S.answers[key] = v; st.S.ops ??= {};
         if (key === 'ops:producers') st.S.ops.producers = v;
         if (key === 'ops:avg_fee') st.S.ops.avg_fee = v;
         if (key === 'ops:hours') { const ks = ['research', 'sourcing', 'outreach', 'crm', 'reporting'], cur = ks.reduce((s, k) => s + (st.S.ops.hours?.[k] || 0), 0); for (const k of ks) st.S.ops.hours[k] = cur ? (st.S.ops.hours[k] || 0) * v / cur : v / ks.length; }
       }
-      if (key.startsWith('map:')) { const acct = key.slice(4); if (st.S.mapping && acct in st.S.mapping && CATEGORIES[value]) { st.S.mapping[acct] = value; st.S.answers[key] = value; } }
-      if (key.startsWith('owner_acct:')) { const acct = key.slice(11); if (st.S.mapping && acct in st.S.mapping) st.S.mapping[acct] = yes ? 'comp_owner' : 'comp_producers'; }
+      if (key.startsWith('map:')) { const acct = key.slice(4); if (st.S.mapping && Object.hasOwn(st.S.mapping, acct) && Object.hasOwn(CATEGORIES, String(value))) { st.S.mapping[acct] = value; st.S.answers[key] = value; } }
+      if (key.startsWith('owner_acct:')) { const acct = key.slice(11); if (st.S.mapping && Object.hasOwn(st.S.mapping, acct)) st.S.mapping[acct] = yes ? 'comp_owner' : 'comp_producers'; }
       // the seller staying does not make profit higher: they are paid the same market salary a hired leader would be
       if (key === 'owner_leaving') { st.S.owner.stays = !yes; st.S.owner.count = Math.max(1, st.S.owner.count || 0); }
       if (key === 'addbacks') for (const a of st.S.addbacks || []) a.accepted = yes;
@@ -145,26 +152,28 @@ export async function dealRoute(req, res, url, p, ctx) {
       persist(); return send(res, 200, view());
     }
     case 'mapping': {
-      if (b.mapping) for (const [k, v] of Object.entries(b.mapping)) if (CATEGORIES[v] && st.S.mapping && k in st.S.mapping) st.S.mapping[k] = v;
+      if (b.mapping && typeof b.mapping === 'object') for (const [k, v] of Object.entries(b.mapping)) if (Object.hasOwn(CATEGORIES, String(v)) && st.S.mapping && Object.hasOwn(st.S.mapping, k)) st.S.mapping[k] = v;
       if (b.signMode) st.S.signMode = b.signMode === 'debit' ? 'debit' : 'natural';
       if (b.confirm != null) { st.S.mappingConfirmed = !!b.confirm; if (!b.confirm) { st.S.normConfirmed = false; st.S.opsConfirmed = false; } }
       persist(); return send(res, 200, view());
     }
     case 'earnings': {
-      if (b.owner) { st.S.owner = { ...st.S.owner, ...Object.fromEntries(Object.entries(b.owner).filter(([k]) => ['marketComp', 'count', 'extraOwnerComp'].includes(k)).map(([k, v]) => [k, Math.max(0, +v || 0)])) }; st.S.owner.count = Math.max(1, Math.round(st.S.owner.count)); }
+      if (b.owner) { st.S.owner = { ...st.S.owner, ...Object.fromEntries(Object.entries(b.owner).filter(([k, v]) => ['marketComp', 'count', 'extraOwnerComp'].includes(k) && String(v ?? '').trim() !== '').map(([k, v]) => [k, Math.max(0, +v || 0)])) }; st.S.owner.count = Math.max(1, Math.round(st.S.owner.count)); }
       if (b.addbacks) for (const a of st.S.addbacks || []) if (a.id in b.addbacks) a.accepted = !!b.addbacks[a.id];
-      if (b.vendors) for (const v of st.S.vendors || []) if (v.id in b.vendors) { const x = b.vendors[v.id]; if ('accepted' in x) v.accepted = !!x.accepted; if ('pct' in x) { v.pct = Math.min(1, Math.max(0, +x.pct || 0)); v.amount = r2(v.spend * v.pct); } }
+      if (b.vendors) for (const v of st.S.vendors || []) if (v.id in b.vendors) { const x = b.vendors[v.id]; if ('accepted' in x) v.accepted = !!x.accepted; if ('pct' in x && x.pct !== '' && x.pct != null) { v.pct = Math.min(1, Math.max(0, +x.pct || 0)); v.amount = r2(v.spend * v.pct); } }
       if (b.confirm != null) st.S.normConfirmed = !!b.confirm;
       persist(); return send(res, 200, view());
     }
     case 'ops': {
-      if (b.ops) { const { hours, ...rest } = b.ops; st.S.ops = { ...st.S.ops, ...Object.fromEntries(Object.entries(rest).map(([k, v]) => [k, +v || 0])), hours: { ...st.S.ops?.hours, ...Object.fromEntries(Object.entries(hours || {}).map(([k, v]) => [k, +v || 0])) } }; }
+      if (b.ops) { const { hours, ...rest } = b.ops; const keep = ([, v]) => String(v ?? '').trim() !== ''; // an emptied box keeps its value
+        st.S.ops = { ...st.S.ops, ...Object.fromEntries(Object.entries(rest).filter(keep).map(([k, v]) => [k, +v || 0])), hours: { ...st.S.ops?.hours, ...Object.fromEntries(Object.entries(hours || {}).filter(keep).map(([k, v]) => [k, +v || 0])) } }; }
       if (b.confirm != null) st.S.opsConfirmed = !!b.confirm;
       persist(); return send(res, 200, view());
     }
     case 'assumptions': {
       const a = b.assumptions || {};
       for (const [k, v] of Object.entries(a)) {
+        if (v === '' || v == null) continue; // an emptied box keeps the last good value instead of becoming 0
         if (k === 'workflows') { for (const w of v) { const t = st.S.assumptions.workflows.find(x => x.key === w.key); if (t) t.saved = Math.min(1, Math.max(0, +w.saved || 0)); } }
         else if (k === 'vehicle') { if (['holdco', 'fund', 'sponsor', 'search', 'sba'].includes(v)) st.S.assumptions.vehicle = v; }
         else if (k === 'stake') { const x = +v; if (x >= 0.5 && x <= 1) st.S.assumptions.stake = x; }
@@ -178,7 +187,7 @@ export async function dealRoute(req, res, url, p, ctx) {
     }
     case 'deals/select': { if (busy()) return send(res, 409, { error: 'An analysis is still running.' }); loadDeal(b.id); return send(res, 200, view()); }
     case 'deals/new': { if (busy()) return send(res, 409, { error: 'An analysis is still running.' }); loadDeal(null); return send(res, 200, view()); }
-    case 'deals/rename': { if (st.CUR && b.name) { st.S.name = String(b.name).slice(0, 80); persist(); } return send(res, 200, view()); }
+    case 'deals/rename': { const name = String(b.name ?? '').trim().slice(0, 80); if (st.CUR && name) { st.S.name = name; persist(); } return send(res, 200, view()); }
     case 'reset': {
       if (busy()) return send(res, 409, { error: 'An analysis is still running.' });
       if (st.CUR) { fs.mkdirSync(ARCHIVE, { recursive: true }); fs.renameSync(D(), path.join(ARCHIVE, st.CUR + '-' + new Date().toISOString().replace(/[:.]/g, '-'))); }

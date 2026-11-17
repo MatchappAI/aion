@@ -40,3 +40,18 @@ test('job locations: US only', () => {
   for (const p of ['Manchester, NH', 'Marshall, TX', 'South Boston, Virginia, United States of America', 'Defiance Plt 2 OH', 'Remote', '']) assert.ok(usPlace(p), p);
   for (const p of ['Slatina Olt', 'Yixing', 'Reynosa, Tamaulipas, Mexico', 'San Isidro, Lima, Peru']) assert.ok(!usPlace(p), p);
 });
+
+// with no internet every source fails: a refresh must keep the signs found earlier, not wipe them, and say it could not read
+test('an offline refresh of signs keeps the earlier signs and reports it', async () => {
+  const { intentScan, forEntity } = await import('../lib/search/radar.mjs');
+  const real = globalThis.fetch; globalThis.fetch = async () => { throw new Error('offline'); };
+  try {
+    const sig = { key: 'retirement', signal: 'retirement', source: 'intent', text: 'Founder says she plans to retire next year', url: 'https://news.example/a', date: '2026-08', direction: 'for', confidence: 'likely' };
+    const e = { id: 'e1', company: 'Acme Retail Partners', website: 'acme-retail-partners.example', scored: true, timing: { signals: [sig] } };
+    const s = { id: 's1', mode: 'target', entities: [e] };
+    await assert.rejects(intentScan([s]), /could be read/);
+    assert.equal(e.timing.signals.length, 1); assert.equal(e.timing.signals[0].source, 'intent');
+    const r = await forEntity('target', { company: 'Acme Retail Partners', website: 'acme-retail-partners.example' }, {});
+    assert.equal(r.unread, true); assert.equal(r.events.length, 0);
+  } finally { globalThis.fetch = real; }
+});

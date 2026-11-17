@@ -18,7 +18,7 @@ const inboxOf = e => String(e || '').split('@')[0];
 // LOI all happen from here, and the results show what's working.
 const esc = v => String(v ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const safeUrl = v => { const u = String(v ?? '').trim(); return /^(https?:\/\/|mailto:|tel:)/i.test(u) ? esc(u) : '#'; };
-const api = async (p, b) => { const r = await fetch('/api/' + p, b === undefined ? {} : { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(b) }); const j = await r.json().catch(() => ({})); if (!r.ok) throw new Error(j.error || `Request failed (${r.status})`); return j; };
+const api = async (p, b) => { const r = await fetch('/api/' + p, b === undefined ? {} : { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(b) }).catch(() => { throw new Error('AION isn’t answering. Is it still running?'); }); const j = await r.json().catch(() => ({})); if (!r.ok) throw new Error(j.error || `Request failed (${r.status})`); return j; };
 const day = d => d ? new Date(d).toLocaleDateString(undefined, { month: 'short', day: 'numeric' }) : '';
 const when = d => d ? new Date(d).toLocaleString(undefined, { weekday: 'short', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }) : '';
 const how = t => `<p class="howline"><b>How this works:</b> ${t}</p>`;
@@ -101,8 +101,8 @@ async function draw() {
   q('#oopenset') && (q('#oopenset').onclick = () => { const d = q('[data-testid="out-senders"]'); d.open = true; d.scrollIntoView({ behavior: 'smooth', block: 'start' }); });
   q('#oqueue') && (q('#oqueue').onclick = () => { O.queue = reviews.map(x => x.id); O.view = 'item'; O.id = O.queue[0]; O.kind = null; draw(); });
   $$('[data-conn]').forEach(b => b.onclick = async () => { try { const r = await api('outreach/connect', { email: b.dataset.conn }); if (r.url) { window.open(r.url, '_blank'); toast(`Sign in as ${b.dataset.conn} in the browser tab and allow Gmail and Calendar, then come back.`); pollAccounts(); } else draw(); } catch (e) { toast(e.message, 'err'); } });
-  $$('[data-disc]').forEach(b => b.onclick = async () => { if (!confirm(`Disconnect ${b.dataset.disc}? AION won’t be able to send from it or see replies.`)) return; await api('outreach/disconnect', { email: b.dataset.disc }); draw(); });
-  $$('[data-default]').forEach(b => b.onclick = async () => { await api('outreach/settings', { defaultSender: b.dataset.default }); draw(); });
+  $$('[data-disc]').forEach(b => b.onclick = async () => { if (!confirm(`Disconnect ${b.dataset.disc}? AION won’t be able to send from it or see replies.`)) return; try { await api('outreach/disconnect', { email: b.dataset.disc }); } catch (e) { toast(e.message, 'err'); } draw(); });
+  $$('[data-default]').forEach(b => b.onclick = async () => { try { await api('outreach/settings', { defaultSender: b.dataset.default }); } catch (e) { toast(e.message, 'err'); } draw(); });
   q('#oset').onsubmit = async ev => { ev.preventDefault(); const f = new FormData(ev.target); try { await api('outreach/settings', { ...Object.fromEntries(f), followUpDays: String(f.get('followUpDays')).split(/[ ,]+/).filter(Boolean).map(Number) }); toast('Saved'); draw(); } catch (e) { toast(e.message, 'err'); } };
   if (writing.length) O.timer = setTimeout(draw, 3000);
 }
@@ -208,13 +208,14 @@ async function drawItem() {
   const guard = fn => async ev => { const el = ev.currentTarget; if (el.disabled) return; el.disabled = true; try { await fn(ev); } finally { el.disabled = false; } };
   const act = async (fn, ok) => { try { await fn(); if (ok) toast(ok); drawItem(); } catch (e) { toast(e.message, 'err'); drawItem(); } };
   q('#oback').onclick = back;
-  q('#onextq') && (q('#onextq').onclick = () => { O.id = nextQ; O.kind = null; O.slots = null; drawItem(); });
-  $$('[data-pitch]').forEach(b => b.onclick = () => { if (b.classList.contains('on')) return; act(() => api('outreach/rewrite', { id: it.id, pitch: b.dataset.pitch }), `Rewriting every draft as ${PITCH[b.dataset.pitch].toLowerCase()}`); });
+  q('#onextq') && (q('#onextq').onclick = () => { if (!leaveOk()) return; O.id = nextQ; O.kind = null; O.slots = null; drawItem(); });
+  $$('[data-pitch]').forEach(b => b.onclick = () => { if (b.classList.contains('on') || !leaveOk()) return; act(() => api('outreach/rewrite', { id: it.id, pitch: b.dataset.pitch }), `Rewriting every draft as ${PITCH[b.dataset.pitch].toLowerCase()}`); });
   q('#orewrite') && (q('#orewrite').onclick = () => act(() => api('outreach/rewrite', { id: it.id }), 'Writing the drafts again'));
   q('#oallsig') && (q('#oallsig').onclick = () => { O.allSig = true; drawItem(); });
-  $$('[data-kind]').forEach(b => b.onclick = () => { O.kind = b.dataset.kind; drawItem(); });
-  const edits = () => ({ id: it.id, kind: O.kind, body: q('#obody')?.value, ...(q('#osubj') ? { subject: q('#osubj').value } : {}), ...(q('#oto') ? { to: q('#oto').value } : {}), ...(q('#ofrom') ? { sender: q('#ofrom').value } : {}) });
-  const saveEdits = async () => { if (q('#obody')) { await api('outreach/edit', edits()); O.dirty = false; } };
+  $$('[data-kind]').forEach(b => b.onclick = () => { if (b.dataset.kind === O.kind || !leaveOk()) return; O.kind = b.dataset.kind; drawItem(); });
+  const base = { body: d?.body, subject: d?.subject }; // what this page started from (the server refuses a save if another tab changed it since)
+  const edits = () => ({ id: it.id, kind: O.kind, was: base, body: q('#obody')?.value, ...(q('#osubj') ? { subject: q('#osubj').value } : {}), ...(q('#oto') ? { to: q('#oto').value } : {}), ...(q('#ofrom') ? { sender: q('#ofrom').value } : {}) });
+  const saveEdits = async () => { if (q('#obody')) { const r = await api('outreach/edit', edits()); Object.assign(base, { body: r.drafts?.[O.kind]?.body, subject: r.drafts?.[O.kind]?.subject }); O.dirty = false; } };
   // unsaved typing in a draft: the browser asks before a reload or close throws it away
   O.dirty = false; ['#obody', '#osubj'].forEach(s => q(s) && q(s).addEventListener('input', () => { O.dirty = true; }));
   q('#osave') && (q('#osave').onclick = () => act(saveEdits, 'Saved'));
@@ -225,7 +226,7 @@ async function drawItem() {
   q('#ounsched') && (q('#ounsched').onclick = () => act(() => api('outreach/unschedule', { id: it.id, kind: O.kind }), 'Cancelled'));
   ['#oto', '#ofrom'].forEach(s => q(s) && (q(s).onchange = () => act(saveEdits)));
   q('#ofind') && (q('#ofind').onclick = ev => { ev.target.disabled = true; ev.target.textContent = 'Looking…'; act(() => api('outreach/find-email', { id: it.id }), 'Done: see the address above'); });
-  q('#onote') && (q('#onote').onclick = () => { O.kind = 'form'; draw(); });
+  q('#onote') && (q('#onote').onclick = () => { if (!leaveOk()) return; O.kind = 'form'; draw(); });
   O.main.querySelectorAll('[data-uselikely]').forEach(b => b.onclick = () => act(() => api('outreach/edit', { id: it.id, to: b.dataset.uselikely }), 'Using the likely address. Read the draft before sending.'));
   q('#osend') && (q('#osend').onclick = guard(async () => {
     try { await saveEdits(); const p = await api('outreach/confirm', { id: it.id, action: 'step', kind: O.kind }); if (!p.ok) { toast(p.problems[0], 'err'); return drawItem(); }
@@ -236,7 +237,7 @@ async function drawItem() {
   q('#ocopy') && (q('#ocopy').onclick = async () => { await navigator.clipboard.writeText(q('#obody').value).catch(() => {}); toast('Copied'); });
   q('#omark') && (q('#omark').onclick = () => { const note = prompt(O.kind === 'call' ? 'How did the call go? (optional)' : 'Any note? (optional)'); if (note === null) return; act(async () => { await saveEdits(); await api('outreach/done', { id: it.id, kind: O.kind, note }); }, 'Marked done'); });
   q('#oanswer') && (q('#oanswer').onclick = ev => { ev.target.disabled = true; ev.target.textContent = 'Writing…'; act(async () => { await api('outreach/answer', { id: it.id }); O.kind = 'answer'; }); });
-  q('#oansend') && (q('#oansend').onclick = async () => { try { await saveEdits(); const p = await api('outreach/confirm', { id: it.id, action: 'answer' }); if (!p.ok) { toast(p.problems[0], 'err'); return drawItem(); } if (!confirm(`Send your reply now?\n\nFrom: ${p.from}\nTo: ${p.to}\nSubject: ${p.subject}\n\n${p.body.slice(0, 1200)}`)) return; q('#oansend').disabled = true; await api('outreach/answer-send', { id: it.id, confirmed: true, token: p.token }); O.kind = null; toast('Reply sent'); drawItem(); } catch (e) { toast(e.message, 'err'); } });
+  q('#oansend') && (q('#oansend').onclick = guard(async () => { try { await saveEdits(); const p = await api('outreach/confirm', { id: it.id, action: 'answer' }); if (!p.ok) { toast(p.problems[0], 'err'); return drawItem(); } if (!confirm(`Send your reply now?\n\nFrom: ${p.from}\nTo: ${p.to}\nSubject: ${p.subject}\n\n${p.body.slice(0, 1200)}`)) return; q('#oansend').disabled = true; await api('outreach/answer-send', { id: it.id, confirmed: true, token: p.token }); O.kind = null; toast('Reply sent'); drawItem(); } catch (e) { toast(e.message, 'err'); } }));
   q('#oloadslots') && (q('#oloadslots').onclick = ev => { ev.target.disabled = true; ev.target.textContent = 'Checking your calendars…'; act(async () => { O.slots = await api('outreach/slots'); }); });
   q('#orebook') && (q('#orebook').onclick = () => act(async () => { O.slots = await api('outreach/slots'); await api('outreach/edit', { id: it.id, clearCall: true }); }));
   q('#obook') && (q('#obook').onclick = guard(async () => {
@@ -249,7 +250,7 @@ async function drawItem() {
   $$('[data-stage]').forEach(b => b.onclick = () => { const note = prompt('Note for the deal history (optional)'); if (note === null) return; act(() => api('outreach/stage', { id: it.id, stage: b.dataset.stage, note }), 'Deal stage updated'); });
   $$('[data-docmake]').forEach(b => b.onclick = () => { b.disabled = true; b.textContent = 'Writing…'; act(() => api('outreach/doc', { id: it.id, kind: b.dataset.docmake })); });
   $$('[data-docsave]').forEach(b => b.onclick = () => act(() => api('outreach/doc-edit', { id: it.id, kind: b.dataset.docsave, body: q(`[data-doc="${b.dataset.docsave}"]`).value }), 'Saved'));
-  $$('[data-docsend]').forEach(b => b.onclick = async () => { const k = b.dataset.docsend; try { await api('outreach/doc-edit', { id: it.id, kind: k, body: q(`[data-doc="${k}"]`).value }); const p = await api('outreach/confirm', { id: it.id, action: 'doc', kind: k }); if (!p.ok) { toast(p.problems[0], 'err'); return drawItem(); } if (!confirm(`Email the ${k === 'request' ? 'books request' : `${D[k].title} as a PDF`} to ${p.to} from ${p.from}?`)) return; b.disabled = true; b.textContent = 'Sending…'; await api('outreach/doc-send', { id: it.id, kind: k, confirmed: true, token: p.token }); toast('Sent'); drawItem(); } catch (e) { toast(e.message, 'err'); drawItem(); } });
+  $$('[data-docsend]').forEach(b => b.onclick = guard(async () => { const k = b.dataset.docsend; try { await api('outreach/doc-edit', { id: it.id, kind: k, body: q(`[data-doc="${k}"]`).value }); const p = await api('outreach/confirm', { id: it.id, action: 'doc', kind: k }); if (!p.ok) { toast(p.problems[0], 'err'); return drawItem(); } if (!confirm(`Email the ${k === 'request' ? 'books request' : `${D[k].title} as a PDF`} to ${p.to} from ${p.from}?`)) return; b.disabled = true; b.textContent = 'Sending…'; await api('outreach/doc-send', { id: it.id, kind: k, confirmed: true, token: p.token }); toast('Sent'); drawItem(); } catch (e) { toast(e.message, 'err'); drawItem(); } }));
   q('#ogovc') && (q('#ogovc').onclick = () => document.querySelector('[data-app="vc"]')?.click());
   q('#oloadfiles') && (q('#oloadfiles').onclick = async ev => {
     ev.target.disabled = true; ev.target.textContent = 'Checking…';
@@ -262,9 +263,12 @@ async function drawItem() {
         } catch (e) { toast(e.message, 'err'); b.disabled = false; b.textContent = 'Open in Value Creation'; } });
     } catch (e) { toast(e.message, 'err'); ev.target.disabled = false; ev.target.textContent = 'Check the thread for files'; }
   });
-  q('#ofinish') && (q('#ofinish').onclick = async () => { await api('outreach/finish', { id: it.id, why: 'Finished by you' }); back(); });
-  q('#odel') && (q('#odel').onclick = async () => { if (!confirm('Delete this outreach and its drafts?')) return; await api('outreach/delete', { id: it.id }); back(); });
+  q('#ofinish') && (q('#ofinish').onclick = async () => { try { await api('outreach/finish', { id: it.id, why: 'Finished by you' }); O.dirty = false; back(); } catch (e) { toast(e.message, 'err'); } });
+  q('#odel') && (q('#odel').onclick = async () => { if (!confirm('Delete this outreach and its drafts?')) return; try { await api('outreach/delete', { id: it.id }); O.dirty = false; back(); } catch (e) { toast(e.message, 'err'); } });
 }
-function back() { if (O.dirty && !confirm('Leave this draft? Your unsaved edits will be lost.')) return; O.dirty = false; O.view = 'board'; O.id = null; O.allSig = false; O.slots = null; O.queue = null; draw(); }
+// unsaved typing in a draft: Back, another draft tab, Next draft, a new offer or another top tab ask first
+const leaveOk = () => !O.dirty || confirm('Leave this draft? Your unsaved edits will be lost.');
+export function outreachLeaveOk() { if (!leaveOk()) return false; O.dirty = false; return true; }
+function back() { if (!leaveOk()) return; O.dirty = false; O.view = 'board'; O.id = null; O.allSig = false; O.slots = null; O.queue = null; draw(); }
 
 window.addEventListener('beforeunload', e => { if (typeof O !== 'undefined' && O.dirty) { e.preventDefault(); e.returnValue = ''; } });

@@ -66,8 +66,10 @@ let CUR = null, S = fresh(), ROWS = [], CHECK = [];
 const D = () => path.join(DEALS, CUR);
 const LOGF = () => CUR ? path.join(D(), 'runlog.jsonl') : null;
 const persist = () => { if (CUR) save(path.join(D(), 'state.json'), S); };
+// a deal id is a folder name made by newId(); anything else ("..", a path) is treated as no deal
+const isDealId = id => typeof id === 'string' && /^d[a-z0-9]{4,20}$/.test(id);
 function loadDeal(id) {
-  if (!id || !fs.existsSync(path.join(DEALS, id))) { CUR = null; S = fresh(); ROWS = []; CHECK = []; save(CUR_F, {}); return; }
+  if (!isDealId(id) || !fs.existsSync(path.join(DEALS, id))) { CUR = null; S = fresh(); ROWS = []; CHECK = []; save(CUR_F, {}); return; }
   CUR = id; S = load(path.join(D(), 'state.json'), fresh()); ROWS = load(path.join(D(), 'gl.json'), []); CHECK = load(path.join(D(), 'checkin.json'), []);
   S.assumptions = { ...structuredClone(DEFAULT_ASSUMPTIONS), ...(S.assumptions || {}) };
   delete S.assumptions.extra_client_searches;
@@ -675,7 +677,7 @@ const hashInputs = () => JSON.stringify([S.ops, S.assumptions, S.owner, (S.addba
 // ---------- http ----------
 const MIME = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript', '.css': 'text/css', '.png': 'image/png', '.svg': 'image/svg+xml', '.json': 'application/json' };
 const send = (res, code, body, type = 'application/json') => { res.writeHead(code, { 'Content-Type': type, 'Cache-Control': 'no-store' }); res.end(type === 'application/json' ? JSON.stringify(body) : body); };
-const body = req => new Promise((ok, bad) => { let b = ''; req.on('data', d => { b += d; if (b.length > 120e6) { bad(new Error('File too large')); req.destroy(); } }); req.on('end', () => { try { ok(b ? JSON.parse(b) : {}); } catch (e) { bad(e); } }); });
+const body = req => new Promise((ok, bad) => { let b = ''; req.on('data', d => { b += d; if (b.length > 120e6) { bad(new Error('File too large')); req.destroy(); } }); req.on('end', () => { try { const v = b ? JSON.parse(b) : {}; ok(v && typeof v === 'object' && !Array.isArray(v) ? v : {}); } catch (e) { bad(e); } }); });
 
 // what routes/outreach.mjs needs; the open deal is read live (loadDeal replaces S and CUR)
 const OUTCTX = { savedAll: () => savedAll(), send, body, OUT, GMAIL, CONFIRM, ownerList: () => ownerList(), outreachReady: () => outreachReady(), letterHtml: (...a) => letterHtml(...a), outreachPdf: (...a) => outreachPdf(...a), PORT, SRUN, loadSearch, MODELS, ROOTWS, finderKeys: () => finderKeys(), busy: () => busy(), loadDeal: id => loadDeal(id), derive: () => derive(), persist: () => persist(), deal: { cur: () => CUR, S: () => S } };

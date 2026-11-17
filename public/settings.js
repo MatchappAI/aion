@@ -2,7 +2,7 @@
 import { toast, busy } from './ui.js';
 const $ = s => document.querySelector(s);
 const esc = v => String(v ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
-const api = async (p, b) => { const r = await fetch('/api/' + p, b === undefined ? {} : { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(b) }); const j = await r.json(); if (!r.ok) throw new Error(j.error || 'Request failed'); return j; };
+const api = async (p, b) => { const r = await fetch('/api/' + p, b === undefined ? {} : { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(b) }).catch(() => { throw new Error('AION isn’t answering. Is it still running?'); }); const j = await r.json(); if (!r.ok) throw new Error(j.error || 'Request failed'); return j; };
 
 const HOW = {
   'claude-code': 'Uses your Claude plan. Install Claude Code and log in once in a terminal (run “claude”).',

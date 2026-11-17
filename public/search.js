@@ -5,7 +5,7 @@ const $ = s => document.querySelector(s);
 const esc = v => String(v ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 // links that come from web pages: only web, email and phone addresses become clickable
 const safeUrl = v => { const u = String(v ?? '').trim(); return /^(https?:\/\/|mailto:|tel:)/i.test(u) ? esc(u) : '#'; };
-const api = async (p, b) => { const r = await fetch('/api/' + p, b === undefined ? {} : { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(b) }); const j = await r.json(); if (!r.ok) throw new Error(j.error || 'Request failed'); return j; };
+const api = async (p, b) => { const r = await fetch('/api/' + p, b === undefined ? {} : { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(b) }).catch(() => { throw new Error('AION isn’t answering. Is it still running?'); }); const j = await r.json(); if (!r.ok) throw new Error(j.error || 'Request failed'); return j; };
 const host = u => { try { return new URL(u).hostname.replace(/^www\./, ''); } catch { return u; } };
 const ago = d => new Date(d).toLocaleString(undefined, { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' });
 const day = d => new Date(d).toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
@@ -42,7 +42,7 @@ async function draw() {
   let hist = [], W = [], NS = { people: 0, companies: 0 }, SRC = [], PL = { stages: [], deals: [] }, RD = { events: [], scans: [] }, TD = { list: [], total: 0 }, IN = { list: [], counts: {} };
   // each list loads on its own: one that fails says so (with Try again) instead of blanking every list or showing first-run help
   const failed = [], got = (p, pick, label, dflt) => api(p).then(x => pick ? pick(x) : x).catch(() => { failed.push(label); return dflt; });
-  [hist, PL, RD, W, NS, SRC, IN] = await Promise.all([got('search/list', x => x.searches, 'searches', []), got('search/pipeline', null, 'deal pipeline', PL), got('search/radar', null, 'brand radar', RD), got('search/watches', x => x.watches, 'watchlists', []), got('search/network', x => x.stats, 'network', NS), got('search/sources', x => x.sources, 'data sources', []), got('search/intent', null, 'owner list', IN)]);
+  [hist, PL, RD, W, NS, SRC, IN] = await Promise.all([got('search/list', x => x.searches, 'searches', []), got('search/pipeline', null, 'deal pipeline', PL), got('search/radar', null, 'brand radar', RD), got('search/watches', x => x.watches, 'watchlists', []), got('search/network?stats=1', x => x.stats, 'network', NS), got('search/sources', x => x.sources, 'data sources', []), got('search/intent', null, 'owner list', IN)]);
   const M = MODES[P.mode], on = SRC.filter(x => x.status === 'connected').length;
   document.body.dataset.firstrun = failed.length || (IN.list || []).length || hist.length ? '' : '1'; // first run: Start here and the search box come first
   const sum = [[hist.length, 'searches'], [hist.reduce((t, h) => t + (h.raw || 0), 0), 'pages read'], [(NS.people || 0) + (NS.companies || 0) + (NS.targets || 0), 'people and companies found'], [hist.reduce((t, h) => t + (h.contacts || 0), 0), 'verified contacts']];

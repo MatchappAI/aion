@@ -2,7 +2,7 @@ import { mountSearch, leaveSearch } from './search.js';
 import { toast, busy, keyboardAccess } from './ui.js';
 import { mountSettings, leaveSettings } from './settings.js';
 import { mountHelp } from './help.js';
-import { mountOutreach, leaveOutreach } from './outreach.js';
+import { mountOutreach, leaveOutreach, outreachLeaveOk } from './outreach.js';
 import { THESIS, PRICE, marketRange, SUBSECTORS, TOOLKIT, STATUS, DILIGENCE, REVENUE_MODELS, diligenceFor, valueBuckets, hundredDays, revenueMix } from '/thesis.mjs';
 const $ = s => document.querySelector(s);
 const esc = v => String(v ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -15,7 +15,8 @@ const num = (v, d = 0) => v == null || isNaN(v) ? '—' : (+v).toLocaleString(un
 
 let V = null, page = 'upload', running = null, mode = 'simple', replay = null, tab = 'overview', appMode = (() => { try { return localStorage.getItem('aion.app') || 'ps'; } catch { return 'ps'; } })();
 const api = async (p, b) => {
-  const r = await fetch('/api/' + p, b === undefined ? {} : { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(b) });
+  // X-Aion-Deal: the deal this page shows, so a change never lands on a deal another tab opened since
+  const r = await fetch('/api/' + p, b === undefined ? {} : { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Aion-Deal': DL.current || '' }, body: JSON.stringify(b) }).catch(() => { throw new Error('AION isn’t answering. Is it still running?'); });
   const j = await r.json(); if (!r.ok || (j.error && !p.startsWith('job/'))) throw new Error(j.error || 'Request failed'); return j;
 };
 let DL = { deals: [] };
@@ -44,10 +45,10 @@ function nav() {
   $('#nav').innerHTML = STEPS.map(([k, l, n]) => `<a data-p="${k}" class="${page === k ? 'on' : ''} ${isDone(k) ? 'done' : ''} ${unlocked(k) ? '' : 'locked'}"><span class="n">${n}</span>${l}</a>`).join('')
     + `<div class="sep"></div><a data-p="log" class="${page === 'log' ? 'on' : ''}"><span class="n">≡</span>Run log</a>`
     + `<div class="sep"></div><a id="backSimple"><span class="n">←</span>Back to summary</a>`
-    + `<div class="foot">Runs on this Mac. Files stay in <code>demo/workspace/</code>. Only the prompts in the Run log are sent to Claude, via your Claude Code.<br><br><span class="link" id="resetBtn">Start over (archives workspace)</span></div>`;
+    + `<div class="foot">Runs on this Mac. Files stay in <code>demo/workspace/</code>. Only the prompts in the Run log are sent to Claude, via your Claude Code.<br><br><span class="link" id="resetBtn">Close this deal (its files move to the archive)</span></div>`;
   document.querySelectorAll('#nav a[data-p]').forEach(a => a.onclick = () => { if (unlocked(a.dataset.p)) { page = a.dataset.p; render(); } });
   $('#backSimple').onclick = () => { mode = 'simple'; render(); };
-  $('#resetBtn').onclick = async () => { if (confirm('Archive the current workspace and start over? Nothing is deleted.')) { await api('reset', {}); refresh('upload'); } };
+  $('#resetBtn').onclick = async () => { if (confirm('Close this deal? Its files move to the archive folder; nothing is deleted.')) { await api('reset', {}); refresh('upload'); } };
   const S = V?.state || {};
   $('#status').innerHTML = S.file ? `<span class="pill">${esc(S.file.name)}</span>` : '';
 }
@@ -59,7 +60,7 @@ function mountPS() {
   mountOutreach($('#psout'), { embedded: true }); mountSearch($('#psown'));
 }
 window.addEventListener('aion:outopen', () => { if (appMode !== 'ps') { appMode = 'ps'; render(); } else mountOutreach($('#psout'), { embedded: true }); window.scrollTo(0, 0); });
-document.querySelectorAll('[data-app]').forEach(b => b.onclick = () => { if (appMode === b.dataset.app) return; appMode = b.dataset.app; try { localStorage.setItem('aion.app', appMode); } catch {}
+document.querySelectorAll('[data-app]').forEach(b => b.onclick = () => { if (appMode === b.dataset.app) return; if (appMode === 'ps' && !outreachLeaveOk()) return; appMode = b.dataset.app; try { localStorage.setItem('aion.app', appMode); } catch {}
   // Outreach can open a seller's books (a new deal) while you are away: re-read the open deal before showing Value Creation
   if (appMode === 'vc' && !running && !replay) return Promise.all([api('state'), api('deals')]).then(([v, dl]) => { const was = DL.current; V = v; DL = dl; if (DL.current !== was) { const st = V.derived.stage; page = st === 'levers' ? 'levers' : st; mode = 'simple'; } render(); if (DL.busyJob) pollAll(DL.busyJob); }).catch(() => render());
   render(); });
@@ -246,7 +247,7 @@ function pEarnings() {
   $('#xo').onchange = e => post({ owner: { extraOwnerComp: e.target.value } });
   document.querySelectorAll('[data-ab]').forEach(c => c.onchange = () => post({ addbacks: { [c.dataset.ab]: c.checked } }));
   document.querySelectorAll('[data-vd]').forEach(c => c.onchange = () => post({ vendors: { [c.dataset.vd]: { accepted: c.checked } } }));
-  document.querySelectorAll('[data-vp]').forEach(c => c.onchange = () => post({ vendors: { [c.dataset.vp]: { pct: c.value / 100 } } }));
+  document.querySelectorAll('[data-vp]').forEach(c => c.onchange = () => String(c.value).trim() === '' ? render() : post({ vendors: { [c.dataset.vp]: { pct: c.value / 100 } } }));
   document.querySelectorAll('[data-ids]').forEach(l => l.onclick = () => rowsModal(l.dataset.t, { ids: l.dataset.ids }));
   document.querySelectorAll('[data-cat]').forEach(l => l.onclick = () => rowsModal(V.categories[l.dataset.cat].label, { category: l.dataset.cat }));
   document.querySelectorAll('#ab').forEach(b => b.onclick = () => runJob('ai/addbacks', 'Finding one-off costs and risks', V.models.analysis, 'earnings'));
@@ -340,8 +341,8 @@ function pLevers() {
   </table></div><div class="row" style="margin-top:8px"><span class="link" id="rs">Put the guesses back to the defaults</span></div></div></div>
   </div>
   <div class="row" style="margin-top:18px"><button id="toPlan">Next: the step-by-step plan →</button></div>`;
-  document.querySelectorAll('[data-as]').forEach(i => i.onchange = async () => { const v = i.dataset.t === 'pct' ? i.value / 100 : i.value; V = await api('assumptions', { assumptions: { [i.dataset.as]: v } }); render(); });
-  document.querySelectorAll('[data-wf]').forEach(i => i.onchange = async () => { V = await api('assumptions', { assumptions: { workflows: [{ key: i.dataset.wf, saved: i.value / 100 }] } }); render(); });
+  document.querySelectorAll('[data-as]').forEach(i => i.onchange = async () => { if (String(i.value).trim() === '') return render(); const v = i.dataset.t === 'pct' ? i.value / 100 : i.value; V = await api('assumptions', { assumptions: { [i.dataset.as]: v } }); render(); });
+  document.querySelectorAll('[data-wf]').forEach(i => i.onchange = async () => { if (String(i.value).trim() === '') return render(); V = await api('assumptions', { assumptions: { workflows: [{ key: i.dataset.wf, saved: i.value / 100 }] } }); render(); });
   $('#rs').onclick = async () => { V = await api('assumptions', { reset: true }); render(); };
   $('#toPlan').onclick = () => { page = 'plan'; render(); };
 }
@@ -549,7 +550,7 @@ function simple() {
   document.querySelectorAll('.yn button, .yn2 button, .acount').forEach(b => b.onclick = async () => { V = await api('answer', { key: b.dataset.k, value: b.dataset.v === '1' }); render(); });
   document.querySelectorAll('[data-num]').forEach(i => i.onchange = async () => { V = await api('answer', { key: i.dataset.num, value: +i.value }); render(); });
   document.querySelectorAll('[data-sel]').forEach(x => x.onchange = async () => { V = await api('answer', { key: x.dataset.sel, value: x.value }); render(); });
-  document.querySelectorAll('[data-a]').forEach(x => x.onchange = async () => { const v = x.dataset.p ? x.value / 100 : x.value; V = await api('assumptions', { assumptions: { [x.dataset.a]: v } }); render(); });
+  document.querySelectorAll('[data-a]').forEach(x => x.onchange = async () => { if (String(x.value).trim() === '') return render(); const v = x.dataset.p ? x.value / 100 : x.value; V = await api('assumptions', { assumptions: { [x.dataset.a]: v } }); render(); });
   document.querySelectorAll('[data-xpick]').forEach(b => b.onclick = () => main.querySelector(`[data-xfile="${b.dataset.xpick}"]`).click());
   document.querySelectorAll('[data-xfile]').forEach(i => i.onchange = () => sendExtra(i.dataset.xfile, i.files[0]));
   document.querySelectorAll('[data-xrm]').forEach(l => l.onclick = async () => { V = await api('extra', { type: l.dataset.xrm, remove: true }); render(); });
@@ -562,7 +563,7 @@ function simple() {
   $('#ind').onclick = async () => { const nm = prompt('What kind of business is this? (e.g. retail placement firm, Amazon marketplace agency, ecommerce analytics consultancy)', V.profile?.name || ''); if (!nm || nm.trim() === V.profile?.name) return; try { V = await api('industry', { name: nm }); startAll(); } catch (e) { showError(e.message); } };
   document.querySelectorAll('[data-tab-btn]').forEach(b => b.onclick = () => { tab = b.dataset.tabBtn; main.querySelector('.r2').dataset.show = tab; document.querySelectorAll('[data-tab-btn]').forEach(x => x.classList.toggle('on', x === b)); window.scrollTo({ top: 0 }); });
   document.querySelectorAll('[data-go-tab]').forEach(b => b.onclick = () => main.querySelector(`[data-tab-btn="${b.dataset.goTab}"]`)?.click());
-  if ($('#xls')) $('#xls').onclick = () => busy($('#xls'), 'Building…', async () => { try { const r = await fetch('/api/excel', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' }); if (!r.ok) throw new Error((await r.json()).error); const url = URL.createObjectURL(await r.blob()); const a = document.createElement('a'); a.href = url; a.download = `AION ${S.name || 'analysis'}.xlsx`; a.click(); } catch (e) { showError(e.message); } });
+  if ($('#xls')) $('#xls').onclick = () => busy($('#xls'), 'Building…', async () => { try { const r = await fetch('/api/excel', { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Aion-Deal': DL.current || '' }, body: '{}' }); if (!r.ok) throw new Error((await r.json()).error); const url = URL.createObjectURL(await r.blob()); const a = document.createElement('a'); a.href = url; a.download = `AION ${S.name || 'analysis'}.xlsx`; a.click(); } catch (e) { showError(e.message); } });
   if ($('#oc-go')) $('#oc-go').onclick = runOutside;
   document.querySelectorAll('[data-cfile]').forEach(i => i.onchange = () => sendCheckin(i.files[0]));
   document.querySelectorAll('[data-cpick]').forEach(b => b.onclick = () => main.querySelector('[data-cfile]').click());
@@ -570,7 +571,7 @@ function simple() {
   const cz = main.querySelector('[data-cdrop]'); if (cz) { cz.ondragover = e => { e.preventDefault(); cz.classList.add('over'); }; cz.ondragleave = () => cz.classList.remove('over'); cz.ondrop = e => { e.preventDefault(); cz.classList.remove('over'); sendCheckin(e.dataTransfer.files[0]); }; }
   if ($('#price-rev')) $('#price-rev').onclick = async () => { V = await api('assumptions', { assumptions: { price_basis: 'revenue' } }); render(); };
   $('#rp').onclick = startReplay;
-  $('#pdf').onclick = () => busy($('#pdf'), 'Building…', async () => { try { const r = await fetch('/api/pdf', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' }); if (!r.ok) throw new Error((await r.json()).error); const url = URL.createObjectURL(await r.blob()); const a = document.createElement('a'); a.href = url; a.download = 'AION summary.pdf'; a.click(); } catch (e) { showError(e.message); } });
+  $('#pdf').onclick = () => busy($('#pdf'), 'Building…', async () => { try { const r = await fetch('/api/pdf', { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Aion-Deal': DL.current || '' }, body: '{}' }); if (!r.ok) throw new Error((await r.json()).error); const url = URL.createObjectURL(await r.blob()); const a = document.createElement('a'); a.href = url; a.download = 'AION summary.pdf'; a.click(); } catch (e) { showError(e.message); } });
   $('#rerun').onclick = async () => { if (!confirm('Run the AI again? Saved answers are replaced, so numbers may change.')) return; try { const { job } = await api('ai/all', { fresh: true }); pollAll(job); } catch (e) { showError(e.message); } };
   $('#math').onclick = () => { mode = 'detail'; page = 'levers'; render(); };
   $('#log').onclick = () => { mode = 'detail'; page = 'log'; render(); };
@@ -769,7 +770,7 @@ async function pollAll(job) {
         continue;
       }
       V = await api('state'); if (j.status === 'done') { running.detail = j.detail || running.detail; running.target = 5; while (running.step < 5) await new Promise(r => setTimeout(r, 100)); await new Promise(r => setTimeout(r, 3000)); } running = null; DL = await api('deals'); render();
-      if (j.status === 'error') showError(/session limit|usage limit|rate limit/i.test(j.error) ? 'Analysis stopped: the AI hit its usage limit (' + j.error.replace(/^.*?·\s*/, '') + '). Add a backup AI in Settings, or click Analyze the books again later.' : 'Analysis stopped: ' + j.error + ' See “What the AI was sent” for details.');
+      if (j.status === 'error') showError(/session limit|usage limit|rate limit/i.test(j.error) ? 'Analysis stopped: the AI hit its usage limit (' + j.error.replace(/^.*?·\s*/, '') + '). Add a backup AI in Settings, or click Analyze the books again later.' : 'Analysis stopped: ' + j.error + ($('#log') ? ' See “Details: every request sent to the AI” for the exact request.' : ''));
       return;
     }
   } finally { clearInterval(timer); }
@@ -781,7 +782,7 @@ function tabs() {
     + `<button class="tab new ${!DL.current ? 'on' : ''}" id="newdeal">+ New deal</button>`;
   el.querySelectorAll('.tab[data-id]').forEach(b => {
     b.onclick = async () => { if (lock || b.dataset.id === DL.current) return; try { V = await api('deals/select', { id: b.dataset.id }); DL = await api('deals'); mode = 'simple'; render(); } catch (e) { showError(e.message); } };
-    b.ondblclick = async () => { if (b.dataset.id !== DL.current) return; const n = prompt('Name this deal', DL.deals.find(d => d.id === b.dataset.id)?.name || ''); if (n) { V = await api('deals/rename', { name: n }); DL = await api('deals'); render(); } };
+    b.ondblclick = async () => { if (b.dataset.id !== DL.current) return; const n = prompt('Name this deal', DL.deals.find(d => d.id === b.dataset.id)?.name || '')?.trim(); if (n) { V = await api('deals/rename', { name: n }); DL = await api('deals'); render(); } };
   });
   { const on = el.querySelector('.tab.on'); if (on) { const a = el.getBoundingClientRect(), t = on.getBoundingClientRect(); if (t.right > a.right - 110) el.scrollLeft += t.right - a.right + 130; else if (t.left < a.left) el.scrollLeft -= a.left - t.left + 24; } } // keep the open deal's tab in view (+ New deal stays pinned on the right)
   $('#newdeal').onclick = async () => { if (lock) return; try { V = await api('deals/new', {}); DL = await api('deals'); mode = 'simple'; render(); } catch (e) { showError(e.message); } };
