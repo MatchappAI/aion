@@ -30,7 +30,9 @@ ws.onmessage = async m => {
   }
 };
 // a page call that never answers (a stuck dialog, a crashed tab) is reported instead of hanging the run
-const ev = async expr => (await Promise.race([send('Runtime.evaluate', { expression: expr, awaitPromise: true, returnByValue: true }), sleep(20000).then(() => { errs.push('TIMEOUT: the page did not answer in 20 s'); return {}; })])).result?.value;
+// (the timer is cleared when the page answers: a timer left running would log a false timeout 20 s later)
+const ev = async expr => { let t; const late = new Promise(r => { t = setTimeout(() => { errs.push('TIMEOUT: the page did not answer in 20 s'); r({}); }, 20000); });
+  try { return (await Promise.race([send('Runtime.evaluate', { expression: expr, awaitPromise: true, returnByValue: true }), late])).result?.value; } finally { clearTimeout(t); } };
 await send('Runtime.enable'); await send('Log.enable'); await send('Page.enable');
 // downloads (PDF, Excel) are refused, so a crawl never drops files in ~/Downloads; the files themselves are checked by run.mjs and flows.mjs
 await send('Page.setDownloadBehavior', { behavior: 'deny' });
