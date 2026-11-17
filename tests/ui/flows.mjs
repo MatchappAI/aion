@@ -51,6 +51,17 @@ if (pick) {
   await click(`#psout [data-open="${pick.id}"]`, 1500);
   await click('[data-kind="email"]', 800);
   ok('Outreach item: first email draft with Send', await ev(`!!document.querySelector('#osend') && !!document.querySelector('#obody')`));
+  // unsaved typing: another draft tab or another top tab asks first; Cancel keeps you on the draft (pass 2)
+  await ev(`(()=>{const b=document.querySelector('#obody'); b.value=b.value+' unsaved'; b.dispatchEvent(new Event('input'))})()`);
+  dialogs = []; acceptDialogs = false; await click('[data-kind="followup1"]', 800);
+  ok('Unsaved edit: another draft tab asks first, Cancel stays', dialogs.length === 1 && await ev(`document.querySelector('.dtabs .on')?.dataset.kind`) === 'email', dialogs[0]);
+  dialogs = []; await click('[data-app="vc"]', 1200);
+  ok('Unsaved edit: another top tab asks first, Cancel stays', dialogs.length === 1 && await ev(`document.querySelector('[data-app].on')?.dataset.app`) === 'ps', dialogs[0]);
+  // a save from an older copy of the draft (another tab saved since) is refused, not overwritten
+  { const d0 = (await call(APP, `outreach/item?id=${pick.id}`)).json.drafts.email; await call(APP, 'outreach/edit', { id: pick.id, kind: 'email', body: d0.body + ' (other tab)' });
+    dialogs = []; await click('#osave', 1200); ok('Two tabs: saving an older copy is refused with a message', /another tab/.test(await toasts()) && /\(other tab\)$/.test((await call(APP, `outreach/item?id=${pick.id}`)).json.drafts.email.body), await toasts());
+    await call(APP, 'outreach/edit', { id: pick.id, kind: 'email', body: d0.body }); }
+  acceptDialogs = true; await go(APP, 'ps'); await click(`#psout [data-open="${pick.id}"]`, 1500); await click('[data-kind="email"]', 800);
   dialogs = []; acceptDialogs = false; await click('#osend', 1500);
   ok('Send asks for your OK first (From, To, Subject and the text)', dialogs.length === 1 && /From:/.test(dialogs[0]) && /To:/.test(dialogs[0]) && /Subject:/.test(dialogs[0]), dialogs[0]?.slice(0, 120));
   ok('Saying no sends nothing', ((await call(APP, `outreach/item?id=${pick.id}`)).json.messages || []).length === 0);
