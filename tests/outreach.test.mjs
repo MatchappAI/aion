@@ -438,7 +438,7 @@ test('scheduled sends: approved now, sent when due; a follow-up waits for the fi
   OUT.schedule(it6.id, 'email', soon, { confirmed: true });
   OUT.editItem(it6.id, { kind: 'email', body: 'A different body written after approving.' });
   assert.equal(await OUT.runScheduled(new Date(Date.now() + 10 * 60_000)), 0);
-  assert.match(OUT.get(it6.id).scheduled.email.held, /Edited after you approved/);
+  assert.match(OUT.get(it6.id).scheduled.email.held, /Changed after you approved/);
 });
 
 test('outreach settings refuse a typo instead of turning it into 1 day or 1 email', () => {
