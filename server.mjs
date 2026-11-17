@@ -136,7 +136,9 @@ function derive() {
     out.extraLevers = ex; out.levers.runRate = r2(out.levers.runRate + ex.reduce((t, x) => t + x.value, 0));
     // industry moves: the AI picks the lever and size; software prices it from this company's accounts, with caps
     const IM = S.industryPlan?.moves || [], acct = S.industryPlan?.acct || {}, acctN = S.industryPlan?.acctN || {}, rev = (ttm.netRevenue ?? ttm.revenue) || 1, gm = rev ? (rev - (ttm.netDirect ?? ttm.direct)) / rev : 0, comm = S.ops?.commission_rate || 0;
-    const vendAccts = new Set((S.vendors || []).filter(v => v.accepted && v.account).map(v => v.account)); // already counted as supplier savings
+    // already counted as supplier savings: the vendor's account, and the accounts of every payment matched to it by payee
+    const rowById = new Map(ROWS.map(r => [r.id, r]));
+    const vendAccts = new Set((S.vendors || []).filter(v => v.accepted).flatMap(v => [v.account, ...(v.ids || []).map(i => rowById.get(i)?.account)]).filter(Boolean));
     out.industryLevers = IM.map((mv, i) => {
       const accts = (mv.accounts || []).filter(k => k in acct); let base = accts.reduce((t, k) => t + Math.abs(acct[k]), 0);
       let value = 0, basis = '';
@@ -196,11 +198,15 @@ function derive() {
     out.unpriceable = short || (S.assumptions.price_basis === 'revenue' ? !(ttm.netRevenue > 0) : out.normalization.normalized <= 0);
     out.unpriceableWhy = short ? 'short' : out.unpriceable ? 'loss' : null; out.monthsCovered = per.monthsCovered;
     out.deal = out.unpriceable ? null : dealReturns(out.normalization.normalized, L.runRate, dealInputs(out), ttm.netRevenue);
+    if (out.deal && out.deal.warn && S.assumptions.vehicle === 'sba' && (out.deal.none.minDscr ?? 0) < 1.15) out.deal.warn.push(`SBA lenders want profit to cover loan payments at least 1.15 times; with no changes it covers ${out.deal.none.minDscr ?? '—'} times, so this loan would likely be smaller.`);
+    // months inside the last 12 with nothing booked: profit for the year is understated (or the books are incomplete)
+    if (S.file.kind === 'gl') { const seen = new Set(ROWS.map(r => String(r.date).slice(0, 7))); out.missingMonths = []; for (let m = per.ttm.from; m <= per.ttm.to; m = (([y, mo]) => mo === 12 ? `${y + 1}-01` : `${y}-${String(mo + 1).padStart(2, '0')}`)(m.split('-').map(Number))) if (!seen.has(m)) out.missingMonths.push(m);
+      if (out.deal && out.missingMonths.length) out.deal.warn = [...(out.deal.warn || []), `No entries at all in ${out.missingMonths.join(', ')}: the year's profit is likely understated. Ask for the full ledger.`]; }
   }
   if (out.deal) {
     // three cases, weighted by how well each number is backed: from the books counts most, guesses least
     const acts = actionList(out).filter(x => x.value > 0), aiCost = 0;
-    const W = { 'From the books': [0.8, 1, 1.2], Confirmed: [0.8, 1, 1.2], 'From the sales file': [0.7, 1, 1.2], 'From the payroll file': [0.7, 1, 1.2], 'Benchmark gap': [0.6, 1, 1.3] };
+    const W = { 'From the books': [0.8, 1, 1.2], Confirmed: [0.8, 1, 1.2], 'Estimate on the books': [0.6, 1, 1.2], 'From the sales file': [0.7, 1, 1.2], 'From the payroll file': [0.7, 1, 1.2], 'Benchmark gap': [0.6, 1, 1.3] };
     out.cases = ['Cautious', 'Expected', 'Stretch'].map((name, k) => { const gain = r2(acts.reduce((t, x) => t + x.value * (W[x.sure] || [0.5, 1, 1.3])[k], 0) - aiCost); const r = dealReturns(out.normalization.normalized, gain, dealInputs(out), ttm.netRevenue); return { name, gain, ebitda: r2(out.normalization.normalized + gain), value: r2(gain * (out.deal.ebitdaMultiple ?? out.deal.multiple)), moic: r.base.net.moic, irr: r.base.net.irr }; });
   }
   if (CHECK.length && out.monthly && out.deal) out.checkin = checkinAnalysis(out);
@@ -516,7 +522,7 @@ const AI = {
     const used = new Set(), byId = new Map(ROWS.map(r => [r.id, r]));
     S.addbacks = (data.addbacks || []).filter(inEbitda).map((a, i) => { const m = matchRows(ROWS, a, S.mapping, S.signMode, per.ttm); const ids = m.ids.filter(x => { const r = byId.get(x); return r && S.mapping[r.account] !== 'comp_owner' && !used.has(x); }); ids.forEach(x => used.add(x));
       return { ...a, id: 'ab' + i, amount: r2(ids.reduce((t, x) => { const r = byId.get(x); return t + rowValue(r, S.mapping[r.account] || 'other_opex', S.signMode); }, 0)), ids, accepted: false }; }).filter(a => a.ids.length && a.amount);
-    S.vendors = (data.vendors || []).map((v, i) => { const m = matchRows(ROWS, v, S.mapping, S.signMode, per.ttm); const pct = Math.min(0.5, Math.max(0, +v.suggested_savings_pct || 0)); return { ...v, id: 'v' + i, spend: m.amount, ids: m.ids, pct, amount: r2(m.amount * pct), accepted: false }; }).filter(v => v.ids.length);
+    S.vendors = (data.vendors || []).map((v, i) => { const m = matchRows(ROWS, v, S.mapping, S.signMode, per.ttm); const pct = Math.min(0.3, Math.max(0, +v.suggested_savings_pct || 0)); /* an AI-suggested saving, capped at 30% */ return { ...v, id: 'v' + i, spend: m.amount, ids: m.ids, pct, amount: r2(m.amount * pct), accepted: false }; }).filter(v => v.ids.length);
     S.flags = (data.flags || []).map(f => ({ ...f, title: String(f?.title || f?.label || f?.text || "").trim() })).filter(f => f.title); // the AI sometimes says "label"
     S.normConfirmed = false;
   },
@@ -645,8 +651,8 @@ function checkinAnalysis(d) {
 function actionList(d) {
   const L = d.levers, a = S.assumptions, lev = k => (S.plan?.levers || []).find(l => l.key === k), out = [];
   if (L.nonAI.pricing > 0) out.push({ title: 'Raise prices on new work to close half the margin gap to peers', value: L.nonAI.pricing, basis: L.nonAI.pricingBasis, owner: 'Owner and sales lead', sure: 'Benchmark gap', steps: lev('pricing')?.steps, kpis: [`Average fee per ${profile(S).job || 'client'}`, 'Win rate on proposals'] });
-  if (L.nonAI.writeoffs > 0) out.push({ title: 'Bill on time and chase late invoices', value: L.nonAI.writeoffs, basis: 'Ledger write-offs × reduction (assumption)', owner: 'Office manager', sure: 'From the books', steps: ['Send every bill the day the work is done', 'Automatic reminders at 15 and 30 days', 'Weekly review of anything over 45 days'], kpis: ['Days to get paid', 'Write-offs'] });
-  if (L.nonAI.vendors > 0) out.push({ title: 'Cut supplier and tool costs', value: L.nonAI.vendors, basis: 'Ledger spend × saving (confirmed)', owner: 'Owner', sure: 'Confirmed', steps: lev('vendors')?.steps, kpis: ['Supplier spend as a share of sales'] });
+  if (L.nonAI.writeoffs > 0) out.push({ title: 'Bill on time and chase late invoices', value: L.nonAI.writeoffs, basis: 'Ledger write-offs × reduction (assumption)', owner: 'Office manager', sure: 'Estimate on the books', steps: ['Send every bill the day the work is done', 'Automatic reminders at 15 and 30 days', 'Weekly review of anything over 45 days'], kpis: ['Days to get paid', 'Write-offs'] });
+  if (L.nonAI.vendors > 0) out.push({ title: 'Cut supplier and tool costs', value: L.nonAI.vendors, basis: 'Ledger spend you confirmed × the AI’s suggested saving', owner: 'Owner', sure: 'Estimate on the books', steps: lev('vendors')?.steps, kpis: ['Supplier spend as a share of sales'] });
   for (const x of d.extraLevers || []) out.push(x.id === 'discounts' ? { title: `Bring ${x.basis.count} customers up to normal prices`, value: x.value, basis: 'Sales file: half the measured price gap', owner: 'Owner', sure: 'From the sales file', steps: ['Review each discounted account with the owner', 'Move to normal prices at renewal, with notice', 'Approve any discount left in writing'], kpis: ['Average price vs. normal price'] } : { title: 'Cut overtime with better scheduling', value: x.value, basis: 'Payroll file: overtime × share moved to regular hours', owner: 'Operations lead', sure: 'From the payroll file', steps: ['See who works the most overtime, and why', 'Plan the week ahead and spread the work', 'Approve overtime in advance'], kpis: ['Overtime pay per month'] });
   for (const x of (d.industryLevers || []).filter(y => y.value > 0)) out.push({ title: x.title, value: x.value, basis: x.basis, owner: x.owner, sure: x.sure, steps: x.steps, kpis: x.kpis });
   for (const x of (d.ecomLevers || []).filter(y => y.counted && y.value > 0)) out.push({ title: x.title, value: x.value, basis: x.basis, owner: 'Owner and bookkeeper', sure: x.sure, steps: x.steps, kpis: x.kpis });

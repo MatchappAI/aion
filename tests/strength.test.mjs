@@ -51,7 +51,7 @@ test('strong fit = clear evidence and not outside the buy box; owner and email s
   const base = { company: 'Shelf Co', website: 'https://shelfco.com', score: 70, industry: 'Retail placement brokerage for CPG brands', location: 'Richmond, VA', size: '12 employees', ownership: 'Founder-owned', owner: 'Jane Roe' };
   const S = rankOne({ ...base, timing: { signals: [{ ...sig('retirement'), signal: 'retirement', url: 'https://shelfco.com/news', date: '2026-08' }] } });
   assert.equal(S.box.status, 'in', S.box.reasons.join()); assert.equal(S.strongFit, true); assert.equal(S.offer, 'full');
-  const G = rankOne({ ...base, timing: { signals: [{ ...sig('recap_interest'), signal: 'recap_interest', text: 'Open to investors to fund the next stage', date: '2026-08' }] } });
+  const G = rankOne({ ...base, timing: { signals: [{ ...sig('recap_interest'), signal: 'recap_interest', text: 'Open to investors to fund the next stage', url: 'https://shelfco.com/about', date: '2026-08' }] } });
   assert.equal(G.strongFit, true); assert.equal(G.offer, 'partner', 'they asked for investors: a partnership');
   const F = rankOne({ ...base, timing: { signals: [{ ...sig('fast_growth'), signal: 'fast_growth', date: '2026-08' }] } });
   assert.equal(F.strongFit, false, 'a fast-growth list alone is only supporting');

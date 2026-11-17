@@ -20,6 +20,7 @@ const api = async (p, b) => {
   const j = await r.json(); if (!r.ok || (j.error && !p.startsWith('job/'))) throw new Error(j.error || 'Request failed'); return j;
 };
 let DL = { deals: [] };
+let A_SEQ = 0, A_CHAIN = Promise.resolve(); // number-box changes, sent in order
 async function refresh(go) { V = await api('state'); DL = await api('deals'); if (go) page = go; render(); }
 
 // four steps: Upload → Real profit → Price & returns → Questions (the existing pages, grouped)
@@ -522,6 +523,7 @@ function simple() {
       <div class="dbars">${dbar('if the actions work', D.base, 'up')}${dbar('if nothing changes', D.none, 'flat')}${dbar(`if profit falls ${Math.round((D.downsideDrop ?? 0.15) * 100)}% and the firm is valued ${Math.round((D.downsideExitCut ?? 0) * 100)}% lower`, D.downside, 'down')}</div>
       <p class="dnote">${vehNote(D)}</p>
       ${D.sba ? '' : dealTerms(S, D)}
+      ${(D.warn || []).map(w => `<p class="dnote dwarn">${esc(w)}</p>`).join('')}
       <p class="dnext"><b>Offer about ${k$(D.price)}</b> once an accountant confirms the profit. ${(S.assumptions.vehicle || 'holdco') === 'holdco' ? `<b>Walk away above ${k$(n.normalized * PRICE.cap)}</b> (${PRICE.cap} years of profit, AION’s limit). Anything more is paid only as an earnout: later, and only if profit holds.${marketRange(n.normalized) ? ` <span class="note">${esc(marketRange(n.normalized).note)}</span>` : ''}` : `<b>Walk away above ${k$(n.normalized * 5)}</b> (5 years of profit, the top of the usual range for a business this size).`}</p>
       </section>` : ''}
 
@@ -551,7 +553,8 @@ function simple() {
   document.querySelectorAll('.yn button, .yn2 button, .acount').forEach(b => b.onclick = async () => { V = await api('answer', { key: b.dataset.k, value: b.dataset.v === '1' }); render(); });
   document.querySelectorAll('[data-num]').forEach(i => i.onchange = async () => { V = await api('answer', { key: i.dataset.num, value: +i.value }); render(); });
   document.querySelectorAll('[data-sel]').forEach(x => x.onchange = async () => { V = await api('answer', { key: x.dataset.sel, value: x.value }); render(); });
-  document.querySelectorAll('[data-a]').forEach(x => x.onchange = async () => { if (String(x.value).trim() === '') return render(); const v = x.dataset.p ? x.value / 100 : x.value; V = await api('assumptions', { assumptions: { [x.dataset.a]: v } }); render(); });
+  document.querySelectorAll('[data-a]').forEach(x => x.onchange = () => { if (String(x.value).trim() === '') return render(); const v = x.dataset.p ? x.value / 100 : x.value; const my = ++A_SEQ;
+    A_CHAIN = A_CHAIN.then(() => api('assumptions', { assumptions: { [x.dataset.a]: v } })).then(r => { if (my === A_SEQ) { V = r; render(); } }).catch(e => toast(e.message, 'err')); });
   document.querySelectorAll('[data-xpick]').forEach(b => b.onclick = () => main.querySelector(`[data-xfile="${b.dataset.xpick}"]`).click());
   document.querySelectorAll('[data-xfile]').forEach(i => i.onchange = () => sendExtra(i.dataset.xfile, i.files[0]));
   document.querySelectorAll('[data-xrm]').forEach(l => l.onclick = async () => { V = await api('extra', { type: l.dataset.xrm, remove: true }); render(); });
@@ -675,7 +678,7 @@ function topActions(S, d) {
   }
   if (L.nonAI.writeoffs > 0 || d.cashRelease > 0) {
     const bad = d.pnl.TTM.byCat?.bad_debt || 0;
-    out.push({ id: 'billing', kind: 'Business', owner: 'Office manager', sure: 'From the books', sureWhy: 'write-offs and payment times come straight from the books', kpis: ['Days to get paid', 'Money owed over 45 days', 'Write-offs'], value: L.nonAI.writeoffs || 0, score: (L.nonAI.writeoffs || 0) + ((L.nonAI.writeoffs || 0) ? 0 : (d.cashRelease || 0) * 0.15), short: 'Bill on time, chase late invoices', title: 'Bill on time and chase late invoices',
+    out.push({ id: 'billing', kind: 'Business', owner: 'Office manager', sure: 'Estimate on the books', sureWhy: 'write-offs and payment times come from the books; the share cut is your assumption', kpis: ['Days to get paid', 'Money owed over 45 days', 'Write-offs'], value: L.nonAI.writeoffs || 0, score: (L.nonAI.writeoffs || 0) + ((L.nonAI.writeoffs || 0) ? 0 : (d.cashRelease || 0) * 0.15), short: 'Bill on time, chase late invoices', title: 'Bill on time and chase late invoices',
       extra: d.cashRelease ? `plus ${k$(d.cashRelease)} cash, once` : '',
       proof: [d.dso != null ? `clients take about <b>${Math.round(d.dso)} days</b> to pay` : '', bad ? `<b>${k$(bad)}</b> written off last year` : ''].filter(Boolean).join(' · '),
       steps: LEVER_STEPS.billing, gate: lev('writeoffs')?.human_gate, ...BUILDS.billing });
@@ -765,12 +768,14 @@ async function simpleUpload(f) {
     V = res; DL = await api('deals'); startAll();
   } catch (e) { render(); showError(e.message); }
 }
+// a running analysis or a Replay redraws Value Creation only while you are on it: never the Search & Outreach page you're typing in
+const renderVC = () => { if (appMode === 'vc') render(); };
 async function startAll() { try { const { job } = await api('ai/all', {}); pollAll(job); } catch (e) { showError(e.message); } }
 async function pollAll(job) {
-  running = { all: true, job, step: 0, target: 0, t0: Date.now(), lastStep: Date.now() }; render();
+  running = { all: true, job, step: 0, target: 0, t0: Date.now(), lastStep: Date.now() }; renderVC();
   const timer = setInterval(() => {
     if (!running) return; const c = $('#clock'); if (c) c.textContent = ((Date.now() - running.t0) / 1000).toFixed(0) + 's';
-    if (running.step < running.target && Date.now() - running.lastStep > 1200) { running.step++; running.lastStep = Date.now(); render(); }
+    if (running.step < running.target && Date.now() - running.lastStep > 1200) { running.step++; running.lastStep = Date.now(); renderVC(); }
   }, 100);
   try {
     for (;;) {
@@ -782,7 +787,7 @@ async function pollAll(job) {
         if ((j.detail || []).length !== (running.detail || []).length) { running.detail = j.detail; const f = $('#feed'); if (f) f.innerHTML = feedRows(running.detail); }
         continue;
       }
-      V = await api('state'); if (j.status === 'done') { running.detail = j.detail || running.detail; running.target = 5; while (running.step < 5) await new Promise(r => setTimeout(r, 100)); await new Promise(r => setTimeout(r, 3000)); } running = null; DL = await api('deals'); render();
+      V = await api('state'); if (j.status === 'done') { running.detail = j.detail || running.detail; running.target = 5; while (running.step < 5) await new Promise(r => setTimeout(r, 100)); await new Promise(r => setTimeout(r, 3000)); } running = null; DL = await api('deals'); renderVC();
       if (j.status === 'error') showError(/session limit|usage limit|rate limit/i.test(j.error) ? 'Analysis stopped: the AI hit its usage limit (' + j.error.replace(/^.*?·\s*/, '') + '). Add a backup AI in Settings, or click Analyze the books again later.' : 'Analysis stopped: ' + j.error + ($('#log') ? ' See “Details: every request sent to the AI” for the exact request.' : ''));
       return;
     }
@@ -805,7 +810,7 @@ async function startReplay() {
   const S = V.state, log = S.runLog || [];
   if (!log.length) { showError('This run has no recorded steps. Use “Run the AI again” once to record them.'); return; }
   const total = log[log.length - 1].t, speed = total > 30 ? total / 30 : 1;
-  replay = { step: 0, clock: '0s', detail: [] }; const DET = S.runDetail || []; render(); window.scrollTo(0, 0);
+  replay = { step: 0, clock: '0s', detail: [] }; const DET = S.runDetail || []; renderVC(); window.scrollTo(0, 0);
   const stepOf = e => e.step ?? (/^Done/.test(e.text) ? 5 : /Opened the file|Checked the books|^Read |payments|Statement/.test(e.text) ? 0 : /Sorted|sorted|Profit|profit/.test(e.text) ? 1 : /one-off|won’t pay|Team:|risks|things to check/.test(e.text) ? 2 : /Priced|earn/.test(e.text) ? 3 : 4);
   // a step is finished once its last logged line has passed; the next step then shows as current
   const ends = [0, 1, 2, 3, 4].map(k => { const xs = log.filter(e => stepOf(e) === k); return xs.length ? xs[xs.length - 1].t : null; });
@@ -817,11 +822,11 @@ async function startReplay() {
       if (!replay) { clearInterval(iv); return done(); }
       const el = (Date.now() - t0) / 1000 * speed;
       let st = 0; while (st < 5 && (ends[st] == null || ends[st] <= el)) st++;
-      replay.clock = Math.min(el, total).toFixed(0) + 's'; const shownD = DET.filter(x => x.t <= el); const dChanged = shownD.length !== replay.detail.length; replay.detail = shownD; if (st !== replay.step) { replay.step = st; render(); } else { const c = $('#clock'); if (c) c.textContent = replay.clock; if (dChanged) { const f = $('#feed'); if (f) f.innerHTML = feedRows(replay.detail); } }
-      if (el >= total2) { clearInterval(iv); replay.step = 5; render(); setTimeout(done, 3000); }
+      replay.clock = Math.min(el, total).toFixed(0) + 's'; const shownD = DET.filter(x => x.t <= el); const dChanged = shownD.length !== replay.detail.length; replay.detail = shownD; if (st !== replay.step) { replay.step = st; renderVC(); } else { const c = $('#clock'); if (c) c.textContent = replay.clock; if (dChanged) { const f = $('#feed'); if (f) f.innerHTML = feedRows(replay.detail); } }
+      if (el >= total2) { clearInterval(iv); replay.step = 5; renderVC(); setTimeout(done, 3000); }
     }, 250);
   });
-  replay = null; render(); window.scrollTo({ top: 0, behavior: 'smooth' });
+  replay = null; renderVC(); window.scrollTo({ top: 0, behavior: 'smooth' });
 }
 
 function howBlock(S, d) {
@@ -993,7 +998,7 @@ function queueRows(S, d, acts) {
   return rows.sort((a, b) => (b.priced - a.priced) || (b.ease ?? -1) - (a.ease ?? -1) || a.weeks - b.weeks);
 }
 // Realistic EBITDA: each lever is risk-adjusted by how well its number is backed, and ramps up over 13 weeks after it goes live.
-const REALIZE = { 'From the books': 0.9, Confirmed: 0.9, 'From the sales file': 0.8, 'From the payroll file': 0.8, 'Benchmark gap': 0.7 };
+const REALIZE = { 'From the books': 0.9, Confirmed: 0.9, 'Estimate on the books': 0.8, 'From the sales file': 0.8, 'From the payroll file': 0.8, 'Benchmark gap': 0.7 };
 const RAMP_WEEKS = 13, LANES = 2;
 function schedule(rows) {
   const lanes = Array(LANES).fill(0);
