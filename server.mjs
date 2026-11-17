@@ -107,7 +107,16 @@ function derive() {
   out.dso = out.quality ? dso(out.quality.ar, ttm.revenue) : null;
   // no owner on the payroll in published statements (e.g. a public company): management is already paid, so no replacement salary
   const noOwner = S.file.kind === 'pdf' && !ttm.byCat.comp_owner && !S.owner.extraOwnerComp;
-  out.normalization = normalize(ttm, S.addbacks || [], noOwner ? { ...S.owner, count: 0 } : S.owner);
+  // an add-back counted from payments on an account you later sorted as owner pay is already added back as owner pay:
+  // only the payments still outside owner pay count (otherwise the same pay is added back twice)
+  const byRow = new Map(ROWS.map(r => [r.id, r]));
+  const addbacks = (S.addbacks || []).map(a => {
+    const rows = (a.ids || []).map(i => byRow.get(i)).filter(Boolean); if (!rows.length) return a;
+    const keep = rows.filter(r => S.mapping?.[r.account] !== 'comp_owner'); if (keep.length === rows.length) return a;
+    const tot = rows.reduce((t, r) => t + Math.abs(r.amount), 0), part = keep.reduce((t, r) => t + Math.abs(r.amount), 0);
+    return { ...a, amount: tot ? a.amount * part / tot : 0, ids: keep.map(r => r.id), nowOwnerPay: true };
+  });
+  out.normalization = normalize(ttm, addbacks, noOwner ? { ...S.owner, count: 0 } : S.owner);
   out.noOwnerAdjustment = noOwner;
   if (S.file.kind === 'gl') {
     out.monthly = monthlySeries(ROWS, S.mapping, S.signMode, S.range, S.parse?.opening || {});
@@ -219,6 +228,7 @@ function limits(d) {
   }
   if (S.range) { const per = periods(S.range); if (per.monthsCovered < 12) L.push(`Only ${per.monthsCovered} month${per.monthsCovered === 1 ? '' : 's'} of data: profit covers ${per.monthsCovered} month${per.monthsCovered === 1 ? '' : 's'}, not a full year.`); else if (S.range.start > per.prior.from + '-01') L.push('Only one year of data, so we can’t see growth or which clients come back. Ask the seller for 3 years.'); }
   if (S.file?.kind === 'pdf' && S.pdfDropped?.length) L.push(`Skipped ${S.pdfDropped.join(', ')}: it overlaps a later column, so counting it would add the same months twice.`);
+  if (S.file?.kind === 'pdf' && S.pdfInterim?.length) L.push(`Not priced: ${S.pdfInterim.join(', ')} (part of a year). The price uses the last full year; add the same months of the year before to get a trailing 12 months.`);
   return L;
 }
 
@@ -459,6 +469,9 @@ const AI = {
     const per = (data.periods || []).filter(p => /^\d{4}-\d{2}-\d{2}$/.test(p.end));
     // CIMs often show full years plus a trailing-12-month column: never count overlapping periods twice.
     { const kept = nonOverlappingPeriods(per); S.pdfDropped = per.filter(p => !kept.includes(p)).map(p => p.label); per.splice(0, per.length, ...kept); }
+    // a part-year column (H1, 9 months, YTD) is booked on its end date, so it would land in the same 12 months as the last full
+    // year and be counted as part of one year (18 months as 12). With at least one full year, price on the full years only.
+    { const full = per.filter(p => !(+p.months > 0 && +p.months < 12)); S.pdfInterim = full.length && full.length < per.length ? per.filter(p => !full.includes(p)).map(p => p.label) : []; if (S.pdfInterim.length) per.splice(0, per.length, ...full); }
     if (!per.length || !data.lines?.length) throw new Error('No income-statement lines with dated periods were extracted. Check the PDF in the run log.');
     // safety net: a statement whose only revenue (or cost of revenue) line is a "Total ..." line must not lose it
     S.pdfFixed = [];

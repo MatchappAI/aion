@@ -13,6 +13,7 @@ import { readLog } from '../lib/claude.mjs';
 import { printPdf } from '../lib/printpdf.mjs';
 import { detect as detectEngines, resolve as resolveEngine, settings as engineSettings, choose as chooseEngine, setKey, test as testEngine, ENGINES, limits as engineLimits } from '../lib/engine.mjs';
 
+const TERM_RANGE = { earnout_share: [0, 0.5], seller_share: [0, 0.6], note_rate: [0, 0.2], note_standby_years: [0, 5], note_pik: [0, 1], note_amort_years: [1, 10], senior_rate: [0, 0.25], senior_multiple: [0, 5], overhead: [0, 5e6], seller_ebitda: [0, 1e9], downside_drop: [0, 0.9], downside_exit_cut: [0, 0.9] };
 export const DEAL_POST = new Set(['engine/choose', 'engine/key', 'engine/test', 'upload', 'ai/classify', 'ai/addbacks', 'ai/ops', 'ai/plan', 'ai/all', 'extra', 'ai/outside', 'checkin', 'industry', 'subsector', 'diligence', 'mask', 'excel', 'pdf', 'answer', 'mapping', 'earnings', 'ops', 'assumptions', 'deals/select', 'deals/new', 'deals/rename', 'reset']);
 
 /** Handles a Value Creation request. Returns true when it answered, false when the server should carry on. */
@@ -175,9 +176,11 @@ export async function dealRoute(req, res, url, p, ctx) {
       for (const [k, v] of Object.entries(a)) {
         if (v === '' || v == null) continue; // an emptied box keeps the last good value instead of becoming 0
         if (k === 'workflows') { for (const w of v) { const t = st.S.assumptions.workflows.find(x => x.key === w.key); if (t) t.saved = Math.min(1, Math.max(0, +w.saved || 0)); } }
-        else if (k === 'vehicle') { if (['holdco', 'fund', 'sponsor', 'search', 'sba'].includes(v)) st.S.assumptions.vehicle = v; }
+        else if (k === 'vehicle') { if (['holdco', 'fund', 'sponsor', 'search', 'sba', 'aion'].includes(v)) st.S.assumptions.vehicle = v; }
         else if (k === 'stake') { const x = +v; if (x >= 0.5 && x <= 1) st.S.assumptions.stake = x; }
-        else if (k === 'price_basis') { if (['ebitda', 'revenue'].includes(v)) st.S.assumptions.price_basis = v; }
+        else if (k === 'price_basis') { if (['ebitda', 'revenue', 'seller_ebitda'].includes(v)) st.S.assumptions.price_basis = v; }
+        // deal terms with a sensible range: anything outside keeps the last good value
+        else if (k in TERM_RANGE) { const x = +v, [lo, hi] = TERM_RANGE[k]; if (Number.isFinite(x) && x >= lo && x <= hi) st.S.assumptions[k] = k === 'note_pik' ? (x ? 1 : 0) : x; }
         else if (k === 'deal_form') { if (['asset', 'stock', 'f_reorg'].includes(v)) st.S.assumptions.deal_form = v; }
         else if (k === 'fee_rate') { const x = +v; if (x >= 0 && x <= 0.3) st.S.assumptions.fee_rate = x; }
         else if (k in DEFAULT_ASSUMPTIONS) { const x = +v; if (Number.isFinite(x) && x >= 0 && !(/_multiple$/.test(k) && x <= 0)) st.S.assumptions[k] = x; } // a typo or a negative number keeps the last good value; a price multiple must be above 0

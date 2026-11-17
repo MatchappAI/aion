@@ -209,8 +209,10 @@ async function drawItem() {
   const act = async (fn, ok) => { try { await fn(); if (ok) toast(ok); drawItem(); } catch (e) { toast(e.message, 'err'); drawItem(); } };
   q('#oback').onclick = back;
   q('#onextq') && (q('#onextq').onclick = () => { if (!leaveOk()) return; O.id = nextQ; O.kind = null; O.slots = null; drawItem(); });
-  $$('[data-pitch]').forEach(b => b.onclick = () => { if (b.classList.contains('on') || !leaveOk()) return; act(() => api('outreach/rewrite', { id: it.id, pitch: b.dataset.pitch }), `Rewriting every draft as ${PITCH[b.dataset.pitch].toLowerCase()}`); });
-  q('#orewrite') && (q('#orewrite').onclick = () => act(() => api('outreach/rewrite', { id: it.id }), 'Writing the drafts again'));
+  // a rewrite over your own saved edits asks first
+  const rewriteAsk = async body => { try { return await api('outreach/rewrite', body); } catch (e) { if (!/You edited these drafts/.test(e.message) || !confirm(`${e.message} Replace them?`)) throw e; return api('outreach/rewrite', { ...body, replaceEdits: true }); } };
+  $$('[data-pitch]').forEach(b => b.onclick = () => { if (b.classList.contains('on') || !leaveOk()) return; act(() => rewriteAsk({ id: it.id, pitch: b.dataset.pitch }), `Rewriting every draft as ${PITCH[b.dataset.pitch].toLowerCase()}`); });
+  q('#orewrite') && (q('#orewrite').onclick = () => act(() => rewriteAsk({ id: it.id }), 'Writing the drafts again'));
   q('#oallsig') && (q('#oallsig').onclick = () => { O.allSig = true; drawItem(); });
   $$('[data-kind]').forEach(b => b.onclick = () => { if (b.dataset.kind === O.kind || !leaveOk()) return; O.kind = b.dataset.kind; drawItem(); });
   const base = { body: d?.body, subject: d?.subject }; // what this page started from (the server refuses a save if another tab changed it since)

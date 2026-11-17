@@ -521,6 +521,7 @@ function simple() {
       <p>Buy ${(D.stake ?? 1) < 1 ? `<b>${Math.round(D.stake * 100)}%</b> of the company, valued at` : 'it for'} <b>${k$(D.price)}</b> (${D.multiple} years of profit). Paid with a <b>${k$(D.senior)}</b> bank loan, <b>${k$(D.seller)}</b> paid to the seller over the next few years (a seller note), ${(D.stake ?? 1) < 1 ? `<b>${k$(D.rollover)}</b> the owner keeps in the company (their ${Math.round((1 - D.stake) * 100)}%), ` : ''}and <b>${k$(D.investorEquity ?? D.equity)}</b> from ${D.sba ? 'the buyer' : 'investors'}. The seller gets about <b>${k$(D.sellerCashAtClose ?? (D.price - D.seller))}</b> in cash at closing. After 5 years, each $1 ${D.sba ? 'the buyer puts' : 'investors put'} in becomes:</p>
       <div class="dbars">${dbar('if the actions work', D.base, 'up')}${dbar('if nothing changes', D.none, 'flat')}${dbar(`if profit falls ${Math.round((D.downsideDrop ?? 0.15) * 100)}% and the firm is valued ${Math.round((D.downsideExitCut ?? 0) * 100)}% lower`, D.downside, 'down')}</div>
       <p class="dnote">${vehNote(D)}</p>
+      ${D.sba ? '' : dealTerms(S, D)}
       <p class="dnext"><b>Offer about ${k$(D.price)}</b> once an accountant confirms the profit. ${(S.assumptions.vehicle || 'holdco') === 'holdco' ? `<b>Walk away above ${k$(n.normalized * PRICE.cap)}</b> (${PRICE.cap} years of profit, AION’s limit). Anything more is paid only as an earnout: later, and only if profit holds.${marketRange(n.normalized) ? ` <span class="note">${esc(marketRange(n.normalized).note)}</span>` : ''}` : `<b>Walk away above ${k$(n.normalized * 5)}</b> (5 years of profit, the top of the usual range for a business this size).`}</p>
       </section>` : ''}
 
@@ -556,6 +557,8 @@ function simple() {
   document.querySelectorAll('[data-xrm]').forEach(l => l.onclick = async () => { V = await api('extra', { type: l.dataset.xrm, remove: true }); render(); });
   document.querySelectorAll('[data-xdrop]').forEach(z => { z.ondragover = e => { e.preventDefault(); z.classList.add('over'); }; z.ondragleave = () => z.classList.remove('over'); z.ondrop = e => { e.preventDefault(); z.classList.remove('over'); sendExtra(z.dataset.xdrop, e.dataTransfer.files[0]); }; });
   document.querySelectorAll('[data-veh]').forEach(b => b.onclick = async () => { V = await api('assumptions', { assumptions: { vehicle: b.dataset.veh } }); render(); });
+  document.querySelectorAll('[data-basis]').forEach(b => b.onclick = async () => { V = await api('assumptions', { assumptions: { price_basis: b.dataset.basis } }); render(); });
+  document.querySelectorAll('[data-pik]').forEach(b => b.onchange = async () => { V = await api('assumptions', { assumptions: { note_pik: b.checked ? 1 : 0 } }); render(); });
   document.querySelectorAll('[data-stake]').forEach(b => b.onclick = async () => { V = await api('assumptions', { assumptions: { stake: +b.dataset.stake } }); render(); });
   document.querySelectorAll('[data-build]').forEach(b => b.onclick = () => { const x = acts.find(y => y.id === b.dataset.build); openBuild({ ...x, basisText: basisOf(x, d, S) }); });
   wireGrow(); wireFit();
@@ -626,6 +629,16 @@ async function sendExtra(type, f) {
   if (!f) return;
   const b64 = await new Promise((ok, bad) => { const r = new FileReader(); r.onload = () => ok(r.result.split(',')[1]); r.onerror = bad; r.readAsDataURL(f); });
   try { V = await api('extra', { type, filename: f.name, data: b64 }); render(); } catch (e) { showError(e.message); }
+}
+// How the price is paid: bank loan, seller note, earnout, yearly overhead. Every box changes all three cases above.
+function dealTerms(S, D) {
+  const a = S.assumptions, num = (k, v, step, p) => `<input type="number" data-a="${k}"${p ? ' data-p="1"' : ''} value="${p ? +(v * 100).toFixed(1) : v}" step="${step}" min="0">`;
+  const seller = a.price_basis === 'seller_ebitda';
+  return `<div class="assume terms"><b>How it is paid</b> (change any box): price set on <button class="pillb ${seller ? '' : 'on'}" data-basis="ebitda">our profit</button> <button class="pillb ${seller ? 'on' : ''}" data-basis="seller_ebitda">the seller’s profit</button>${seller ? ` of $${num('seller_ebitda', a.seller_ebitda || 0, 1000)}` : ''}
+    · bank loan ${num('senior_multiple', a.senior_multiple ?? 1.5, 0.1)}× profit at ${num('senior_rate', a.senior_rate || 0, 0.25, 1)}% <span class="note">(0 = today’s rate)</span>
+    · seller note ${num('seller_share', a.seller_share ?? 0.16, 1, 1)}% of the price at ${num('note_rate', a.note_rate ?? 0.07, 0.5, 1)}%, repaid after ${num('note_standby_years', a.note_standby_years ?? 2, 1)} years over ${num('note_amort_years', a.note_amort_years ?? 4, 1)} <label><input type="checkbox" data-pik ${a.note_pik ? 'checked' : ''}> interest builds until then</label>
+    · earnout ${num('earnout_share', a.earnout_share || 0, 5, 1)}% of the price, paid in years 1–2 only if targets are hit${D.earnout ? ` (${k$(D.earnout)}; not paid in the bad case)` : ''}
+    · yearly overhead $${num('overhead', a.overhead || 0, 5000)} <span class="note">(owner-operator pay and holding costs not in the books)</span></div>`;
 }
 function vehNote(D) {
   const v = V.vehicles?.[D.vehicle] || {}, nt = D.base.net, R = V.derived?.rates, dd = D.downside.minDscr;
