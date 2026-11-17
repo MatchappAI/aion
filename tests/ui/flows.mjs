@@ -13,7 +13,7 @@ let pass = 0, fail = 0; const ok = (n, c, x = '') => { c ? pass++ : fail++; cons
 const call = async (base, p, b) => { const r = await fetch(`${base}/api/${p}`, b === undefined ? {} : { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(b) }); return { status: r.status, json: await r.json().catch(() => null) }; };
 
 // ---- headless Chrome ----
-const PROF = fs.mkdtempSync(path.join(os.tmpdir(), 'aion-flows-')), CDP = 9361;
+const PROF = fs.mkdtempSync(path.join(os.tmpdir(), 'aion-flows-')), CDP = +process.env.CDP_PORT || 9361;
 const chrome = spawn('/Applications/Google Chrome.app/Contents/MacOS/Google Chrome', ['--headless=new', '--disable-gpu', `--remote-debugging-port=${CDP}`, '--window-size=1280,1000', `--user-data-dir=${PROF}`, 'about:blank']);
 let wsu; for (let i = 0; i < 60 && !wsu; i++) { await sleep(250); try { wsu = (await (await fetch(`http://127.0.0.1:${CDP}/json`)).json()).find(x => x.type === 'page')?.webSocketDebuggerUrl; } catch {} }
 const sock = new WebSocket(wsu); await new Promise(r => sock.onopen = r);

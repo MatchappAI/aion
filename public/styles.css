@@ -927,3 +927,9 @@ input[type=search]{font:inherit;font-size:14px;padding:8px 12px;border:1px solid
 .wfbox{margin-top:8px;text-align:left}
 .anext{margin:8px 0 4px;font-size:14px;line-height:1.45}
 .adet{margin:6px 0 8px;font-size:13.5px}.adet>summary{cursor:pointer;color:var(--acc);font-weight:500}
+
+/* Value Creation top bar: wraps on a narrow window instead of pushing PDF/Excel off screen */
+.rhead{flex-wrap:wrap;row-gap:10px}.rhead .ichip{max-width:100%;white-space:normal;text-align:left}
+.r2 .rhead{flex-wrap:wrap}
+table.tcheck{max-width:100%}table.tcheck td,table.tcheck th{overflow-wrap:anywhere}
+@media (max-width:1000px){table.tcheck{display:block;overflow-x:auto}}
