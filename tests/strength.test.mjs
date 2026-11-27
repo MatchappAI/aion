@@ -48,7 +48,7 @@ test('20+ years with the founder still running it is a medium sell sign, from fa
 });
 
 test('strong fit = clear evidence and not outside the buy box; owner and email show as readiness, not as a gate; the signs set the offer', () => {
-  const base = { company: 'Shelf Co', website: 'https://shelfco.com', score: 70, industry: 'Retail placement brokerage for CPG brands', location: 'Richmond, VA', size: '12 employees', ownership: 'Founder-owned', owner: 'Jane Roe' };
+  const base = { company: 'Shelf Co', website: 'https://shelfco.com', score: 70, industry: 'Retail placement brokerage for CPG brands', location: 'Richmond, VA', size: '40 employees', ownership: 'Founder-owned', owner: 'Jane Roe' };
   const S = rankOne({ ...base, timing: { signals: [{ ...sig('retirement'), signal: 'retirement', url: 'https://shelfco.com/news', date: '2026-08' }] } });
   assert.equal(S.box.status, 'in', S.box.reasons.join()); assert.equal(S.strongFit, true); assert.equal(S.offer, 'full');
   const G = rankOne({ ...base, timing: { signals: [{ ...sig('recap_interest'), signal: 'recap_interest', text: 'Open to investors to fund the next stage', url: 'https://shelfco.com/about', date: '2026-08' }] } });

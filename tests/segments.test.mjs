@@ -41,12 +41,12 @@ test('US only: a foreign location or country domain is outside the buy box', () 
   assert.equal(buyBox({ ownership: 'founder-owned', size: 'About 20 employees', location: 'Toronto, Ontario' }).status, 'out');
 });
 
-test('ranking: retail placement breaks a tie ahead of marketplace, and the segment is labelled', () => {
+test('ranking: all five segments weigh the same (v9), and the segment is labelled', () => {
   const sig = [{ key: 'partner_program', text: 'Partner program page', url: 'https://example.com/p', direction: 'for' }];
   const base = { ownership: 'founder-owned', size: 'About 20 employees', location: 'Austin, TX', score: 60, timing: { signals: sig } };
   const a = rankOne({ ...base, company: 'A', industry: 'Food brokerage for natural brands' }), b = rankOne({ ...base, company: 'B', industry: 'Amazon marketplace agency' });
   assert.equal(a.segmentLabel, 'Retail placement'); assert.equal(b.segmentLabel, 'Marketplace agency');
-  assert.ok(a.score > b.score); assert.equal(a.parts.segment, 5); assert.equal(b.parts.segment, 3);
+  assert.equal(a.score, b.score); assert.equal(a.parts.segment, 3); assert.equal(b.parts.segment, 3);
 });
 
 test('the same clue found twice counts once', async () => {

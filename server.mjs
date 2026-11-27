@@ -75,6 +75,11 @@ function loadDeal(id) {
   delete S.assumptions.extra_client_searches;
   // one-time: the old 4.0× default becomes the price guide's target; a multiple you set yourself stays
   if (!S.assumptions.priceRuleV) { if (S.assumptions.entry_multiple === 4) S.assumptions.entry_multiple = PRICE.target; S.assumptions.priceRuleV = 1; }
+  // one-time (v9 buy box, 2026-11-26): a multiple above the price cap comes down to it, and the old bank-loan and 16% note
+  // defaults become no bank loan and a 25% note; numbers you set yourself stay
+  if (S.assumptions.priceRuleV < 2) { const A = S.assumptions; if (A.entry_multiple > PRICE.cap) A.entry_multiple = PRICE.target;
+    if (A.senior_multiple === 1.5) A.senior_multiple = 0; if (A.seller_share === 0.16) A.seller_share = 0.25; if (A.note_rate === 0.07) A.note_rate = 0.06;
+    if (A.note_standby_years === 2 && A.note_amort_years === 4) { A.note_standby_years = 0; A.note_amort_years = 5; } A.priceRuleV = 2; }
   S.name ??= niceName(S.file?.name);
   // one-time: an older answer "the seller stays" set the leaders to pay to 0, which added their pay back with nothing taken off.
   // Whoever runs it after closing (the seller or a hire) is paid a market salary, so at least one leader is always paid.
@@ -182,7 +187,7 @@ function derive() {
     // AI time savings rest on estimated hours, so they are not counted until hours are tracked
     L0.aiUnsized = true; L0.aiSkipped = true;
     L0.nonAI.total = r2(L0.nonAI.pricing + L0.nonAI.writeoffs + L0.nonAI.vendors);
-    // ecommerce consulting levers (not for the old staffing deals): only those measured straight from the books count
+    // CPG services and consulting levers (not for the old staffing deals): only those measured straight from the books count
     out.ecomLevers = profile(S).kind === 'staffing' ? [] : ecomLevers({ ttm, rows: S.file.kind === 'gl' ? ROWS : [], mapping: S.mapping, signMode: S.signMode, per, quality: out.quality, S });
     const ecomCounted = out.ecomLevers.filter(x => x.counted).reduce((t, x) => t + x.value, 0);
     L0.runRate = r2(L0.nonAI.total + ex.reduce((t, x) => t + x.value, 0) + out.industryLevers.reduce((t, x) => t + x.value, 0) + ecomCounted);

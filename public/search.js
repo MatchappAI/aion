@@ -13,7 +13,7 @@ const day = d => new Date(d).toLocaleDateString(undefined, { month: 'short', day
 const how = t => `<p class="howline"><b>How this works:</b> ${t}</p>`;
 let P = { view: 'home', mode: 'target', id: null, data: null, timer: null, filter: 'all', sort: 'score', open: null, editing: false, err: '' };
 const MODES = {
-  target: { label: 'Find firms to buy', sub: 'Founder-owned ecommerce consulting firms AION could buy', noun: 'companies', one: 'company', score: 'Fit',
+  target: { label: 'Find firms to buy', sub: 'Owner-led B2B services firms for consumer-product companies that AION could buy', noun: 'companies', one: 'company', score: 'Fit',
     ph: 'Describe the firm you want to buy, e.g. “founder-owned food and beverage brokers in the Southeast getting emerging brands into Kroger and Publix” or “Amazon and Walmart.com marketplace agencies, 10–60 people”.' },
   client: { label: 'Find brands', sub: 'Consumer brands that need retail or marketplace help, and who decides', noun: 'companies', one: 'company', score: 'Opportunity',
     ph: 'Describe the brands, e.g. “better-for-you snack brands that raised money in the last year and are not yet in Kroger or Target”.' },

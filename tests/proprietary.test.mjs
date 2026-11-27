@@ -78,18 +78,28 @@ test('buy box: independent and the right size, or set aside', () => {
   assert.equal(buyBox({ ownership: 'founder-owned', size: 'About 3 employees' }).status, 'out');
   assert.equal(buyBox({ ownership: 'unknown (part of a larger group: acquired by X in 2022)', size: '' }).status, 'out');
   assert.equal(buyBox({ ownership: 'founder-owned', size: '51-200 employees (third-party)', location: 'Austin, TX' }).status, 'in');
-  assert.equal(buyBox({ ownership: 'founder-owned', size: 'About 15 employees', location: 'Portland, Oregon' }).status, 'in');
+  assert.equal(buyBox({ ownership: 'founder-owned', size: 'About 30 employees', location: 'Portland, Oregon' }).status, 'in');
   const c = buyBox({ ownership: 'unknown', size: 'Not stated' });
   assert.equal(buyBox({ ownership: 'founder-owned', size: 'About 15 employees', location: 'Brașov', website: 'shop.ro' }).status, 'out');
   assert.equal(c.status, 'check'); assert.deepEqual(c.reasons, ['Ownership not confirmed', 'US location not confirmed', 'Size not confirmed']);
 });
 
-test('buy box: headcount must fit $500K–$5M profit, not just 5–150 people', () => {
-  const small = buyBox({ ownership: 'founder-owned', size: 'About 6 employees', location: 'Boca Raton, FL' });
-  assert.equal(small.status, 'check'); assert.ok(small.reasons.some(r => /under \$500K profit/.test(r)));
-  const wide = buyBox({ ownership: 'founder-owned', size: '106-500 employees', location: 'Nashville, TN' });
+test('buy box: headcount must fit $1–5M profit (v9), not just 10–300 people', () => {
+  const small = buyBox({ ownership: 'founder-owned', size: 'About 12 employees', location: 'Boca Raton, FL' });
+  assert.equal(small.status, 'check'); assert.ok(small.reasons.some(r => /under \$1M profit/.test(r)));
+  assert.equal(buyBox({ ownership: 'founder-owned', size: 'About 6 employees', location: 'Boca Raton, FL' }).status, 'out');
+  const wide = buyBox({ ownership: 'founder-owned', size: '201-500 employees', location: 'Nashville, TN' });
   assert.equal(wide.status, 'check'); assert.ok(wide.reasons.some(r => /too big/.test(r)));
-  assert.equal(buyBox({ ownership: 'founder-owned', size: 'About 20 employees', location: 'Austin, TX' }).status, 'in');
+  assert.equal(buyBox({ ownership: 'founder-owned', size: 'About 40 employees', location: 'Austin, TX' }).status, 'in');
+});
+
+test('buy box: no key-person risk (v9): a personal brokerage is out, a firm named after its owner is checked', () => {
+  const ok = { ownership: 'founder-owned', size: 'About 40 employees', location: 'Austin, TX' };
+  const p = buyBox({ ...ok, company: 'Lee Brands', summary: 'A personal brokerage: Ann Lee personally represents each brand' });
+  assert.equal(p.status, 'out'); assert.ok(p.reasons.some(r => /one person/.test(r)));
+  const n = buyBox({ ...ok, company: 'Smith Brokerage', owner: 'John Smith' });
+  assert.equal(n.status, 'check'); assert.ok(n.reasons.some(r => /Named after the owner/.test(r)));
+  assert.equal(buyBox({ ...ok, company: 'Smith & Partners', owner: 'John Smith' }).status, 'in');
 });
 
 test('two different firms found on the same news or directory site are never merged', async () => {

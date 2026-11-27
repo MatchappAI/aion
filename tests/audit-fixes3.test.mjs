@@ -52,9 +52,9 @@ test('search: a partnership ask must be about owners or capital, in the firm’s
   assert.equal(explicitPartner(sig('Competitor Acme Group says it is seeking investors', 'https://news.example/acme'), 'shelfco.com', 'Shelf Co').length, 0);
 });
 
-test('search: a firm whose headcount points above the $1.5M first deal is flagged, not hidden', () => {
-  const r = rankOne({ company: 'Big Brokers', website: 'https://bigbrokers.com', industry: 'Retail placement brokerage for CPG brands', location: 'Austin, TX', size: '140 employees', ownership: 'Founder-owned', owner: 'Ann Lee', score: 60 });
-  assert.equal(r.box.status, 'check'); assert.ok(r.box.reasons.some(x => /first-deal size/.test(x)));
+test('search: a firm whose headcount points above the $5M profit ceiling is flagged, not hidden', () => {
+  const r = rankOne({ company: 'Big Brokers', website: 'https://bigbrokers.com', industry: 'Retail placement brokerage for CPG brands', location: 'Austin, TX', size: '280 employees', ownership: 'Founder-owned', owner: 'Ann Lee', score: 60 });
+  assert.equal(r.box.status, 'check'); assert.ok(r.box.reasons.some(x => /\$5M profit ceiling/.test(x)));
 });
 
 test('outreach: fresh emails outside the thread are read; a failed reply check holds follow-ups; limits and address rules', async () => {
