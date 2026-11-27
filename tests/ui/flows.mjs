@@ -53,7 +53,9 @@ await cmd('Page.enable'); await cmd('Runtime.enable'); await cmd('Fetch.enable',
   }
   if (withMail) {
     await go(APP, 'ps'); await click(`#psout [data-open="${withMail.id}"]`, 1500);
-    ok('No Gmail yet: Copy email is the main action', await ev(`!!document.querySelector('.oprimary #ocopy') && !document.querySelector('#osend')`));
+    // the workspace copy may already have a working Gmail account: then Send is the main action instead of Copy
+    if ((st0.accounts || []).some(x => !x.error)) ok('Gmail connected: Send is the main action', await ev(`!!document.querySelector('.oprimary #osend') && !document.querySelector('.oprimary #ocopy')`));
+    else ok('No Gmail yet: Copy email is the main action', await ev(`!!document.querySelector('.oprimary #ocopy') && !document.querySelector('#osend')`));
     await click('#ocopy', 600);
     ok('Copying an email does not mark it sent', ((await call(APP, `outreach/item?id=${withMail.id}`)).json.messages || []).length === 0);
     await ev(`(() => { const t = document.querySelector('#obody'); t.value += '\\n\\nAutosave check.'; t.dispatchEvent(new Event('input', { bubbles: true })); })()`); await sleep(1800);
