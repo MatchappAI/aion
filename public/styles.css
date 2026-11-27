@@ -1,6 +1,6 @@
 :root{
-  --bg:#F7F4EE; --panel:#FFFDF9; --ink:#292823; --mute:#6B675E; --dim:#9C978C; --line:#E4DFD4; --line2:#D3CDBF;
-  --acc:#2F5D50; --acc-bg:#E8EFEA; --neg:#A5422F; --warn:#9A6B12; --warn-bg:#F6EEDC;
+  --bg:#F7F4EE; --panel:#FFFDF9; --ink:#292823; --mute:#6B675E; --dim:#736E63; --line:#E4DFD4; --line2:#D3CDBF;
+  --acc:#2F5D50; --acc-bg:#E8EFEA; --neg:#A5422F; --warn:#85590C; --warn-bg:#F6EEDC;
   --sans:-apple-system,BlinkMacSystemFont,"Helvetica Neue","Inter",Arial,sans-serif;
   --serif:Georgia,"Times New Roman",serif;
   --mono:"SF Mono",ui-monospace,Menlo,Consolas,monospace;
@@ -964,3 +964,12 @@ body[data-outview="item"] .pstabs,body[data-psview="search"] .pstabs,body[data-p
 .setup h2{text-transform:none;letter-spacing:-.01em;color:var(--ink);font-weight:650}
 #main:has(.setup) [data-testid="out-setup-gap"]{display:none}
 @media (max-width:600px){#pssetup{padding:0 12px}.setup .sact{flex-wrap:wrap}.setup .sact input{width:100%;min-width:0}.pstabs{width:auto;max-width:calc(100% - 24px);overflow-x:auto}}
+.assume.terms{line-height:2.2}
+.pillb{font:inherit;font-size:12px;padding:1px 9px;margin:0 2px;border:1px solid var(--line,#d8d2c4);border-radius:12px;background:transparent;color:inherit;cursor:pointer}
+.pillb.on{background:var(--ink,#0F2E26);color:#fff;border-color:transparent}
+.assume input[type=checkbox]{width:auto;margin:0 4px 0 6px;vertical-align:middle}
+.dwarn{color:var(--warn,#8a4b14);border-left:3px solid currentColor;padding-left:8px}
+/* long text never widens the page; wide tables scroll inside their box on a phone */
+.note,.found li,.h2s{overflow-wrap:anywhere}
+.tblw{overflow-x:auto;-webkit-overflow-scrolling:touch}
+@media (max-width:600px){.tblw table{min-width:520px}}

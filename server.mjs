@@ -66,13 +66,20 @@ let CUR = null, S = fresh(), ROWS = [], CHECK = [];
 const D = () => path.join(DEALS, CUR);
 const LOGF = () => CUR ? path.join(D(), 'runlog.jsonl') : null;
 const persist = () => { if (CUR) save(path.join(D(), 'state.json'), S); };
+// a deal id is a folder name made by newId(); anything else ("..", a path) is treated as no deal
+const isDealId = id => typeof id === 'string' && /^d[a-z0-9]{4,20}$/.test(id);
 function loadDeal(id) {
-  if (!id || !fs.existsSync(path.join(DEALS, id))) { CUR = null; S = fresh(); ROWS = []; CHECK = []; save(CUR_F, {}); return; }
+  if (!isDealId(id) || !fs.existsSync(path.join(DEALS, id))) { CUR = null; S = fresh(); ROWS = []; CHECK = []; save(CUR_F, {}); return; }
   CUR = id; S = load(path.join(D(), 'state.json'), fresh()); ROWS = load(path.join(D(), 'gl.json'), []); CHECK = load(path.join(D(), 'checkin.json'), []);
   S.assumptions = { ...structuredClone(DEFAULT_ASSUMPTIONS), ...(S.assumptions || {}) };
   delete S.assumptions.extra_client_searches;
   // one-time: the old 4.0× default becomes the price guide's target; a multiple you set yourself stays
   if (!S.assumptions.priceRuleV) { if (S.assumptions.entry_multiple === 4) S.assumptions.entry_multiple = PRICE.target; S.assumptions.priceRuleV = 1; }
+  // one-time (v9 buy box, 2026-11-26): a multiple above the price cap comes down to it, and the old bank-loan and 16% note
+  // defaults become no bank loan and a 25% note; numbers you set yourself stay
+  if (S.assumptions.priceRuleV < 2) { const A = S.assumptions; if (A.entry_multiple > PRICE.cap) A.entry_multiple = PRICE.target;
+    if (A.senior_multiple === 1.5) A.senior_multiple = 0; if (A.seller_share === 0.16) A.seller_share = 0.25; if (A.note_rate === 0.07) A.note_rate = 0.06;
+    if (A.note_standby_years === 2 && A.note_amort_years === 4) { A.note_standby_years = 0; A.note_amort_years = 5; } A.priceRuleV = 2; }
   S.name ??= niceName(S.file?.name);
   // one-time: an older answer "the seller stays" set the leaders to pay to 0, which added their pay back with nothing taken off.
   // Whoever runs it after closing (the seller or a hire) is paid a market salary, so at least one leader is always paid.
@@ -105,7 +112,16 @@ function derive() {
   out.dso = out.quality ? dso(out.quality.ar, ttm.revenue) : null;
   // no owner on the payroll in published statements (e.g. a public company): management is already paid, so no replacement salary
   const noOwner = S.file.kind === 'pdf' && !ttm.byCat.comp_owner && !S.owner.extraOwnerComp;
-  out.normalization = normalize(ttm, S.addbacks || [], noOwner ? { ...S.owner, count: 0 } : S.owner);
+  // an add-back counted from payments on an account you later sorted as owner pay is already added back as owner pay:
+  // only the payments still outside owner pay count (otherwise the same pay is added back twice)
+  const byRow = new Map(ROWS.map(r => [r.id, r]));
+  const addbacks = (S.addbacks || []).map(a => {
+    const rows = (a.ids || []).map(i => byRow.get(i)).filter(Boolean); if (!rows.length) return a;
+    const keep = rows.filter(r => S.mapping?.[r.account] !== 'comp_owner'); if (keep.length === rows.length) return a;
+    const tot = rows.reduce((t, r) => t + Math.abs(r.amount), 0), part = keep.reduce((t, r) => t + Math.abs(r.amount), 0);
+    return { ...a, amount: tot ? a.amount * part / tot : 0, ids: keep.map(r => r.id), nowOwnerPay: true };
+  });
+  out.normalization = normalize(ttm, addbacks, noOwner ? { ...S.owner, count: 0 } : S.owner);
   out.noOwnerAdjustment = noOwner;
   if (S.file.kind === 'gl') {
     out.monthly = monthlySeries(ROWS, S.mapping, S.signMode, S.range, S.parse?.opening || {});
@@ -125,7 +141,9 @@ function derive() {
     out.extraLevers = ex; out.levers.runRate = r2(out.levers.runRate + ex.reduce((t, x) => t + x.value, 0));
     // industry moves: the AI picks the lever and size; software prices it from this company's accounts, with caps
     const IM = S.industryPlan?.moves || [], acct = S.industryPlan?.acct || {}, acctN = S.industryPlan?.acctN || {}, rev = (ttm.netRevenue ?? ttm.revenue) || 1, gm = rev ? (rev - (ttm.netDirect ?? ttm.direct)) / rev : 0, comm = S.ops?.commission_rate || 0;
-    const vendAccts = new Set((S.vendors || []).filter(v => v.accepted && v.account).map(v => v.account)); // already counted as supplier savings
+    // already counted as supplier savings: the vendor's account, and the accounts of every payment matched to it by payee
+    const rowById = new Map(ROWS.map(r => [r.id, r]));
+    const vendAccts = new Set((S.vendors || []).filter(v => v.accepted).flatMap(v => [v.account, ...(v.ids || []).map(i => rowById.get(i)?.account)]).filter(Boolean));
     out.industryLevers = IM.map((mv, i) => {
       const accts = (mv.accounts || []).filter(k => k in acct); let base = accts.reduce((t, k) => t + Math.abs(acct[k]), 0);
       let value = 0, basis = '';
@@ -169,7 +187,7 @@ function derive() {
     // AI time savings rest on estimated hours, so they are not counted until hours are tracked
     L0.aiUnsized = true; L0.aiSkipped = true;
     L0.nonAI.total = r2(L0.nonAI.pricing + L0.nonAI.writeoffs + L0.nonAI.vendors);
-    // ecommerce consulting levers (not for the old staffing deals): only those measured straight from the books count
+    // CPG services and consulting levers (not for the old staffing deals): only those measured straight from the books count
     out.ecomLevers = profile(S).kind === 'staffing' ? [] : ecomLevers({ ttm, rows: S.file.kind === 'gl' ? ROWS : [], mapping: S.mapping, signMode: S.signMode, per, quality: out.quality, S });
     const ecomCounted = out.ecomLevers.filter(x => x.counted).reduce((t, x) => t + x.value, 0);
     L0.runRate = r2(L0.nonAI.total + ex.reduce((t, x) => t + x.value, 0) + out.industryLevers.reduce((t, x) => t + x.value, 0) + ecomCounted);
@@ -185,11 +203,15 @@ function derive() {
     out.unpriceable = short || (S.assumptions.price_basis === 'revenue' ? !(ttm.netRevenue > 0) : out.normalization.normalized <= 0);
     out.unpriceableWhy = short ? 'short' : out.unpriceable ? 'loss' : null; out.monthsCovered = per.monthsCovered;
     out.deal = out.unpriceable ? null : dealReturns(out.normalization.normalized, L.runRate, dealInputs(out), ttm.netRevenue);
+    if (out.deal && out.deal.warn && S.assumptions.vehicle === 'sba' && (out.deal.none.minDscr ?? 0) < 1.15) out.deal.warn.push(`SBA lenders want profit to cover loan payments at least 1.15 times; with no changes it covers ${out.deal.none.minDscr ?? '—'} times, so this loan would likely be smaller.`);
+    // months inside the last 12 with nothing booked: profit for the year is understated (or the books are incomplete)
+    if (S.file.kind === 'gl') { const seen = new Set(ROWS.map(r => String(r.date).slice(0, 7))); out.missingMonths = []; for (let m = per.ttm.from; m <= per.ttm.to; m = (([y, mo]) => mo === 12 ? `${y + 1}-01` : `${y}-${String(mo + 1).padStart(2, '0')}`)(m.split('-').map(Number))) if (!seen.has(m)) out.missingMonths.push(m);
+      if (out.deal && out.missingMonths.length) out.deal.warn = [...(out.deal.warn || []), `No entries at all in ${out.missingMonths.join(', ')}: the year's profit is likely understated. Ask for the full ledger.`]; }
   }
   if (out.deal) {
     // three cases, weighted by how well each number is backed: from the books counts most, guesses least
     const acts = actionList(out).filter(x => x.value > 0), aiCost = 0;
-    const W = { 'From the books': [0.8, 1, 1.2], Confirmed: [0.8, 1, 1.2], 'From the sales file': [0.7, 1, 1.2], 'From the payroll file': [0.7, 1, 1.2], 'Benchmark gap': [0.6, 1, 1.3] };
+    const W = { 'From the books': [0.8, 1, 1.2], Confirmed: [0.8, 1, 1.2], 'Estimate on the books': [0.6, 1, 1.2], 'From the sales file': [0.7, 1, 1.2], 'From the payroll file': [0.7, 1, 1.2], 'Benchmark gap': [0.6, 1, 1.3] };
     out.cases = ['Cautious', 'Expected', 'Stretch'].map((name, k) => { const gain = r2(acts.reduce((t, x) => t + x.value * (W[x.sure] || [0.5, 1, 1.3])[k], 0) - aiCost); const r = dealReturns(out.normalization.normalized, gain, dealInputs(out), ttm.netRevenue); return { name, gain, ebitda: r2(out.normalization.normalized + gain), value: r2(gain * (out.deal.ebitdaMultiple ?? out.deal.multiple)), moic: r.base.net.moic, irr: r.base.net.irr }; });
   }
   if (CHECK.length && out.monthly && out.deal) out.checkin = checkinAnalysis(out);
@@ -217,6 +239,7 @@ function limits(d) {
   }
   if (S.range) { const per = periods(S.range); if (per.monthsCovered < 12) L.push(`Only ${per.monthsCovered} month${per.monthsCovered === 1 ? '' : 's'} of data: profit covers ${per.monthsCovered} month${per.monthsCovered === 1 ? '' : 's'}, not a full year.`); else if (S.range.start > per.prior.from + '-01') L.push('Only one year of data, so we can’t see growth or which clients come back. Ask the seller for 3 years.'); }
   if (S.file?.kind === 'pdf' && S.pdfDropped?.length) L.push(`Skipped ${S.pdfDropped.join(', ')}: it overlaps a later column, so counting it would add the same months twice.`);
+  if (S.file?.kind === 'pdf' && S.pdfInterim?.length) L.push(`Not priced: ${S.pdfInterim.join(', ')} (part of a year). The price uses the last full year; add the same months of the year before to get a trailing 12 months.`);
   return L;
 }
 
@@ -457,6 +480,9 @@ const AI = {
     const per = (data.periods || []).filter(p => /^\d{4}-\d{2}-\d{2}$/.test(p.end));
     // CIMs often show full years plus a trailing-12-month column: never count overlapping periods twice.
     { const kept = nonOverlappingPeriods(per); S.pdfDropped = per.filter(p => !kept.includes(p)).map(p => p.label); per.splice(0, per.length, ...kept); }
+    // a part-year column (H1, 9 months, YTD) is booked on its end date, so it would land in the same 12 months as the last full
+    // year and be counted as part of one year (18 months as 12). With at least one full year, price on the full years only.
+    { const full = per.filter(p => !(+p.months > 0 && +p.months < 12)); S.pdfInterim = full.length && full.length < per.length ? per.filter(p => !full.includes(p)).map(p => p.label) : []; if (S.pdfInterim.length) per.splice(0, per.length, ...full); }
     if (!per.length || !data.lines?.length) throw new Error('No income-statement lines with dated periods were extracted. Check the PDF in the run log.');
     // safety net: a statement whose only revenue (or cost of revenue) line is a "Total ..." line must not lose it
     S.pdfFixed = [];
@@ -501,7 +527,7 @@ const AI = {
     const used = new Set(), byId = new Map(ROWS.map(r => [r.id, r]));
     S.addbacks = (data.addbacks || []).filter(inEbitda).map((a, i) => { const m = matchRows(ROWS, a, S.mapping, S.signMode, per.ttm); const ids = m.ids.filter(x => { const r = byId.get(x); return r && S.mapping[r.account] !== 'comp_owner' && !used.has(x); }); ids.forEach(x => used.add(x));
       return { ...a, id: 'ab' + i, amount: r2(ids.reduce((t, x) => { const r = byId.get(x); return t + rowValue(r, S.mapping[r.account] || 'other_opex', S.signMode); }, 0)), ids, accepted: false }; }).filter(a => a.ids.length && a.amount);
-    S.vendors = (data.vendors || []).map((v, i) => { const m = matchRows(ROWS, v, S.mapping, S.signMode, per.ttm); const pct = Math.min(0.5, Math.max(0, +v.suggested_savings_pct || 0)); return { ...v, id: 'v' + i, spend: m.amount, ids: m.ids, pct, amount: r2(m.amount * pct), accepted: false }; }).filter(v => v.ids.length);
+    S.vendors = (data.vendors || []).map((v, i) => { const m = matchRows(ROWS, v, S.mapping, S.signMode, per.ttm); const pct = Math.min(0.3, Math.max(0, +v.suggested_savings_pct || 0)); /* an AI-suggested saving, capped at 30% */ return { ...v, id: 'v' + i, spend: m.amount, ids: m.ids, pct, amount: r2(m.amount * pct), accepted: false }; }).filter(v => v.ids.length);
     S.flags = (data.flags || []).map(f => ({ ...f, title: String(f?.title || f?.label || f?.text || "").trim() })).filter(f => f.title); // the AI sometimes says "label"
     S.normConfirmed = false;
   },
@@ -630,8 +656,8 @@ function checkinAnalysis(d) {
 function actionList(d) {
   const L = d.levers, a = S.assumptions, lev = k => (S.plan?.levers || []).find(l => l.key === k), out = [];
   if (L.nonAI.pricing > 0) out.push({ title: 'Raise prices on new work to close half the margin gap to peers', value: L.nonAI.pricing, basis: L.nonAI.pricingBasis, owner: 'Owner and sales lead', sure: 'Benchmark gap', steps: lev('pricing')?.steps, kpis: [`Average fee per ${profile(S).job || 'client'}`, 'Win rate on proposals'] });
-  if (L.nonAI.writeoffs > 0) out.push({ title: 'Fewer unpaid invoices written off', value: L.nonAI.writeoffs, basis: 'Ledger write-offs × reduction (assumption); faster collection frees cash, not counted as profit', owner: 'Office manager', sure: 'From the books', steps: ['Send every bill the day the work is done', 'Automatic reminders at 15 and 30 days', 'Weekly review of anything over 45 days'], kpis: ['Days to get paid', 'Write-offs'] });
-  if (L.nonAI.vendors > 0) out.push({ title: 'Cut supplier and tool costs', value: L.nonAI.vendors, basis: 'Ledger spend × saving (confirmed)', owner: 'Owner', sure: 'Confirmed', steps: lev('vendors')?.steps, kpis: ['Supplier spend as a share of sales'] });
+  if (L.nonAI.writeoffs > 0) out.push({ title: 'Fewer unpaid invoices written off', value: L.nonAI.writeoffs, basis: 'Ledger write-offs × reduction (assumption); faster collection frees cash, not counted as profit', owner: 'Office manager', sure: 'Estimate on the books', steps: ['Send every bill the day the work is done', 'Automatic reminders at 15 and 30 days', 'Weekly review of anything over 45 days'], kpis: ['Days to get paid', 'Write-offs'] });
+  if (L.nonAI.vendors > 0) out.push({ title: 'Cut supplier and tool costs', value: L.nonAI.vendors, basis: 'Ledger spend you confirmed × the AI’s suggested saving', owner: 'Owner', sure: 'Estimate on the books', steps: lev('vendors')?.steps, kpis: ['Supplier spend as a share of sales'] });
   for (const x of d.extraLevers || []) out.push(x.id === 'discounts' ? { title: `Bring ${x.basis.count} customers up to normal prices`, value: x.value, basis: 'Sales file: half the measured price gap', owner: 'Owner', sure: 'From the sales file', steps: ['Review each discounted account with the owner', 'Move to normal prices at renewal, with notice', 'Approve any discount left in writing'], kpis: ['Average price vs. normal price'] } : { title: 'Cut overtime with better scheduling', value: x.value, basis: 'Payroll file: overtime × share moved to regular hours', owner: 'Operations lead', sure: 'From the payroll file', steps: ['See who works the most overtime, and why', 'Plan the week ahead and spread the work', 'Approve overtime in advance'], kpis: ['Overtime pay per month'] });
   for (const x of (d.industryLevers || []).filter(y => y.value > 0)) out.push({ title: x.title, value: x.value, basis: x.basis, owner: x.owner, sure: x.sure, steps: x.steps, kpis: x.kpis });
   for (const x of (d.ecomLevers || []).filter(y => y.counted && y.value > 0)) out.push({ title: x.title, value: x.value, basis: x.basis, owner: 'Owner and bookkeeper', sure: x.sure, steps: x.steps, kpis: x.kpis });
@@ -674,8 +700,8 @@ const hashInputs = () => JSON.stringify([S.ops, S.assumptions, S.owner, (S.addba
 
 // ---------- http ----------
 const MIME = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript', '.css': 'text/css', '.png': 'image/png', '.svg': 'image/svg+xml', '.json': 'application/json' };
-const send = (res, code, body, type = 'application/json') => { res.writeHead(code, { 'Content-Type': type, 'Cache-Control': 'no-store' }); res.end(type === 'application/json' ? JSON.stringify(body) : body); };
-const body = req => new Promise((ok, bad) => { let b = ''; req.on('data', d => { b += d; if (b.length > 120e6) { bad(new Error('File too large')); req.destroy(); } }); req.on('end', () => { try { ok(b ? JSON.parse(b) : {}); } catch (e) { bad(e); } }); });
+const send = (res, code, body, type = 'application/json') => { res.writeHead(code, { 'Content-Type': type, 'Cache-Control': 'no-store', 'X-Frame-Options': 'DENY', 'Content-Security-Policy': "frame-ancestors 'none'", 'X-Content-Type-Options': 'nosniff' }); res.end(type === 'application/json' ? JSON.stringify(body) : body); };
+const body = req => new Promise((ok, bad) => { let b = ''; req.on('data', d => { b += d; if (b.length > 120e6) { bad(new Error('File too large')); req.destroy(); } }); req.on('end', () => { try { const v = b ? JSON.parse(b) : {}; ok(v && typeof v === 'object' && !Array.isArray(v) ? v : {}); } catch (e) { bad(e); } }); });
 
 // what routes/outreach.mjs needs; the open deal is read live (loadDeal replaces S and CUR)
 const OUTCTX = { savedAll: () => savedAll(), send, body, OUT, GMAIL, CONFIRM, ownerList: () => ownerList(), outreachReady: () => outreachReady(), letterHtml: (...a) => letterHtml(...a), outreachPdf: (...a) => outreachPdf(...a), PORT, SRUN, loadSearch, MODELS, ROOTWS, finderKeys: () => finderKeys(), busy: () => busy(), loadDeal: id => loadDeal(id), derive: () => derive(), persist: () => persist(), deal: { cur: () => CUR, S: () => S } };

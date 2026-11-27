@@ -89,6 +89,13 @@ if (pick) {
   await click(`#psout [data-open="${pick.id}"]`, 1500);
   await click('[data-kind="email"]', 800);
   ok('Outreach item: first email draft with Send', await ev(`!!document.querySelector('#osend') && !!document.querySelector('#obody')`));
+  // a save from an older copy of the draft (another tab saved since) is refused, not overwritten; the autosave line says so
+  { const d0 = (await call(APP, `outreach/item?id=${pick.id}`)).json.drafts.email; await call(APP, 'outreach/edit', { id: pick.id, kind: 'email', body: d0.body + ' (other tab)' });
+    await ev(`(()=>{const b=document.querySelector('#obody'); b.value=b.value+' stale'; b.dispatchEvent(new Event('input'))})()`); await sleep(1800);
+    const line = await ev(`document.querySelector('#osaved')?.textContent || ''`);
+    ok('Two tabs: an older copy’s autosave is refused with a message', /another tab/.test(line) && /\(other tab\)$/.test((await call(APP, `outreach/item?id=${pick.id}`)).json.drafts.email.body), line);
+    await call(APP, 'outreach/edit', { id: pick.id, kind: 'email', body: d0.body }); acceptDialogs = true; await go(APP, 'ps'); await click(`#psout [data-open="${pick.id}"]`, 1500); await click('[data-kind="email"]', 800); }
+  acceptDialogs = true; await go(APP, 'ps'); await click(`#psout [data-open="${pick.id}"]`, 1500); await click('[data-kind="email"]', 800);
   dialogs = []; acceptDialogs = false; await click('#osend', 1500);
   ok('Send asks for your OK first (From, To, Subject and the text)', dialogs.length === 1 && /From:/.test(dialogs[0]) && /To:/.test(dialogs[0]) && /Subject:/.test(dialogs[0]), dialogs[0]?.slice(0, 120));
   ok('Saying no sends nothing', ((await call(APP, `outreach/item?id=${pick.id}`)).json.messages || []).length === 0);

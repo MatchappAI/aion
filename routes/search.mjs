@@ -31,7 +31,9 @@ const SIG = {}; // searches whose data signals are being refreshed
 let SCAN = null; // the brand radar scan running now
 // one background job per search at a time (a full check, a signals update or the intent scan): each holds its own copy
 // and saves it whole, so two at once would undo each other's results
-const jobOn = (SRUN, id) => SRUN[id] ? 'This search is still running.' : SIG[id] ? 'This search is already being updated.' : INTENT?.ids?.has(id) ? 'The deal-intent scan is reading this search’s firms. Try again when it finishes.' : null;
+const jobOn = (SRUN, id) => SRUN[id] ? 'This search is still running.' : SIG[id] ? 'This search is already being updated.' : INTENT?.ids?.has(id) ? 'The deal-intent scan is reading this search’s firms. Try again when it finishes.'
+  // founder research saves into the same search file: an update now would overwrite it when it finishes
+  : Object.entries(RESEARCH).some(([k, v]) => v.running && k.startsWith(`${id}|`)) ? 'Founder research is still running on a firm in this search. Try again in a few minutes.' : null;
 
 export const SEARCH_POST = new Set(['search/start', 'search/contacts', 'search/archive', 'search/signals', 'search/more', 'search/intent-scan', 'radar/scan', 'finders/key', 'search/stage', 'search/decide', 'search/watch', 'search/watchrun', 'search/research']);
 
@@ -41,6 +43,7 @@ export async function searchRoute(req, res, url, p, ctx) {
   if (req.method === 'GET') {
     if (req.method === 'GET' && p === 'search/list') return send(res, 200, { searches: listSearches().map(x => SRUN[x.id] ? { ...x, status: 'running' } : x) });
     if (req.method === 'GET' && p.startsWith('search/get/')) { const id = p.slice(11), s2 = SRUN[id] || loadSearch(id); if (!s2) return send(res, 404, { error: 'Search not found.' }); const { raw, ...rest } = s2; const fresh = new Set(s2.fresh || []); return send(res, 200, { ...rest, entities: (rest.entities || []).map(e => ({ ...e, ...(e.timing ? { timing: timing(e.timing.signals.map(x => ({ ...x, signal: x.key }))) } : {}), known: known(s2, e), deal: dealOf(s2, e), isNew: fresh.has(e.id), warm: warm(s2.mode, e) })), rawCount: raw?.length || 0, running: !!SRUN[id], signalsRunning: !!SIG[id], watch: watchOf(s2) }); }
+    if (req.method === 'GET' && p === 'search/network' && url.searchParams.get('stats')) return send(res, 200, { stats: memStats() }); // the home page needs only the counts (the full list is ~600 KB)
     if (req.method === 'GET' && p === 'search/network') return send(res, 200, { people: network('candidate'), companies: network('client'), targets: network('target'), stats: memStats() });
     if (req.method === 'GET' && p === 'search/today') {
       // who to call this week: across every search, results that fit and have a reason to act now (or that you marked priority)
@@ -92,7 +95,7 @@ export async function searchRoute(req, res, url, p, ctx) {
       { const why = jobOn(SRUN, b.id); if (why) return send(res, 409, { error: why }); }
       const s2 = loadSearch(b.id); if (!s2) return send(res, 404, { error: 'Search not found.' });
       SIG[b.id] = true;
-      addSignals(s2, { cwd: path.join(ROOTWS, 'searches'), model: MODELS.extraction, save: saveSearchMerged, log: t => { s2.log.push({ t: s2.runtime || 0, text: t }); } }).then(() => { saveSearchMerged(s2); delete JOB_ERR.signals; }).catch(jobFailed('signals')).finally(() => { delete SIG[b.id]; });
+      addSignals(s2, { cwd: path.join(ROOTWS, 'searches'), model: MODELS.extraction, save: saveSearchMerged, strict: true, log: t => { s2.log.push({ t: s2.runtime || 0, text: t }); } }).then(() => { saveSearchMerged(s2); delete JOB_ERR.signals; }).catch(jobFailed('signals')).finally(() => { delete SIG[b.id]; });
       return send(res, 200, { ok: true });
     }
     case 'search/more': {

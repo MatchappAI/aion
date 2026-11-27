@@ -139,6 +139,19 @@ test('upload books, then every deal edit route works on the open deal', async ()
   assert.equal((await get('deals')).json.current, null);
   r = await post('deals/select', { id }); assert.equal(r.status, 200);
   assert.equal((await get('deals')).json.current, id);
+  // a deal id that is not a deal folder ("..", a path) opens no deal, and nothing is written into the workspace itself
+  for (const bad of ['..', '../archive', '../../etc', 'd/../..']) { r = await post('deals/select', { id: bad }); assert.equal(r.status, 200); assert.equal((await get('deals')).json.current, null); await post('deals/rename', { name: 'x' }); assert.ok(!fs.existsSync(path.join(WS, 'state.json')), bad); }
+  r = await post('deals/select', { id }); assert.equal((await get('deals')).json.current, id);
+  // a page showing another deal (a second tab) cannot change this one; a page showing this deal can
+  r = await req('POST', '/api/assumptions', { body: { assumptions: { entry_multiple: 3 } }, headers: { 'X-Aion-Deal': 'dzzzzzz' } }); assert.equal(r.status, 409);
+  r = await req('POST', '/api/assumptions', { body: { assumptions: { entry_multiple: 3 } }, headers: { 'X-Aion-Deal': id } }); assert.equal(r.status, 200); assert.equal(r.json.state.assumptions.entry_multiple, 3);
+  // an emptied box keeps its value; a body that is not an object is read as {}
+  r = await post('assumptions', { assumptions: { entry_multiple: '' } }); assert.equal(r.json.state.assumptions.entry_multiple, 3);
+  { const mc = (await get('state')).json.state.owner.marketComp; r = await post('earnings', { owner: { marketComp: '' } }); assert.equal(r.json.state.owner.marketComp, mc); }
+  r = await req('POST', '/api/deals/rename', { body: 'null' }); assert.equal(r.status, 200);
+  r = await post('answer', {}); assert.equal(r.status, 400); assert.doesNotMatch(r.text, /startsWith|undefined/);
+  r = await post('upload', { filename: 'x.csv' }); assert.equal(r.status, 400); assert.doesNotMatch(r.text, /first argument/);
+  r = await post('engine/choose', { engine: 'constructor' }); assert.equal(r.status, 400);
   assert.equal((await get('state')).json.state.name, 'Placeholder Agency');
   r = await post('reset', {}); assert.equal(r.status, 200);
   assert.ok(fs.readdirSync(path.join(WS, 'archive')).some(f => f.startsWith(id)), 'a reset deal is archived, never deleted');

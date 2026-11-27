@@ -9,17 +9,17 @@ import { mustHave, score } from '../lib/search/score.mjs';
 import { libraryPlan } from '../lib/playbooks.mjs';
 
 // a minimal derived object, like the server's, for a priced deal
-function deal({ revenue = 5e6, normalized = 900e3, byCat = {}, dso = 50, quality: q = null, peer = null, wc = null, prior = null, unpriceable = false } = {}) {
+function deal({ revenue = 8e6, normalized = 1.2e6, byCat = {}, dso = 50, quality: q = null, peer = null, wc = null, prior = null, unpriceable = false } = {}) {
   return { pnl: { TTM: { revenue, byCat: { rev_sales: 0, ...byCat }, direct: 0, opex: 0 } }, priorTTM: prior, periods: [], normalization: { normalized, reported: normalized },
     quality: q, dso, wc, peer, unpriceable, deal: unpriceable ? null : { multiple: 4, price: normalized * 4, rate: 0.1, downside: { minDscr: 1.6 } } };
 }
 const find = (rows, k) => rows.find(r => r.key === k);
 
 test('thesis constants: sector, size and language', () => {
-  assert.equal(THESIS.sector, 'Ecommerce Consulting');
-  assert.deepEqual(THESIS.segments.map(s => s.key), ['retail_placement', 'marketplace', 'strategy']);
+  assert.equal(THESIS.sector, 'B2B services for consumer-product companies');
+  assert.deepEqual(THESIS.segments.map(s => s.key), ['retail_placement', 'marketplace', 'strategy', 'supply_chain', 'manufacturing']);
   assert.deepEqual(ACTIVE_SUBSECTORS, ['ecommerce']);
-  assert.deepEqual([THESIS.ebitda.min, THESIS.ebitda.max, THESIS.ebitda.priorityMin, THESIS.ebitda.priorityMax], [500e3, 5e6, 500e3, 1.5e6]);
+  assert.deepEqual([THESIS.ebitda.min, THESIS.ebitda.max, THESIS.ebitda.priorityMin, THESIS.ebitda.priorityMax], [1e6, 5e6, 1e6, 5e6]);
   assert.ok(!/general services/i.test(THESIS.long + THESIS.short));
   assert.deepEqual(Object.keys(SUBSECTORS), ['engineering', 'supply_chain', 'compliance', 'testing', 'implementation', 'talent', 'ecommerce']);
 });

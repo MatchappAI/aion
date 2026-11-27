@@ -45,7 +45,7 @@ export async function outreachRoute(req, res, url, p, ctx) {
           const e = (s2.entities || []).find(x => x.id === b.entity); if (!e) return send(res, 404, { error: 'Result not found.' });
           try { const it = await OUT.createDraft({ s: s2, e, pitch: OUT.PITCHES.includes(b.pitch) ? b.pitch : null, model: MODELS.analysis, cwd: path.join(ROOTWS, 'outreach') }); return send(res, 200, { id: it.id }); } catch (err) { return send(res, 400, { error: err.message }); }
         }
-        case 'outreach/rewrite': { try { const it = OUT.get(b.id); const s2 = SRUN[it.search] || loadSearch(it.search); OUT.rewrite(b.id, { s: s2, pitch: b.pitch, model: MODELS.analysis, cwd: path.join(ROOTWS, 'outreach') }); return send(res, 200, { id: b.id }); } catch (e) { return send(res, 400, { error: e.message }); } }
+        case 'outreach/rewrite': { try { const it = OUT.get(b.id); const s2 = SRUN[it.search] || loadSearch(it.search); OUT.rewrite(b.id, { s: s2, pitch: b.pitch, replaceEdits: b.replaceEdits === true, model: MODELS.analysis, cwd: path.join(ROOTWS, 'outreach') }); return send(res, 200, { id: b.id }); } catch (e) { return send(res, e.code === 'EDITED' ? 409 : 400, { error: e.message, edited: e.code === 'EDITED' }); } }
         case 'outreach/edit': { try { return send(res, 200, OUT.editItem(b.id, b)); } catch (e) { return send(res, 400, { error: e.message }); } }
         // the preview: exactly what will be sent, plus a one-time code the send must bring back (nothing sends without it)
         case 'outreach/confirm': { try { if (b.action === 'schedule') { const kind = String(b.kind || ''), c = OUT.scheduleContent(b.id, kind, b.at); return send(res, 200, { ...c, token: c.ok ? CONFIRM.issue(`schedule:${b.id}:${kind}:${c.at}`, c) : null }); }

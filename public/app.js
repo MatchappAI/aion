@@ -13,12 +13,14 @@ const kfmt = v => v == null || isNaN(v) ? '—' : (v < 0 ? '−' : '') + '$' + (
 const pct = (v, d = 0) => v == null || isNaN(v) ? '—' : (v * 100).toFixed(d) + '%';
 const num = (v, d = 0) => v == null || isNaN(v) ? '—' : (+v).toLocaleString(undefined, { maximumFractionDigits: d });
 
-let V = null, page = 'upload', running = null, mode = 'simple', replay = null, tab = 'overview', appMode = (() => { try { return localStorage.getItem('aion.app') || 'ps'; } catch { return 'ps'; } })();
+let V = null, page = 'upload', running = null, mode = 'simple', replay = null, tab = (() => { try { return sessionStorage.getItem('aion.vctab') || 'overview'; } catch { return 'overview'; } })(), appMode = (() => { try { return localStorage.getItem('aion.app') || 'ps'; } catch { return 'ps'; } })();
 const api = async (p, b) => {
-  const r = await fetch('/api/' + p, b === undefined ? {} : { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(b) });
+  // X-Aion-Deal: the deal this page shows, so a change never lands on a deal another tab opened since
+  const r = await fetch('/api/' + p, b === undefined ? {} : { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Aion-Deal': DL.current || '' }, body: JSON.stringify(b) }).catch(() => { throw new Error('AION isn’t answering. Is it still running?'); });
   const j = await r.json(); if (!r.ok || (j.error && !p.startsWith('job/'))) throw new Error(j.error || 'Request failed'); return j;
 };
 let DL = { deals: [] };
+let A_SEQ = 0, A_CHAIN = Promise.resolve(); // number-box changes, sent in order
 async function refresh(go) { V = await api('state'); DL = await api('deals'); if (go) page = go; render(); }
 
 // four steps: Upload → Adjusted profit → Price & returns → Questions (the existing pages, grouped)
@@ -44,10 +46,10 @@ function nav() {
   $('#nav').innerHTML = STEPS.map(([k, l, n]) => `<a data-p="${k}" class="${page === k ? 'on' : ''} ${isDone(k) ? 'done' : ''} ${unlocked(k) ? '' : 'locked'}"><span class="n">${n}</span>${l}</a>`).join('')
     + `<div class="sep"></div><a data-p="log" class="${page === 'log' ? 'on' : ''}"><span class="n">≡</span>Run log</a>`
     + `<div class="sep"></div><a id="backSimple"><span class="n">←</span>Back to summary</a>`
-    + `<div class="foot">Runs on this Mac. Files stay in <code>demo/workspace/</code>. Only the prompts in the Run log are sent to Claude, via your Claude Code.<br><br><span class="link" id="resetBtn">Start over (archives workspace)</span></div>`;
+    + `<div class="foot">Runs on this Mac. Files stay in <code>demo/workspace/</code>. Only the prompts in the Run log are sent to Claude, via your Claude Code.<br><br><span class="link" id="resetBtn">Close this deal (its files move to the archive)</span></div>`;
   document.querySelectorAll('#nav a[data-p]').forEach(a => a.onclick = () => { if (unlocked(a.dataset.p)) { page = a.dataset.p; render(); } });
   $('#backSimple').onclick = () => { mode = 'simple'; render(); };
-  $('#resetBtn').onclick = async () => { if (confirm('Archive the current workspace and start over? Nothing is deleted.')) { await api('reset', {}); refresh('upload'); } };
+  $('#resetBtn').onclick = async () => { if (confirm('Close this deal? Its files move to the archive folder; nothing is deleted.')) { await api('reset', {}); refresh('upload'); } };
   const S = V?.state || {};
   $('#status').innerHTML = S.file ? `<span class="pill">${esc(S.file.name)}</span>` : '';
 }
@@ -276,7 +278,7 @@ function pEarnings() {
   $('#xo').onchange = e => post({ owner: { extraOwnerComp: e.target.value } });
   document.querySelectorAll('[data-ab]').forEach(c => c.onchange = () => post({ addbacks: { [c.dataset.ab]: c.checked } }));
   document.querySelectorAll('[data-vd]').forEach(c => c.onchange = () => post({ vendors: { [c.dataset.vd]: { accepted: c.checked } } }));
-  document.querySelectorAll('[data-vp]').forEach(c => c.onchange = () => post({ vendors: { [c.dataset.vp]: { pct: c.value / 100 } } }));
+  document.querySelectorAll('[data-vp]').forEach(c => c.onchange = () => String(c.value).trim() === '' ? render() : post({ vendors: { [c.dataset.vp]: { pct: c.value / 100 } } }));
   document.querySelectorAll('[data-ids]').forEach(l => l.onclick = () => rowsModal(l.dataset.t, { ids: l.dataset.ids }));
   document.querySelectorAll('[data-cat]').forEach(l => l.onclick = () => rowsModal(V.categories[l.dataset.cat].label, { category: l.dataset.cat }));
   document.querySelectorAll('#ab').forEach(b => b.onclick = () => runJob('ai/addbacks', 'Finding one-off costs and risks', V.models.analysis, 'earnings'));
@@ -370,8 +372,8 @@ function pLevers() {
   </table></div><div class="row" style="margin-top:8px"><span class="link" id="rs">Put the guesses back to the defaults</span></div></div></div>
   </div>
   <div class="row" style="margin-top:18px"><button id="toPlan">Next: the step-by-step plan →</button></div>`;
-  document.querySelectorAll('[data-as]').forEach(i => i.onchange = async () => { const v = i.dataset.t === 'pct' ? i.value / 100 : i.value; V = await api('assumptions', { assumptions: { [i.dataset.as]: v } }); render(); });
-  document.querySelectorAll('[data-wf]').forEach(i => i.onchange = async () => { V = await api('assumptions', { assumptions: { workflows: [{ key: i.dataset.wf, saved: i.value / 100 }] } }); render(); });
+  document.querySelectorAll('[data-as]').forEach(i => i.onchange = async () => { if (String(i.value).trim() === '') return render(); const v = i.dataset.t === 'pct' ? i.value / 100 : i.value; V = await api('assumptions', { assumptions: { [i.dataset.as]: v } }); render(); });
+  document.querySelectorAll('[data-wf]').forEach(i => i.onchange = async () => { if (String(i.value).trim() === '') return render(); V = await api('assumptions', { assumptions: { workflows: [{ key: i.dataset.wf, saved: i.value / 100 }] } }); render(); });
   $('#rs').onclick = async () => { V = await api('assumptions', { reset: true }); render(); };
   $('#toPlan').onclick = () => { page = 'plan'; render(); };
 }
@@ -467,7 +469,7 @@ function simple() {
     return;
   }
   if (!S.file) {
-    main.innerHTML = `<div class="sw center"><p class="kicker">For AION and its investors · ecommerce consulting firms: adjusted profit, price and how to grow it</p><h1>See a company’s adjusted profit, and how to grow it.</h1><p class="lede">EBITDA (profit before interest, tax and depreciation) is a company’s yearly profit from running the business, the number buyers price it on. This tool finds what it really is and how to raise it. For anyone buying, owning or investing in a business, in any industry. Answers in about a minute from a ledger, a few minutes from a PDF.</p>
+    main.innerHTML = `<div class="sw center"><p class="kicker">For AION and its investors · CPG services and consulting firms: adjusted profit, price and how to grow it</p><h1>See a company’s adjusted profit, and how to grow it.</h1><p class="lede">EBITDA (profit before interest, tax and depreciation) is a company’s yearly profit from running the business, the number buyers price it on. This tool finds what it really is and how to raise it. For anyone buying, owning or investing in a business, in any industry. Answers in about a minute from a ledger, a few minutes from a PDF.</p>
       <div class="why3"><div><b>The problem</b><span>The profit a seller reports often includes the owner’s own pay and personal costs, so it can look better or worse than it really is.</span></div>
         <div><b>Why it matters</b><span>Small firms usually sell for about 3–5 years of profit (the “multiple”). So every $1 of yearly profit found or added makes the company worth about $3–5 more.</span></div>
         <div><b>What this does</b><span>It reads the company’s own records, works out the adjusted profit, finds the 3 changes most likely to raise it, and checks whether the price makes sense.</span></div></div>
@@ -552,7 +554,9 @@ function simple() {
       <p>Buy ${(D.stake ?? 1) < 1 ? `<b>${Math.round(D.stake * 100)}%</b> of the company, valued at` : 'it for'} <b>${k$(D.price)}</b> (${D.multiple} years of profit). Paid with a <b>${k$(D.senior)}</b> bank loan, <b>${k$(D.seller)}</b> paid to the seller over the next few years (a seller note), ${(D.stake ?? 1) < 1 ? `<b>${k$(D.rollover)}</b> the owner keeps in the company (their ${Math.round((1 - D.stake) * 100)}%), ` : ''}and <b>${k$(D.investorEquity ?? D.equity)}</b> from ${D.sba ? 'the buyer' : 'investors'}. The seller gets about <b>${k$(D.sellerCashAtClose ?? (D.price - D.seller))}</b> in cash at closing. After 5 years, each $1 ${D.sba ? 'the buyer puts' : 'investors put'} in becomes:</p>
       <div class="dbars">${dbar('if the actions work', D.base, 'up')}${dbar('if nothing changes', D.none, 'flat')}${dbar(`if profit falls ${Math.round((D.downsideDrop ?? 0.15) * 100)}% and the firm is valued ${Math.round((D.downsideExitCut ?? 0) * 100)}% lower`, D.downside, 'down')}</div>
       <p class="dnote">${vehNote(D)}</p>
-      <p class="dnext"><b>Offer about ${k$(D.price)}</b> once an accountant confirms the profit. ${(S.assumptions.vehicle || 'holdco') === 'holdco' ? `<b>Walk away above ${k$(n.normalized * PRICE.cap)}</b> (${PRICE.cap} years of profit, AION’s limit). Anything more is paid only as an earnout: later, and only if profit holds.${marketRange(n.normalized) ? ` <span class="note">${esc(marketRange(n.normalized).note)}</span>` : ''}` : `<b>Walk away above ${k$(n.normalized * 5)}</b> (5 years of profit, the top of the usual range for a business this size).`}</p>
+      ${D.sba ? '' : dealTerms(S, D)}
+      ${(D.warn || []).map(w => `<p class="dnote dwarn">${esc(w)}</p>`).join('')}
+      <p class="dnext"><b>Offer about ${k$(D.price)}</b> once an accountant confirms the profit. ${['holdco', 'aion'].includes(S.assumptions.vehicle || 'holdco') ? `<b>Walk away above ${k$(n.normalized * PRICE.cap)}</b> (${PRICE.cap} years of profit, AION’s limit). Anything more is paid only as an earnout: later, and only if profit holds.${marketRange(n.normalized) ? ` <span class="note">${esc(marketRange(n.normalized).note)}</span>` : ''}` : `<b>Walk away above ${k$(n.normalized * 5)}</b> (5 years of profit, the top of the usual range for a business this size).`}</p>
       </section>` : ''}
 
     ${dealExtras(S, d)}
@@ -581,20 +585,23 @@ function simple() {
   document.querySelectorAll('.yn button, .yn2 button, .acount').forEach(b => b.onclick = async () => { V = await api('answer', { key: b.dataset.k, value: b.dataset.v === '1' }); render(); });
   document.querySelectorAll('[data-num]').forEach(i => i.onchange = async () => { V = await api('answer', { key: i.dataset.num, value: +i.value }); render(); });
   document.querySelectorAll('[data-sel]').forEach(x => x.onchange = async () => { V = await api('answer', { key: x.dataset.sel, value: x.value }); render(); });
-  document.querySelectorAll('[data-a]').forEach(x => x.onchange = async () => { const v = x.dataset.p ? x.value / 100 : x.value; V = await api('assumptions', { assumptions: { [x.dataset.a]: v } }); render(); });
+  document.querySelectorAll('[data-a]').forEach(x => x.onchange = () => { if (String(x.value).trim() === '') return render(); const v = x.dataset.p ? x.value / 100 : x.value; const my = ++A_SEQ;
+    A_CHAIN = A_CHAIN.then(() => api('assumptions', { assumptions: { [x.dataset.a]: v } })).then(r => { if (my === A_SEQ) { V = r; render(); } }).catch(e => toast(e.message, 'err')); });
   document.querySelectorAll('[data-xpick]').forEach(b => b.onclick = () => main.querySelector(`[data-xfile="${b.dataset.xpick}"]`).click());
   document.querySelectorAll('[data-xfile]').forEach(i => i.onchange = () => sendExtra(i.dataset.xfile, i.files[0]));
   document.querySelectorAll('[data-xrm]').forEach(l => l.onclick = async () => { V = await api('extra', { type: l.dataset.xrm, remove: true }); render(); });
   document.querySelectorAll('[data-xdrop]').forEach(z => { z.ondragover = e => { e.preventDefault(); z.classList.add('over'); }; z.ondragleave = () => z.classList.remove('over'); z.ondrop = e => { e.preventDefault(); z.classList.remove('over'); sendExtra(z.dataset.xdrop, e.dataTransfer.files[0]); }; });
   document.querySelectorAll('[data-veh]').forEach(b => b.onclick = async () => { V = await api('assumptions', { assumptions: { vehicle: b.dataset.veh } }); render(); });
+  document.querySelectorAll('[data-basis]').forEach(b => b.onclick = async () => { V = await api('assumptions', { assumptions: { price_basis: b.dataset.basis } }); render(); });
+  document.querySelectorAll('[data-pik]').forEach(b => b.onchange = async () => { V = await api('assumptions', { assumptions: { note_pik: b.checked ? 1 : 0 } }); render(); });
   document.querySelectorAll('[data-stake]').forEach(b => b.onclick = async () => { V = await api('assumptions', { assumptions: { stake: +b.dataset.stake } }); render(); });
   document.querySelectorAll('[data-build]').forEach(b => b.onclick = () => { const x = acts.find(y => y.id === b.dataset.build); openBuild({ ...x, basisText: basisOf(x, d, S) }); });
   wireGrow(); wireFit();
   { const QR = queueRows(S, d, acts); document.querySelectorAll('tr.qrow').forEach(r => r.onclick = () => { const x = QR[+r.dataset.q]; openBuild({ ...x, basisText: x.priced ? basisOf(x, d, S) : '' }); }); }
   $('#ind').onclick = async () => { const nm = prompt('What kind of business is this? (e.g. retail placement firm, Amazon marketplace agency, ecommerce analytics consultancy)', V.profile?.name || ''); if (!nm || nm.trim() === V.profile?.name) return; try { V = await api('industry', { name: nm }); startAll(); } catch (e) { showError(e.message); } };
-  document.querySelectorAll('[data-tab-btn]').forEach(b => b.onclick = () => { tab = b.dataset.tabBtn; main.querySelector('.r2').dataset.show = tab; document.querySelectorAll('[data-tab-btn]').forEach(x => x.classList.toggle('on', x === b)); window.scrollTo({ top: 0 }); });
+  document.querySelectorAll('[data-tab-btn]').forEach(b => b.onclick = () => { tab = b.dataset.tabBtn; try { sessionStorage.setItem('aion.vctab', tab); } catch {} main.querySelector('.r2').dataset.show = tab; document.querySelectorAll('[data-tab-btn]').forEach(x => x.classList.toggle('on', x === b)); window.scrollTo({ top: 0 }); });
   document.querySelectorAll('[data-go-tab]').forEach(b => b.onclick = () => main.querySelector(`[data-tab-btn="${b.dataset.goTab}"]`)?.click());
-  if ($('#xls')) $('#xls').onclick = () => busy($('#xls'), 'Building…', async () => { try { const r = await fetch('/api/excel', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' }); if (!r.ok) throw new Error((await r.json()).error); const url = URL.createObjectURL(await r.blob()); const a = document.createElement('a'); a.href = url; a.download = `AION ${S.name || 'analysis'}.xlsx`; a.click(); } catch (e) { showError(e.message); } });
+  if ($('#xls')) $('#xls').onclick = () => busy($('#xls'), 'Building…', async () => { try { const r = await fetch('/api/excel', { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Aion-Deal': DL.current || '' }, body: '{}' }); if (!r.ok) throw new Error((await r.json()).error); const url = URL.createObjectURL(await r.blob()); const a = document.createElement('a'); a.href = url; a.download = `AION ${S.name || 'analysis'}.xlsx`; a.click(); } catch (e) { showError(e.message); } });
   if ($('#oc-go')) $('#oc-go').onclick = runOutside;
   document.querySelectorAll('[data-cfile]').forEach(i => i.onchange = () => sendCheckin(i.files[0]));
   document.querySelectorAll('[data-cpick]').forEach(b => b.onclick = () => main.querySelector('[data-cfile]').click());
@@ -602,7 +609,7 @@ function simple() {
   const cz = main.querySelector('[data-cdrop]'); if (cz) { cz.ondragover = e => { e.preventDefault(); cz.classList.add('over'); }; cz.ondragleave = () => cz.classList.remove('over'); cz.ondrop = e => { e.preventDefault(); cz.classList.remove('over'); sendCheckin(e.dataTransfer.files[0]); }; }
   if ($('#price-rev')) $('#price-rev').onclick = async () => { V = await api('assumptions', { assumptions: { price_basis: 'revenue' } }); render(); };
   $('#rp').onclick = startReplay;
-  $('#pdf').onclick = () => busy($('#pdf'), 'Building…', async () => { try { const r = await fetch('/api/pdf', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' }); if (!r.ok) throw new Error((await r.json()).error); const url = URL.createObjectURL(await r.blob()); const a = document.createElement('a'); a.href = url; a.download = 'AION summary.pdf'; a.click(); } catch (e) { showError(e.message); } });
+  $('#pdf').onclick = () => busy($('#pdf'), 'Building…', async () => { try { const r = await fetch('/api/pdf', { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Aion-Deal': DL.current || '' }, body: '{}' }); if (!r.ok) throw new Error((await r.json()).error); const url = URL.createObjectURL(await r.blob()); const a = document.createElement('a'); a.href = url; a.download = 'AION summary.pdf'; a.click(); } catch (e) { showError(e.message); } });
   $('#rerun').onclick = async () => { if (!confirm('Run the AI again? Saved answers are replaced, so numbers may change.')) return; try { const { job } = await api('ai/all', { fresh: true }); pollAll(job); } catch (e) { showError(e.message); } };
   $('#math').onclick = () => { mode = 'detail'; page = 'levers'; render(); };
   $('#log').onclick = () => { mode = 'detail'; page = 'log'; render(); };
@@ -675,6 +682,16 @@ async function sendExtra(type, f) {
   const b64 = await new Promise((ok, bad) => { const r = new FileReader(); r.onload = () => ok(r.result.split(',')[1]); r.onerror = bad; r.readAsDataURL(f); });
   try { V = await api('extra', { type, filename: f.name, data: b64 }); render(); } catch (e) { showError(e.message); }
 }
+// How the price is paid: bank loan, seller note, earnout, yearly overhead. Every box changes all three cases above.
+function dealTerms(S, D) {
+  const a = S.assumptions, num = (k, v, step, p) => `<input type="number" data-a="${k}"${p ? ' data-p="1"' : ''} value="${p ? +(v * 100).toFixed(1) : v}" step="${step}" min="0">`;
+  const seller = a.price_basis === 'seller_ebitda';
+  return `<div class="assume terms"><b>How it is paid</b> (change any box): price set on <button class="pillb ${seller ? '' : 'on'}" data-basis="ebitda">our profit</button> <button class="pillb ${seller ? 'on' : ''}" data-basis="seller_ebitda">the seller’s profit</button>${seller ? ` of $${num('seller_ebitda', a.seller_ebitda || 0, 1000)}` : ''}
+    · bank loan ${num('senior_multiple', a.senior_multiple ?? 1.5, 0.1)}× profit at ${num('senior_rate', a.senior_rate || 0, 0.25, 1)}% <span class="note">(0 = today’s rate)</span>
+    · seller note ${num('seller_share', a.seller_share ?? 0.16, 1, 1)}% of the price at ${num('note_rate', a.note_rate ?? 0.07, 0.5, 1)}%, repaid after ${num('note_standby_years', a.note_standby_years ?? 2, 1)} years over ${num('note_amort_years', a.note_amort_years ?? 4, 1)} <label><input type="checkbox" data-pik ${a.note_pik ? 'checked' : ''}> interest builds until then</label>
+    · earnout ${num('earnout_share', a.earnout_share || 0, 5, 1)}% of the price, paid in years 1–2 only if targets are hit${D.earnout ? ` (${k$(D.earnout)}; not paid in the bad case)` : ''}
+    · yearly overhead $${num('overhead', a.overhead || 0, 5000)} <span class="note">(owner-operator pay and holding costs not in the books)</span></div>`;
+}
 function vehNote(D) {
   const v = V.vehicles?.[D.vehicle] || {}, nt = D.base.net, R = V.derived?.rates, dd = D.downside.minDscr;
   const who = v.sba ? 'The buyer gets' : 'Investors get';
@@ -710,7 +727,7 @@ function topActions(S, d) {
   }
   if (L.nonAI.writeoffs > 0 || d.cashRelease > 0) {
     const bad = d.pnl.TTM.byCat?.bad_debt || 0;
-    out.push({ id: 'billing', kind: 'Business', owner: 'Office manager', sure: 'From the books', sureWhy: 'write-offs and payment times come straight from the books', kpis: ['Days to get paid', 'Money owed over 45 days', 'Write-offs'], value: L.nonAI.writeoffs || 0, score: (L.nonAI.writeoffs || 0) + ((L.nonAI.writeoffs || 0) ? 0 : (d.cashRelease || 0) * 0.15), cashOnly: !(L.nonAI.writeoffs > 0), short: L.nonAI.writeoffs > 0 ? 'Fewer unpaid invoices written off' : 'Collect invoices faster (cash, not profit)', title: L.nonAI.writeoffs > 0 ? 'Write off fewer unpaid invoices' : 'Collect invoices faster',
+    out.push({ id: 'billing', kind: 'Business', owner: 'Office manager', sure: 'Estimate on the books', sureWhy: 'write-offs and payment times come from the books; the share cut is your assumption', kpis: ['Days to get paid', 'Money owed over 45 days', 'Write-offs'], value: L.nonAI.writeoffs || 0, score: (L.nonAI.writeoffs || 0) + ((L.nonAI.writeoffs || 0) ? 0 : (d.cashRelease || 0) * 0.15), cashOnly: !(L.nonAI.writeoffs > 0), short: L.nonAI.writeoffs > 0 ? 'Fewer unpaid invoices written off' : 'Collect invoices faster (cash, not profit)', title: L.nonAI.writeoffs > 0 ? 'Write off fewer unpaid invoices' : 'Collect invoices faster',
       extra: d.cashRelease ? `collecting faster also frees ${k$(d.cashRelease)} of cash once; that is cash flow, not added to profit` : '',
       proof: [d.dso != null ? `clients take about <b>${Math.round(d.dso)} days</b> to pay` : '', bad ? `<b>${k$(bad)}</b> written off last year` : ''].filter(Boolean).join(' · '),
       steps: LEVER_STEPS.billing, gate: lev('writeoffs')?.human_gate, ...BUILDS.billing });
@@ -800,12 +817,14 @@ async function simpleUpload(f) {
     V = res; DL = await api('deals'); startAll();
   } catch (e) { render(); showError(e.message); }
 }
+// a running analysis or a Replay redraws Value Creation only while you are on it: never the Search & Outreach page you're typing in
+const renderVC = () => { if (appMode === 'vc') render(); };
 async function startAll() { try { const { job } = await api('ai/all', {}); pollAll(job); } catch (e) { showError(e.message); } }
 async function pollAll(job) {
-  running = { all: true, job, step: 0, target: 0, t0: Date.now(), lastStep: Date.now() }; render();
+  running = { all: true, job, step: 0, target: 0, t0: Date.now(), lastStep: Date.now() }; renderVC();
   const timer = setInterval(() => {
     if (!running) return; const c = $('#clock'); if (c) c.textContent = ((Date.now() - running.t0) / 1000).toFixed(0) + 's';
-    if (running.step < running.target && Date.now() - running.lastStep > 1200) { running.step++; running.lastStep = Date.now(); render(); }
+    if (running.step < running.target && Date.now() - running.lastStep > 1200) { running.step++; running.lastStep = Date.now(); renderVC(); }
   }, 100);
   try {
     for (;;) {
@@ -817,8 +836,8 @@ async function pollAll(job) {
         if ((j.detail || []).length !== (running.detail || []).length) { running.detail = j.detail; const f = $('#feed'); if (f) f.innerHTML = feedRows(running.detail); }
         continue;
       }
-      V = await api('state'); if (j.status === 'done') { running.detail = j.detail || running.detail; running.target = 5; while (running.step < 5) await new Promise(r => setTimeout(r, 100)); await new Promise(r => setTimeout(r, 3000)); } running = null; DL = await api('deals'); render();
-      if (j.status === 'error') showError(/session limit|usage limit|rate limit/i.test(j.error) ? 'Analysis stopped: the AI hit its usage limit (' + j.error.replace(/^.*?·\s*/, '') + '). Add a backup AI in Settings, or click Analyze the books again later.' : 'Analysis stopped: ' + j.error + ' See “What the AI was sent” for details.');
+      V = await api('state'); if (j.status === 'done') { running.detail = j.detail || running.detail; running.target = 5; while (running.step < 5) await new Promise(r => setTimeout(r, 100)); await new Promise(r => setTimeout(r, 3000)); } running = null; DL = await api('deals'); renderVC();
+      if (j.status === 'error') showError(/session limit|usage limit|rate limit/i.test(j.error) ? 'Analysis stopped: the AI hit its usage limit (' + j.error.replace(/^.*?·\s*/, '') + '). Add a backup AI in Settings, or click Analyze the books again later.' : 'Analysis stopped: ' + j.error + ($('#log') ? ' See “Details: every request sent to the AI” for the exact request.' : ''));
       return;
     }
   } finally { clearInterval(timer); }
@@ -830,7 +849,7 @@ function tabs() {
     + `<button class="tab new ${!DL.current ? 'on' : ''}" id="newdeal">+ New deal</button>`;
   el.querySelectorAll('.tab[data-id]').forEach(b => {
     b.onclick = async () => { if (lock || b.dataset.id === DL.current) return; try { V = await api('deals/select', { id: b.dataset.id }); DL = await api('deals'); mode = 'simple'; render(); } catch (e) { showError(e.message); } };
-    b.ondblclick = async () => { if (b.dataset.id !== DL.current) return; const n = prompt('Name this deal', DL.deals.find(d => d.id === b.dataset.id)?.name || ''); if (n) { V = await api('deals/rename', { name: n }); DL = await api('deals'); render(); } };
+    b.ondblclick = async () => { if (b.dataset.id !== DL.current) return; const n = prompt('Name this deal', DL.deals.find(d => d.id === b.dataset.id)?.name || '')?.trim(); if (n) { V = await api('deals/rename', { name: n }); DL = await api('deals'); render(); } };
   });
   { const on = el.querySelector('.tab.on'); if (on) { const a = el.getBoundingClientRect(), t = on.getBoundingClientRect(); if (t.right > a.right - 110) el.scrollLeft += t.right - a.right + 130; else if (t.left < a.left) el.scrollLeft -= a.left - t.left + 24; } } // keep the open deal's tab in view (+ New deal stays pinned on the right)
   $('#newdeal').onclick = async () => { if (lock) return; try { V = await api('deals/new', {}); DL = await api('deals'); mode = 'simple'; render(); } catch (e) { showError(e.message); } };
@@ -840,7 +859,7 @@ async function startReplay() {
   const S = V.state, log = S.runLog || [];
   if (!log.length) { showError('This run has no recorded steps. Use “Run the AI again” once to record them.'); return; }
   const total = log[log.length - 1].t, speed = total > 30 ? total / 30 : 1;
-  replay = { step: 0, clock: '0s', detail: [] }; const DET = S.runDetail || []; render(); window.scrollTo(0, 0);
+  replay = { step: 0, clock: '0s', detail: [] }; const DET = S.runDetail || []; renderVC(); window.scrollTo(0, 0);
   const stepOf = e => e.step ?? (/^Done/.test(e.text) ? 5 : /Opened the file|Checked the books|^Read |payments|Statement/.test(e.text) ? 0 : /Sorted|sorted|Profit|profit/.test(e.text) ? 1 : /one-off|won’t pay|Team:|risks|things to check/.test(e.text) ? 2 : /Priced|earn/.test(e.text) ? 3 : 4);
   // a step is finished once its last logged line has passed; the next step then shows as current
   const ends = [0, 1, 2, 3, 4].map(k => { const xs = log.filter(e => stepOf(e) === k); return xs.length ? xs[xs.length - 1].t : null; });
@@ -852,11 +871,11 @@ async function startReplay() {
       if (!replay) { clearInterval(iv); return done(); }
       const el = (Date.now() - t0) / 1000 * speed;
       let st = 0; while (st < 5 && (ends[st] == null || ends[st] <= el)) st++;
-      replay.clock = Math.min(el, total).toFixed(0) + 's'; const shownD = DET.filter(x => x.t <= el); const dChanged = shownD.length !== replay.detail.length; replay.detail = shownD; if (st !== replay.step) { replay.step = st; render(); } else { const c = $('#clock'); if (c) c.textContent = replay.clock; if (dChanged) { const f = $('#feed'); if (f) f.innerHTML = feedRows(replay.detail); } }
-      if (el >= total2) { clearInterval(iv); replay.step = 5; render(); setTimeout(done, 3000); }
+      replay.clock = Math.min(el, total).toFixed(0) + 's'; const shownD = DET.filter(x => x.t <= el); const dChanged = shownD.length !== replay.detail.length; replay.detail = shownD; if (st !== replay.step) { replay.step = st; renderVC(); } else { const c = $('#clock'); if (c) c.textContent = replay.clock; if (dChanged) { const f = $('#feed'); if (f) f.innerHTML = feedRows(replay.detail); } }
+      if (el >= total2) { clearInterval(iv); replay.step = 5; renderVC(); setTimeout(done, 3000); }
     }, 250);
   });
-  replay = null; render(); window.scrollTo({ top: 0, behavior: 'smooth' });
+  replay = null; renderVC(); window.scrollTo({ top: 0, behavior: 'smooth' });
 }
 
 function howBlock(S, d) {
@@ -1028,7 +1047,7 @@ function queueRows(S, d, acts) {
   return rows.sort((a, b) => (b.priced - a.priced) || (b.ease ?? -1) - (a.ease ?? -1) || a.weeks - b.weeks);
 }
 // Realistic EBITDA: each lever is risk-adjusted by how well its number is backed, and ramps up over 13 weeks after it goes live.
-const REALIZE = { 'From the books': 0.9, Confirmed: 0.9, 'From the sales file': 0.8, 'From the payroll file': 0.8, 'Benchmark gap': 0.7 };
+const REALIZE = { 'From the books': 0.9, Confirmed: 0.9, 'Estimate on the books': 0.8, 'From the sales file': 0.8, 'From the payroll file': 0.8, 'Benchmark gap': 0.7 };
 const RAMP_WEEKS = 13, LANES = 2;
 function schedule(rows) {
   const lanes = Array(LANES).fill(0);

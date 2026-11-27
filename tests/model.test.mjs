@@ -93,7 +93,7 @@ test('levers: no demand means freed capacity earns nothing', () => {
 });
 
 test('deal returns: sources equal uses, improvements raise returns, downside lowest', () => {
-  const r = dealReturns(754705, 136746, { ...DEFAULT_ASSUMPTIONS, entry_multiple: 4.0, implementation: 40000, senior_multiple: 2.25, fee_rate: 0.05 }, 3456000); // math check at a fixed 4.0× price
+  const r = dealReturns(754705, 136746, { ...DEFAULT_ASSUMPTIONS, entry_multiple: 4.0, implementation: 40000, senior_multiple: 2.25, fee_rate: 0.05, seller_share: 0.16, note_rate: 0.07, note_standby_years: 2, note_amort_years: 4 }, 3456000); // math check at a fixed 4.0× price
   near(r.senior + r.seller + r.equity, r.price + r.fees, 'sources = uses');
   near(r.seller, 0.16 * r.price, 'the seller note is a share of the price, not of price plus fees');
   assert.ok(r.base.moic > r.none.moic && r.none.moic > r.downside.moic);
@@ -141,4 +141,12 @@ test('normalize: a seller who stays is still paid a market salary, so real profi
   assert.equal(stays.normalized, 600000 + 250000 - 225000);
   assert.equal(stays.normalized, hire.normalized);
   assert.equal(stays.replacement, 225000);
+});
+
+test('loans never add up to more than the deal costs (low price or big loan settings)', () => {
+  for (const a of [{ entry_multiple: 0.5 }, { senior_multiple: 6 }, { seller_share: 1.5 }]) {
+    const r = dealReturns(750000, 0, { ...DEFAULT_ASSUMPTIONS, ...a }, 3e6);
+    assert.ok(Math.abs(r.senior + r.seller + r.equity - r.price - r.fees) < 1, JSON.stringify(a));
+    assert.ok(r.senior <= r.price + r.fees && r.seller >= 0 && r.equity >= 0);
+  }
 });
